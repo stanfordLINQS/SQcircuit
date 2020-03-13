@@ -9,6 +9,12 @@ import pickle
 import os
 import time
 
+# graph strutcture(important properties of the circuit graph)
+class graphSt:
+
+	simplestCycles = []
+	spanningTree = []
+
 
 #class for double ring resonators(DRR)
 
@@ -40,13 +46,17 @@ class Qcircuit:
         #external excitation range
         self.phi = phi;
 
+        #graph strutcture(important properties of the circuit graph)
+        self.graphSt = graphSt();
 
         # memmory:
         self.omega = []
         self.JJEj = []
+        self.JJEq = []
         self.alpha = []
         self.JJExcite = []
         self.HamilEig = np.zeros((self.m**self.n,len(self.phi)),dtype='complex');
+
 
     def cleanUpLC(self):
 
@@ -177,7 +187,7 @@ class Qcircuit:
         for edge in self.graph:
             for node in edge:
                 self.findNewCycles([node],cycles)
-            return cycles
+        return cycles
 
     def findNewCycles(self,path,cycles):
         start_node = path[0]
@@ -255,30 +265,51 @@ class Qcircuit:
                 self.comb(combinations,sofar + [rest[i]], rest[i+1:], n-1) 
         return combinations
 
+    def checkIfTree(self,startNode, previousNode,visitList,tree):
+    # recursive function to check if the input edge list is the spanning tree
+    # if a node visited twice then we no that it is not a spanning tree
+    
+	    visitList[startNode] += 1
+	    if 2 in visitList:
+	        return False
+
+	    # if startNode is not in tree its not definitely a spanning tree
+    	# the flag that make sure that start node is in tree.
+	    startNodeCondition = False;
+
+	    for edge in tree:
+	        if startNode in edge:
+	            startNodeCondition = True;
+	            for node in edge:
+	                if( node != startNode and  node != previousNode):
+	                    condition = self.checkIfTree(node,startNode,visitList,tree)
+	                    if(condition == False):
+	                        return False 
+	    # has not visited any nodes twice or start node is not in the tree
+	    if(startNodeCondition):
+	        return True
+	    else:
+	        return False
+
     def findSpanningTrees(self):
+    	# number of vertices
         V = self.n+1
 
         # allComb is all trees built by getting all V-1 combination of E.
         allComb = self.comb([],[],self.graph,V-1)
 
+        spanningTrees = []
+
         # to remove trees contain loop
         for trees in allComb:
             # flag shows the condition of a tree whether it is spanning tree or not
-            fine = False;
-            # count how many times each node is visited
-            count = [0 for i in range(V)]
-            for edges in trees:
-                for nodes in edges:
-                    count[nodes]+=1;
-            for check in count:
-                # each node in the loop is visitted either zero or twice
-                if(check ==1):
-                    fine= True;
-                    break;
-            if(not fine):
-                allComb.remove(trees);
+            visitList = [0 for i in range(V)]
+            # flag that shows the condition of a tree whether it is spanning tree or not
+            fine = self.checkIfTree(0,None,visitList,trees);
 
-        spanningTrees = allComb;
+            if(fine):
+                spanningTrees.append(trees);
+
         return spanningTrees;
 
 
@@ -337,10 +368,14 @@ class Qcircuit:
 
     def cycleEqu(self,simplestCycles,treeWithDirec):
         V = self.n + 1;
+        # list of edges that are not in spanning tree
         notInSpan =[];
+        # equations related to each simple cycle
         O =[];
         for cycle in simplestCycles:
             loopEq = [0 for i in range(V)];
+            # list of edges that are not in spanning tree for specific loop
+            notInSpanLoop = [] 
             for i in range(len(cycle)):
                 # if the direction is the same
                 if [cycle[i-1],cycle[i]] in treeWithDirec:
@@ -352,7 +387,8 @@ class Qcircuit:
                     loopEq[cycle[i]]-=1;
                 # find the edges that are not in the spanning tree and store them.
                 else:
-                    notInSpan.append([cycle[i-1],cycle[i]]);
+                    notInSpanLoop.append([cycle[i-1],cycle[i]]);
+            notInSpan.append(notInSpanLoop)
             O.append(loopEq[1:]);
             
         return O,notInSpan;
@@ -367,52 +403,120 @@ class Qcircuit:
         JJEj = [];
         JJEq = [];
         JJExcite = [];
-        
-        notInSpanVec = self.edgeListToVec(notInSpan);
+		
+		# the clean form of notInSpan that the list does not have the edges that are repeated.
+        notInSpanCleaned =[]
+
+        # clean the notInSpan
+        for listEdge in notInSpan:
+            for edge in listEdge:
+                edgeSwap = [edge[1]] + [edge[0]]
+                if edge not in notInSpanCleaned:
+                	if edgeSwap not in notInSpanCleaned:
+	                    notInSpanCleaned.append(edge);
+
+
+        notInSpanVec = self.edgeListToVec(notInSpanCleaned);
 
         # The list JJs that are not in Spanning Tree(by doing and operation)
         JJNotInSpan = list(np.array(notInSpanVec) & np.array(self.JJ).astype(bool));
         
         # The list JJs that are in the spanning Tree(by doing xor operation)
         JJInSpan = list(np.array(JJNotInSpan) ^ np.array(self.JJ).astype(bool))
-        
+
         V = self.n+1
-        
+
+        # List of not in span edges that are proceessed
+        processedEdges = [];
+        processedEquationIndex = [];
+
+
+        # index for rotating through the notInSpan inside the while loop 
+        i0 = 0
+        while(len(processedEdges) < len(notInSpan)):  
+            # these while loop goes through the notInSpan to find the equation for each edge 
+            # that is not in the spanning tree.
+
+            # checkProcess is a list. It tells us that each edge in notInSpan list is processed or not.
+            checkProcess = []
+
+            equationIndex = []
+
+            for edge in notInSpan[i0]:
+
+            	edgeSwap = [edge[1]] + [edge[0]]
+                # check if the edge is processed add 1 if not add 0 to the checkProcess list.
+            	if edge in processedEdges:	
+            		checkProcess.append(1)
+            	elif edgeSwap in processedEdges:
+            		checkProcess.append(1)
+            	else:
+            		checkProcess.append(0)
+
+            if( (len(checkProcess) - sum(checkProcess)) == 1):
+            	# It's time to save that edge and equation related to that edge
+            	processedEdges.append(notInSpan[i0][checkProcess.index(0)]);
+            	equationIndex.append(i0)
+
+            	# Add the other equation to the related edge
+            	for i1 in range(len(checkProcess)):
+            		if(checkProcess[i1] == 1):
+            			edgeX = notInSpan[i0][i1]
+            			edgeSwapX = [edgeX[1]] + [edgeX[0]]
+
+            			if edgeX in processedEdges:
+            				index = processedEdges.index(edgeX);
+            			elif edgeSwapX in processedEdges:
+            				index = processedEdges.index(edgeSwapX);
+
+            			for element in processedEquationIndex[index]:
+            				equationIndex.append(element);
+
+            processedEquationIndex.append(equationIndex);
+
+            # check that counter does not exceed the notInSpan length
+            i0 += 1;
+            if(i0 == len(notInSpan) ):
+            	i0 = 0;  
+
+        for i0 in range(len(processedEdges)):
+        	edge = processedEdges[i0]
+        	edgeSwap = [edge[1]] + [edge[0]]
+        	if edge in self.graph:
+        		index = self.graph.index(edge)
+        	elif edgeSwap in self.graph:
+        		index = self.graph.index(edgeSwap)
+
+        	if(self.JJ[index] != 0):
+        		JJEj.append(self.JJ[index]);
+        		JJExcite.append(processedEquationIndex[i0])
+
+        		equation = np.zeros(self.n)
+        		for index2 in processedEquationIndex[i0]:
+        			equation += np.array(O[index2]);
+
+        		JJEq.append(list(equation))
+                         
         for i0 in range(self.E):
-            
-            # if JJ is not in spanning tree
-            if(JJNotInSpan[i0]):
-                edge = self.graph[i0];
-                edgeSwap = [edge[1]] + [edge[0]]
-                if edge in notInSpan:
-                    ind = notInSpan.index(edge)
-                if edgeSwap in notInSpan:
-                    ind = notInSpan.index(edgeSwap);
-                
-                JJEj.append(self.JJ[i0]);
-                JJEq.append(O[ind]);
-                JJExcite.append(1);
-                
-                    
             # if JJ is in spanning tree
-            if(JJInSpan[i0]):          
+            if(JJInSpan[i0]):         
                 Eq = [0 for i in range(V)];
                 edge = self.graph[i0];
                 i1 , i2 = edge;
                 if(i1==0 or i2 ==0):
                     Eq[i1 + i2]+=1;
                 else:
-                    Eq[i1-1]+=1;
-                    Eq[i2-1]-=1;
+                    Eq[i1]+=1;
+                    Eq[i2]-=1;
                     
                 JJEj.append(self.JJ[i0]);
                 JJEq.append(Eq[1:]);
                 JJExcite.append(0);
-                
+      
         return JJEj , JJEq , JJExcite
 
     def configure(self):
-    	# This function connects all the functions and find the needed coefficient to describe the Hamiltonian
+    	# This function connects all the above functions and find the needed coefficient to describe the Hamiltonian
         
         # 200226 Last Update: In this part I assumed that we can diogonalize the LC part of the Hamiltonian.
 
@@ -427,9 +531,15 @@ class Qcircuit:
         cycles = self.findAllCycles();
         simplestCycles = self.giveSimplestCycles(cycles);
 
+        # store the simplestCycles
+        self.graphSt.simplestCycles = simplestCycles;
+
 		# span tree with maximum inductors and corrected direction
         spanTree = self.giveMaxInd() 
         treeWithDirec = self.treeDirec(0,None,[],spanTree.copy())
+
+        # store the spanningTree
+        self.graphSt.spanningTree = treeWithDirec;
 
         # finding the edges that are not in the spanning tree and KVL related to each simplest loop
         O, notInSpan = self.cycleEqu(simplestCycles,treeWithDirec) 
@@ -438,10 +548,12 @@ class Qcircuit:
         JJEj , JJEq , JJExcite = self.giveJJEq(O,notInSpan)
 
         # rotated and find alpha for JJ Hamiltonian using JJEq
-        alpha =  2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(np.diag(cInvRotated)/np.diag(lRotated))) * np.array(JJEq) @ S
+        # alpha =  2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(np.diag(cInvRotated)/np.diag(lRotated))) * np.array(JJEq) @ S
+        alpha = 1;
         
         self.omega = omega
         self.JJEj = JJEj
+        self.JJEq = JJEq
         self.alpha = alpha
         self.JJExcite = JJExcite
 
@@ -560,7 +672,7 @@ class Qcircuit:
     	with open(savePath , 'wb') as saveFile:
     		pickle.dump(self,saveFile);
 
-    	print("file saved")
+    	print("File Saved")
 
 
 #### help functionssss
