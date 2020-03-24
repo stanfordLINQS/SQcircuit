@@ -26,3 +26,6 @@ hbar = 1.0545718e-34
 
 # magnetic flux quantum
 Phi0 = 2.067833e-15
+
+# electron electric charge
+e = 1.6021766e-19

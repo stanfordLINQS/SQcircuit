@@ -1,6 +1,5 @@
 from circuitClass import *
 
-# # First define the circuit graph
 # graph = [[0,2],[0,3],[2,3],[1,2],[1,3]];
 # # inductors
 # L = [0,1,1,0,1];
@@ -9,78 +8,56 @@ from circuitClass import *
 # # Josephson junctions
 # JJ = [1,0,0,1,0];
 
-graph = [[0,1],[0,2],[0,3],[1,2],[2,3]]
-L = [0,4.5*nH,0,15.6*nH,386*nH]
-# I assumed Cx = 1nF 
-C = [20.3*fH, 10*nF, 5.3*fF,0,0]
-JJ = [0,0,6.2*GHz+0*1j,0,0]
-phi = np.linspace(-0.5,0.5,30)*2*np.pi
-
-cr1 = Qcircuit(graph,L,C,JJ,phi)
-
-print(cr1.giveMatC())
-print(cr1.giveMatL())
+# graph = [[0,1],[0,2],[0,3],[1,2],[2,3]]
+# L = [0,4.5*nH,0,15.6*nH,386*nH]
+# # I assumed Cx = 1nF 
+# C = [20.3*fH, 10*nF, 5.3*fF,0,0]
+# JJ = [0,0,6.2*GHz+0*1j,0,0]
+# phi = np.linspace(-0.5,0.5,30)*2*np.pi
 
 
-lRotated, cInvRotated , S = cr1.buildDiag()
-print("lRotated:")
-print(lRotated)
-print("cInvRotated:")
-print(cInvRotated)
-print("S:")
-print(S)
+# graph = [[0,1],[0,2],[1,2],[1,3],[2,5],[2,6],[6,5],[3,5],[3,4],[4,5]]
+# L = [1,0,0,1,0,1,0,0,1,0]
+# C = [1,1,1,1,1,1,1,1,1,1]
+# JJ = [0,1,1,0,[1,1],0,1,1,0,1]
+# phi = np.linspace(0,0.5,15)*2*np.pi
 
-cycles = cr1.findAllCycles();
-simplestCycles = cr1.giveSimplestCycles(cycles);
+# cr1 = Qcircuit(graph,L,C,JJ)
 
 
-# printing out the cycles
-for cy in simplestCycles:
-    path = [str(node) for node in cy];
-    s = "-".join(path);
-    print(s)
+Ec = hbar*0.3*GHz 
+Ej = hbar*15*GHz
+Cx = e**2/2/Ec
 
-spanningTrees = cr1.findSpanningTrees()
-print("After Cleaning:")
+graph = [[0,1]]
+L = [0]
+C = [Cx]
+JJ = [[Ej/hbar , Ej/hbar]]
 
-for trees in spanningTrees:
-    print(trees)
+# define the circuit
+cr1 = Qcircuit(graph,L,C,JJ)
 
-spanTree = cr1.giveMaxInd()
-print("span tree with max inductor:")
-print(spanTree)
-
-tree = spanTree.copy();
-
-treeWithDirec = cr1.treeDirec(0,None,[],tree)
-print("direction corrected:")
-print(treeWithDirec)
-
-O, notInSpan = cr1.cycleEqu(simplestCycles,treeWithDirec) 
-# O = np.array(O);
-print("Equation without rotation:")
-print(O)
-print("Equation after rotation:")
-print(O@S)
-print("Edges that are not in the spanning Tree:")
-print(notInSpan)
-
-
-
-JJEj , JJEq , JJExcite = cr1.giveJJEq(O,notInSpan)
-
-print("JJEj:")
-print(JJEj)
-
-print("JJEq:")
-print(np.array(JJEq)@S)
-
-print("JJExcite:")
-print(JJExcite)
-
-print("*********************************************************************************")
+phiExt = np.linspace(0,2,300)*2*np.pi
+cr1.setExcitation([([0,1],phiExt)])
 
 cr1.configure()
+
+cr1.solveCircuit()
+
+cr1.plotEigFreq(4)
+# lRotated, cInvRotated , S = cr1.buildDiag()
+# print("lRotated:")
+# print(np.diag(lRotated))
+# print("cInvRotated:")
+# print(cInvRotated)
+# print("S:")
+# print(S)
+
+# cr1.configure()
+
+# print(cr1.cInvRotated)
+
+# print(cr1.intOp(1,3))
 
 # cr1.solveCircuit()
 
@@ -90,17 +67,8 @@ cr1.configure()
 
 # print(cr1.HamilEig[:,1]/GHz)
 
-cr1.saveData('circuit1')
+# cr1.saveData('circuit1')
 
-cr2 = loadData('202003031657_circuit1')
+# cr2 = loadData('202003031657_circuit1')
 
-print(cr2.graph)
-
-
-
-
-
-
-
-
-
+print("*********************************************************************************")

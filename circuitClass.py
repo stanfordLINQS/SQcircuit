@@ -20,7 +20,7 @@ class graphSt:
 
 class Qcircuit:
 
-    def __init__(self,graph,L,C,JJ,phi):
+    def __init__(self,graph,L,C,JJ):
 
         # graph structure
         self.graph = graph;
@@ -38,24 +38,26 @@ class Qcircuit:
         self.n = max(max(graph));
 
         # truncation number of fock state
-        self.m = 20;
+        # m should be an odd number because of charge operator
+        self.m = 11;
 
         #number of edges
         self.E = len(graph);
-
-        #external excitation range
-        self.phi = phi;
 
         #graph strutcture(important properties of the circuit graph)
         self.graphSt = graphSt();
 
         # memmory:
+        self.cInvRotated =[]
+        self.lRotateed = []
         self.omega = []
         self.JJEj = []
         self.JJEq = []
-        self.alpha = []
+        self.JJEqRotated = []
         self.JJExcite = []
-        self.HamilEig = np.zeros((self.m**self.n,len(self.phi)),dtype='complex');
+        self.JJExt=[]
+        self.phiExt = []
+        self.HamilEig = 0;
 
 
     def cleanUpLC(self):
@@ -72,6 +74,25 @@ class Qcircuit:
     			for j in range(len(self.L[i])):
     				invL += 1/self.L[i][j];
     			self.L[i] = 1/invL 
+
+    def correctC(self,A):
+        # In case of singularity we change the flux and charge operator to take out the coefficeint in the cosine
+        # and if this is not possinle we send and error that this circuit is not possible to be solved with this 
+        # solver
+
+        for j in range(self.n):
+            if(self.omega[j] == 0):
+                s = np.max(np.abs(A[:,j]))
+                for i in range(len(A[:,j])):
+                    if(abs(A[i,j]/s)!=0 and abs(A[i,j]/s) !=1):
+                        raise ValueError("This Solver Cannot solve your circuits")
+
+                # correncting the cInvRotated values
+                for i in range(self.n):
+                    if(i == j):
+                        self.cInvRotated[i,j] = self.cInvRotated[i,j]* s**2;
+                    else:
+                        self.cInvRotated[i,j] = self.cInvRotated[i,j] * s;
 
 
     def giveMatC(self):
@@ -424,6 +445,11 @@ class Qcircuit:
         # The list JJs that are in the spanning Tree(by doing xor operation)
         JJInSpan = list(np.array(JJNotInSpan) ^ np.array(self.JJ).astype(bool))
 
+
+        # dealing with the case of cicuit with only two node 
+        if(len(JJInSpan)==1 and JJInSpan[0].size>1):
+            JJInSpan=[1]
+
         V = self.n+1
 
         # List of not in span edges that are proceessed
@@ -480,26 +506,37 @@ class Qcircuit:
             	i0 = 0;  
 
         for i0 in range(len(processedEdges)):
-        	edge = processedEdges[i0]
-        	edgeSwap = [edge[1]] + [edge[0]]
-        	if edge in self.graph:
-        		index = self.graph.index(edge)
-        	elif edgeSwap in self.graph:
-        		index = self.graph.index(edgeSwap)
+            edge = processedEdges[i0]
+            edgeSwap = [edge[1]] + [edge[0]]
+            if edge in self.graph:
+                index = self.graph.index(edge)
+            elif edgeSwap in self.graph:
+                index = self.graph.index(edgeSwap)
 
-        	if(self.JJ[index] != 0):
-        		JJEj.append(self.JJ[index]);
-        		JJExcite.append(processedEquationIndex[i0])
+            if(self.JJ[index] != 0):
+                if(isinstance(self.JJ[index],list)):
+                    indParall = self.indExtParall(self.graph[index])
+                    JJEj.append(self.JJ[index]);
+                    JJExcite.append([processedEquationIndex[i0]]+[indParall])
 
-        		equation = np.zeros(self.n)
-        		for index2 in processedEquationIndex[i0]:
-        			equation += np.array(O[index2]);
+                    equation = np.zeros(self.n)
+                    for index2 in processedEquationIndex[i0]:
+                        equation += np.array(O[index2]);
 
-        		JJEq.append(list(equation))
+                    JJEq.append(list(equation))                    
+                else:
+                    JJEj.append(self.JJ[index]);
+                    JJExcite.append(processedEquationIndex[i0])
+
+                    equation = np.zeros(self.n)
+                    for index2 in processedEquationIndex[i0]:
+                        equation += np.array(O[index2]);
+
+                    JJEq.append(list(equation))
                          
         for i0 in range(self.E):
             # if JJ is in spanning tree
-            if(JJInSpan[i0]):         
+            if(JJInSpan[i0] != 0):         
                 Eq = [0 for i in range(V)];
                 edge = self.graph[i0];
                 i1 , i2 = edge;
@@ -511,21 +548,25 @@ class Qcircuit:
                     
                 JJEj.append(self.JJ[i0]);
                 JJEq.append(Eq[1:]);
-                JJExcite.append(0);
+                if(isinstance(self.JJ[i0],list)):
+                    indParall = self.indExtParall(self.graph[i0]);
+                    JJExcite.append([0,indParall]);
+                else:
+                    JJExcite.append(0);
       
         return JJEj , JJEq , JJExcite
 
     def configure(self):
-    	# This function connects all the above functions and find the needed coefficient to describe the Hamiltonian
+        # This function connects all the above functions and find the needed coefficient to describe the Hamiltonian
         
         # 200226 Last Update: In this part I assumed that we can diogonalize the LC part of the Hamiltonian.
 
         self.cleanUpLC();
 
-        lRotated, cInvRotated , S = self.buildDiag()
+        self.lRotated, self.cInvRotated , S = self.buildDiag()
 
         # vector of frequencies
-        omega = np.sqrt(np.diag(cInvRotated)*np.diag(lRotated))
+        self.omega = np.sqrt(np.diag(self.cInvRotated)*np.diag(self.lRotated))
 
         # finding the simplest cycles and spanTree with direction:
         cycles = self.findAllCycles();
@@ -545,91 +586,214 @@ class Qcircuit:
         O, notInSpan = self.cycleEqu(simplestCycles,treeWithDirec) 
 
         # ceofficient needed to write JJ Hamiltonian
-        JJEj , JJEq , JJExcite = self.giveJJEq(O,notInSpan)
+        self.JJEj , self.JJEq , self.JJExcite = self.giveJJEq(O,notInSpan)
 
-        # rotated and find alpha for JJ Hamiltonian using JJEq
-        # alpha =  2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(np.diag(cInvRotated)/np.diag(lRotated))) * np.array(JJEq) @ S
-        alpha = 1;
-        
-        self.omega = omega
-        self.JJEj = JJEj
-        self.JJEq = JJEq
-        self.alpha = alpha
-        self.JJExcite = JJExcite
+        # check if we can use this algorithm to solve the circuit and change c inorder to handel
+        # flux coordinates inside the cosine in case of singularity
+        self.correctC(np.array(self.JJEq)@S)
 
-    def giveNum(self,modeNum):
+        # JJEq in rotated frame
+        self.JJEqRotated = np.array(self.JJEq) @ S
+
+
+    def setExcitation(self,external):
+        self.JJExt = external;
+
+    def setPhi(self):
+        for el in self.JJExt:
+            _ , phi = el;
+            self.phiExt.append(phi); 
+
+    def indExtParall(self,edgeParall):
+        for i in range(len(self.JJExt)):
+            edge, _  = self.JJExt[i];
+            if(edge == edgeParall):
+                return i ;
+
+
+    def numOp(self,modeNum):
     	# This function gives the Number operator in mode = modeNum
 
-    	for i in range(self.n):
-    		if( i == 0 and (i+1) != modeNum):
-    			num = q.qeye(self.m);
-    		elif( i == 0 and (i+1) == modeNum):
-    			num = q.num(self.m);
+        for i in range(self.n):
+            if( i == 0 and i != modeNum):
+                num = q.qeye(self.m);
+            elif( i == 0 and i == modeNum):
+                if (self.omega[i] == 0):
+                    num = q.charge((self.m-1)/2)
+                else:
+                    num = q.num(self.m);
 
-    		if( i!= 0 and (i+1) != modeNum):
-    			num = q.tensor(num,q.qeye(self.m))
-    		elif(i != 0 and (i+1) == modeNum):
-    			num = q.tensor(num,q.num(self.m))
+            if( i!= 0 and i != modeNum):
+                num = q.tensor(num,q.qeye(self.m))
+            elif(i != 0 and i == modeNum):
+                if(self.omega[i] == 0):
+                    num = q.tensor(num,q.charge((self.m-1)/2))
+                else:
+                    num = q.tensor(num,q.num(self.m))
 
-    	return num
+        return num
 
-    def giveDispArray(self,alp):
-    	# give the displacement operator in the circuit Hilbert space based on alpha vector
+    def intOp(self,mode1,mode2):
+        # give the interaction operator between each mode:
 
-    	for i in range(self.n):
-    		if(i==0):
-    			dispArray = q.displace(self.m,alp[i])
-    		else:
-    			dispArray = q.tensor(dispArray,q.displace(self.m,alp[i]))
+        disMinCreat = q.destroy(self.m) - q.create(self.m);
+        num = q.num(self.m)
+        charge = q.charge((self.m-1)/2)
 
-    	return dispArray
+        # identiry operator for each mode 
+        I = q.qeye(self.m);
 
+        for i in range(self.n):
 
-    def giveJJHamil(self,phi):
-    	# function that gives the Hamiltionian of the JJ of the circuits. with external charge of phi:
+            if( i==0 and (i == mode1 or i == mode2) ):
+                if(self.omega[i]==0):
+                    intr = (2*e)*charge;
+                else:
+                    coef = (-1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i])))
+                    intr = coef*disMinCreat;
+            elif(i == 0):
+                intr = I
 
-    	HJJ = 0;
-    	for i in range(len(self.JJEj)):
-    		if(self.JJExcite):
-    			HJJ+= - np.exp(1j*phi) * self.JJEj[i]/2 * self.giveDispArray(self.alpha[i,:]);
+            if( i!=0 and (i == mode1 or i == mode2)):
+                if(self.omega[i]==0):
+                    intr = q.tensor(intr,(2*e)*charge)
+                else:
+                    coef = (-1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i])))
+                    intr = q.tensor(intr,coef*disMinCreat);
+            elif(i!=0):
+                intr = q.tensor(intr,I)
 
-    	HJJ = HJJ + HJJ.dag()
-
-    	return HJJ
+        return intr 
 
     def giveLCHamil(self):
-    	# function that gives the Hamiltionian of the LC part of the circuits
+        # function that gives the Hamiltionian of the LC part of the circuits
 
-		# list of number operators
-     	N = [0 for i in range(self.n)]
+        HLC = 0;
 
-     	for i in range(self.n):
-     		if(self.omega[i]>1*GHz):
-     			N[i] = self.omega[i]*self.giveNum(i+1)
+        for i in range(self.n):
+            for j in range(self.n):
+                if(i==j):
+                    if(self.omega[i]==0):
+                        HLC += (1/2* self.cInvRotated[i,i]*(2*e)**2)/hbar*self.numOp(i)*self.numOp(i)
+                    else:
+                        HLC += self.omega[i]*self.numOp(i)
+                elif(j>i):
+                    if(self.cInvRotated[i,j] != 0):
+                        HLC += self.cInvRotated[i,j]/hbar*self.intOp(i,j)
 
-     	HLC = sum(N);
+        return HLC
 
-     	return HLC
+    def giveJJHamil(self,phiInput):
+        # function that gives the Hamiltionian of the JJ of the circuits. with external charge of phi:
+
+        # List of individual JJ Hamiltonian
+        HJJList = [];
+        HJJCheckList = []
+
+        # create charge diplacement operator for each mode
+        d = np.zeros((self.m,self.m))
+        for i in range(self.m):
+            for j in range(self.m):
+                if(j-1==i):
+                    d[i,j] = 1;
+        d = q.Qobj(d);
+ 
+        # identity operator for each mode
+        I = q.qeye(self.m)
+
+        for i in range(len(self.JJEj)):
+
+            # tensor multiplication of displacement operator for JJ Hamiltonian
+            for j in range(self.n):
+                if(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] == 0):
+                    H = I;
+
+                elif(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] != 0):
+                    H = d;
+
+                elif(j == 0 and self.omega[j]!=0):
+                    alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
+                    *self.JJEqRotated[i,j]
+                    H = q.displace(self.m,alpha)
+
+
+                if(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] == 0):
+                    H = q.tensor(H,I);
+
+                elif(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] != 0):
+                    H = q.tensor(H,d);
+
+                elif(j!=0 and self.omega[j] != 0):
+                    alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
+                    *self.JJEqRotated[i,j]
+                    H = q.tensor(H,q.displace(self.m,alpha))
+
+            # add external excitation
+
+            # Parallel JJ case
+            if(isinstance(self.JJEj[i],list)):
+                JJEjIn , JJEjOut = self.JJEj[i]
+                JJExcIn, JJExcOut = self.JJExcite[i]
+                phiIn = 0;
+                PhiOut = 0;
+                if(JJExcIn):
+                    for ind in JJExcIn:
+                        phiIn = phiInput[ind];
+                phiOut = phiIn + phiInput[JJExcOut];
+
+                H = np.exp(1j*phiIn)*JJEjIn/2*H + np.exp(1j*phiOut)*JJEjOut/2*H
+                H = H + H.dag()
+
+            # single JJ case
+            else:
+                phi = 0
+                if(self.JJExcite[i]):
+                    for ind in self.JJExcite[i]:
+                        phi += phiInput[ind];
+                H  =  np.exp(1j*phi) * self.JJEj[i]/2* H;
+                H = H + H.dag();
+
+            HJJList.append(H);
+        
+        HJJ = sum(HJJList)
+
+        return HJJ
 
     def solveCircuit(self):
-	    # function that use qutip package to define number operator and displacement operators to calculate
-	    # the hailtonian and diogonalize it. At the end,the final eignevalues of the
-	    # of the total Hamiltonian is stored in the self.HamilEig. 
+        # function that use qutip package to define number operator and displacement operators to calculate
+        # the hailtonian and diogonalize it. At the end,the final eignevalues of the
+        # of the total Hamiltonian is stored in the self.HamilEig. 
 
-    	HLC = self.giveLCHamil()
+        HLC = self.giveLCHamil()
 
-    	for i in range(len(self.phi)):
-    		print(i)
+        #prepare the external fluxes for calculating the JJ Hamiltonian
+        self.setPhi()
 
-	    	HJJ = self.giveJJHamil(self.phi[i])
+        # idex for sweeping over
+        indSweep = 0;
+        for i in range(len(self.phiExt)):
+            if(not isinstance(self.phiExt[i],int)):
+                indSweep = i;
 
-	    	H = HJJ + HLC
+        self.HamilEig = np.zeros((self.m**self.n,len(self.phiExt[indSweep])),dtype='complex');
 
-	    	# find the eigenvalues of the hamiltonian for each external phi
-	    	eigenValues , eigenVectors = H.eigenstates();
 
-	    	# store the eigenfunction of the Hamiltonian for each frequency
-	    	self.HamilEig[:,i] = eigenValues-eigenValues[0];
+        phiInput = self.phiExt.copy()
+        # diogonalize Hamiltonain for sweeping over phiExt
+        for i in range(len(self.phiExt[indSweep])):
+            
+            print(i)
+            phiInput[indSweep] = self.phiExt[indSweep][i];
+
+            HJJ = self.giveJJHamil(phiInput)
+
+            H = -0*HJJ + HLC
+
+            # find the eigenvalues of the hamiltonian for each external phi
+            eigenValues , eigenVectors = H.eigenstates();
+
+            # store the eigenfunction of the Hamiltonian for each frequency
+            self.HamilEig[:,i] = eigenValues
 
     def plotEigFreq(self,numBand,numDegen = 0):
     	# function that plots eigen frequency of the total Hamiltonian.
@@ -638,10 +802,16 @@ class Qcircuit:
     	# numDegen is zero.
     	# -- numBand is the number of bands that we want to plot.
 
-    	for i in range(numBand):
-    		plt.plot(self.phi/2/np.pi,self.HamilEig[(i+1)*(self.m**numDegen),:]/GHz,'*');
 
-    	plt.show()
+        indSweep = 0;
+        for i in range(len(self.phiExt)):
+            if(not isinstance(self.phiExt[i],int)):
+                indSweep = i;
+
+        for i in range(numBand):
+            plt.plot(self.phiExt[indSweep]/2/np.pi,self.HamilEig[i*(self.m**numDegen),:].real/GHz);
+
+        plt.show()
 
 
     def saveData(self,fileName='untitled'):
@@ -650,7 +820,6 @@ class Qcircuit:
     	# see if data folder exist save. if not make one.
     	if(not os.path.exists('data')):
     		os.mkdir('data');
-
 
     	# save the date and time to add to the name of file
     	currentTime = time.localtime()
