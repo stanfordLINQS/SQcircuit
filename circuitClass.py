@@ -39,7 +39,9 @@ class Qcircuit:
 
         # truncation number of fock state
         # m should be an odd number because of charge operator
-        self.m = 11;
+        self.m = np.zeros(self.n,dtype='int')
+        for i in range(self.n):
+            self.m[i] = 21;
 
         #number of edges
         self.E = len(graph);
@@ -84,7 +86,7 @@ class Qcircuit:
             if(self.omega[j] == 0):
                 s = np.max(np.abs(A[:,j]))
                 for i in range(len(A[:,j])):
-                    if(abs(A[i,j]/s)!=0 and abs(A[i,j]/s) !=1):
+                    if(abs(A[i,j]/s)>=1e-11 and abs(abs(A[i,j]/s)-1)>=1e-11):
                         raise ValueError("This Solver Cannot solve your circuits")
 
                 # correncting the cInvRotated values
@@ -163,7 +165,14 @@ class Qcircuit:
             R = S;
             cInvRotated = R.T @ cMatInv @ R;
             lRotated = S.T @ lMat @ S;
-            
+
+            # find the lRotated element that are very small and put them zeros:
+            for i in range(len(np.diag(lRotated))):
+                if(np.max(lRotated)==0):
+                    continue;
+                if(lRotated[i,i]/np.max(lRotated)<1e-13):
+                    lRotated[i,i] = 0;
+
         else:
             eigVal , P = np.linalg.eig(cMat);
 
@@ -194,7 +203,7 @@ class Qcircuit:
             
             # OmegaInvRoot = np.linalg.inv(OmegaRoot);
             
-            # RInv = OmegaInvRoot @ U.T @ cMatRootInv;
+            # RInv = OmegaInvRoot @ U.T @ cMatRootInv;      
             # R = np.linalg.inv(RInv);
             
             # print("R.T @ cMatInv @ R:")
@@ -565,6 +574,15 @@ class Qcircuit:
 
         self.lRotated, self.cInvRotated , S = self.buildDiag()
 
+
+        ## Do not read these comments
+        # R = np.array([[1,0,1],[0,1,1],[1,1,1]])
+        # RInv = np.linalg.inv(R)
+        # Cx = self.giveMatC()
+        # Lx = self.giveMatL()
+        # self.lRotated = R @ Lx @ R 
+        # self.cInvRotated = RInv@ np.linalg.inv(Cx) @RInv
+
         # vector of frequencies
         self.omega = np.sqrt(np.diag(self.cInvRotated)*np.diag(self.lRotated))
 
@@ -588,13 +606,15 @@ class Qcircuit:
         # ceofficient needed to write JJ Hamiltonian
         self.JJEj , self.JJEq , self.JJExcite = self.giveJJEq(O,notInSpan)
 
+        # JJEq in rotated frame
+        self.JJEqRotated = np.array(self.JJEq) @ S
+
         # check if we can use this algorithm to solve the circuit and change c inorder to handel
         # flux coordinates inside the cosine in case of singularity
         self.correctC(np.array(self.JJEq)@S)
 
-        # JJEq in rotated frame
-        self.JJEqRotated = np.array(self.JJEq) @ S
-
+        ## Do not read these comments
+        # self.JJEqRotated = np.array(self.JJEq) @ R
 
     def setExcitation(self,external):
         self.JJExt = external;
@@ -610,57 +630,73 @@ class Qcircuit:
             if(edge == edgeParall):
                 return i ;
 
+    def setFockNumbers(self,fockNum):
+        # set the truncation number for the fock state
+
+        assert len(fockNum) == self.n, "You should specify Fock number truncation for all modes"
+
+        for i in range(self.n):
+            if(isinstance(fockNum,list)):
+                self.m[i] = fockNum[i];
+            else:
+                self.m[i] = fockNum
 
     def numOp(self,modeNum):
     	# This function gives the Number operator in mode = modeNum
 
         for i in range(self.n):
             if( i == 0 and i != modeNum):
-                num = q.qeye(self.m);
+                num = q.qeye(self.m[i]);
             elif( i == 0 and i == modeNum):
                 if (self.omega[i] == 0):
-                    num = q.charge((self.m-1)/2)
+                    num = q.charge((self.m[i]-1)/2)
                 else:
-                    num = q.num(self.m);
+                    num = q.num(self.m[i]);
 
             if( i!= 0 and i != modeNum):
-                num = q.tensor(num,q.qeye(self.m))
+                num = q.tensor(num,q.qeye(self.m[i]))
             elif(i != 0 and i == modeNum):
                 if(self.omega[i] == 0):
-                    num = q.tensor(num,q.charge((self.m-1)/2))
+                    num = q.tensor(num,q.charge((self.m[i]-1)/2))
                 else:
-                    num = q.tensor(num,q.num(self.m))
+                    num = q.tensor(num,q.num(self.m[i]))
 
         return num
 
     def intOp(self,mode1,mode2):
         # give the interaction operator between each mode:
 
-        disMinCreat = q.destroy(self.m) - q.create(self.m);
-        num = q.num(self.m)
-        charge = q.charge((self.m-1)/2)
+        # disMinCreat = q.destroy(self.m) - q.create(self.m);
+        # num = q.num(self.m)
+        # charge = q.charge((self.m-1)/2)
 
-        # identiry operator for each mode 
-        I = q.qeye(self.m);
+        # # identiry operator for each mode 
+        # I = q.qeye(self.m);
 
         for i in range(self.n):
 
             if( i==0 and (i == mode1 or i == mode2) ):
                 if(self.omega[i]==0):
-                    intr = (2*e)*charge;
+                    charge = q.charge((self.m[i]-1)/2)
+                    intr = (2*e/np.sqrt(hbar))*charge;
                 else:
-                    coef = (-1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i])))
+                    disMinCreat = q.destroy(self.m[i]) - q.create(self.m[i]);
+                    coef = -1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i]))
                     intr = coef*disMinCreat;
             elif(i == 0):
+                I = q.qeye(self.m[i])
                 intr = I
 
             if( i!=0 and (i == mode1 or i == mode2)):
                 if(self.omega[i]==0):
-                    intr = q.tensor(intr,(2*e)*charge)
+                    charge = q.charge((self.m[i]-1)/2)
+                    intr = q.tensor(intr,(2*e/np.sqrt(hbar))*charge)
                 else:
-                    coef = (-1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i])))
+                    disMinCreat = q.destroy(self.m[i]) - q.create(self.m[i]);
+                    coef = -1j*np.sqrt(1/2*np.sqrt(self.lRotated[i,i]/self.cInvRotated[i,i]))
                     intr = q.tensor(intr,coef*disMinCreat);
             elif(i!=0):
+                I = q.qeye(self.m[i])
                 intr = q.tensor(intr,I)
 
         return intr 
@@ -679,9 +715,21 @@ class Qcircuit:
                         HLC += self.omega[i]*self.numOp(i)
                 elif(j>i):
                     if(self.cInvRotated[i,j] != 0):
-                        HLC += self.cInvRotated[i,j]/hbar*self.intOp(i,j)
+                        HLC += self.cInvRotated[i,j]*self.intOp(i,j)
 
         return HLC
+
+    def chargeDisp(self,num):
+
+        d = np.zeros((num,num))
+        for i in range(num):
+            for j in range(num):
+                if(j-1==i):
+                    d[i,j] = 1;
+        d = q.Qobj(d);
+
+        return d
+
 
     def giveJJHamil(self,phiInput):
         # function that gives the Hamiltionian of the JJ of the circuits. with external charge of phi:
@@ -690,43 +738,47 @@ class Qcircuit:
         HJJList = [];
         HJJCheckList = []
 
-        # create charge diplacement operator for each mode
-        d = np.zeros((self.m,self.m))
-        for i in range(self.m):
-            for j in range(self.m):
-                if(j-1==i):
-                    d[i,j] = 1;
-        d = q.Qobj(d);
+        # # create charge diplacement operator for each mode
+        # d = np.zeros((self.m,self.m))
+        # for i in range(self.m):
+        #     for j in range(self.m):
+        #         if(j-1==i):
+        #             d[i,j] = 1;
+        # d = q.Qobj(d);
  
-        # identity operator for each mode
-        I = q.qeye(self.m)
+        # # identity operator for each mode
+        # I = q.qeye(self.m)
 
         for i in range(len(self.JJEj)):
 
             # tensor multiplication of displacement operator for JJ Hamiltonian
             for j in range(self.n):
                 if(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] == 0):
+                    I = q.qeye(self.m[j])
                     H = I;
 
                 elif(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] != 0):
+                    d = self.chargeDisp(self.m[j])
                     H = d;
 
                 elif(j == 0 and self.omega[j]!=0):
                     alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
                     *self.JJEqRotated[i,j]
-                    H = q.displace(self.m,alpha)
+                    H = q.displace(self.m[j],alpha)
 
 
                 if(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] == 0):
+                    I = q.qeye(self.m[j])
                     H = q.tensor(H,I);
 
                 elif(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] != 0):
+                    d = self.chargeDisp(self.m[j])
                     H = q.tensor(H,d);
 
                 elif(j!=0 and self.omega[j] != 0):
                     alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
                     *self.JJEqRotated[i,j]
-                    H = q.tensor(H,q.displace(self.m,alpha))
+                    H = q.tensor(H,q.displace(self.m[j],alpha))
 
             # add external excitation
 
@@ -759,7 +811,7 @@ class Qcircuit:
 
         return HJJ
 
-    def solveCircuit(self):
+    def solveCircuit(self,showLoading=True):
         # function that use qutip package to define number operator and displacement operators to calculate
         # the hailtonian and diogonalize it. At the end,the final eignevalues of the
         # of the total Hamiltonian is stored in the self.HamilEig. 
@@ -775,19 +827,25 @@ class Qcircuit:
             if(not isinstance(self.phiExt[i],int)):
                 indSweep = i;
 
-        self.HamilEig = np.zeros((self.m**self.n,len(self.phiExt[indSweep])),dtype='complex');
+        netDimension = 1;
+        for i in range(len(self.m)):
+            netDimension *= self.m[i]
+
+        self.HamilEig = np.zeros((netDimension,len(self.phiExt[indSweep])),dtype='complex');
 
 
         phiInput = self.phiExt.copy()
         # diogonalize Hamiltonain for sweeping over phiExt
         for i in range(len(self.phiExt[indSweep])):
             
-            print(i)
+            if(showLoading):
+                print(i)
+
             phiInput[indSweep] = self.phiExt[indSweep][i];
 
             HJJ = self.giveJJHamil(phiInput)
 
-            H = -0*HJJ + HLC
+            H = -HJJ + HLC
 
             # find the eigenvalues of the hamiltonian for each external phi
             eigenValues , eigenVectors = H.eigenstates();
@@ -815,33 +873,35 @@ class Qcircuit:
 
 
     def saveData(self,fileName='untitled'):
-    	# function to save data
+        # function to save data
 
-    	# see if data folder exist save. if not make one.
-    	if(not os.path.exists('data')):
-    		os.mkdir('data');
+        # see if data folder exist save. if not make one.
+        if(not os.path.exists('data')):
+            os.mkdir('data');
 
-    	# save the date and time to add to the name of file
-    	currentTime = time.localtime()
+        # save the date and time to add to the name of file
+        currentTime = time.localtime()
 
-    	currentTimeStr='';
-		
-    	for i in range(5):
-    	    if(currentTime[i]<10):
-    	        currentTimeStr += '0' + str(currentTime[i]);
-    	    else:
-    	        currentTimeStr += str(currentTime[i]);
-    	currentTimeStr += '_'
+        currentTimeStr='';
 
-    	fileNameTime = currentTimeStr + fileName;
+        for i in range(5):
+            if(currentTime[i]<10):
+                currentTimeStr += '0' + str(currentTime[i]);
+            elif(i==0):
+                currentTimeStr += str(currentTime[i]-2000);
+            else:
+                currentTimeStr += str(currentTime[i]);
+        currentTimeStr += '_'
 
-    	# save the class object to data folder
-    	savePath = 'data/' + fileNameTime;
+        fileNameTime = currentTimeStr + fileName;
 
-    	with open(savePath , 'wb') as saveFile:
-    		pickle.dump(self,saveFile);
+        # save the class object to data folder
+        savePath = 'data/' + fileNameTime;
 
-    	print("File Saved")
+        with open(savePath , 'wb') as saveFile:
+            pickle.dump(self,saveFile);
+
+        print("File Saved")
 
 
 #### help functionssss
