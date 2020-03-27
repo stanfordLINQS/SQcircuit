@@ -574,8 +574,6 @@ class Qcircuit:
 
         self.lRotated, self.cInvRotated , S = self.buildDiag()
 
-
-        ## Do not read these comments
         # R = np.array([[1,0,1],[0,1,1],[1,1,1]])
         # RInv = np.linalg.inv(R)
         # Cx = self.giveMatC()
