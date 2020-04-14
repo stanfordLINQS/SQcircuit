@@ -52,6 +52,7 @@ class Qcircuit:
         # memmory:
         self.cInvRotated =[]
         self.lRotateed = []
+        self.S = []
         self.omega = []
         self.JJEj = []
         self.JJEq = []
@@ -85,11 +86,14 @@ class Qcircuit:
         for j in range(self.n):
             if(self.omega[j] == 0):
                 s = np.max(np.abs(A[:,j]))
+                if(s==0):
+                    continue;
                 for i in range(len(A[:,j])):
                     if(abs(A[i,j]/s)>=1e-11 and abs(abs(A[i,j]/s)-1)>=1e-11):
                         raise ValueError("This Solver Cannot solve your circuits")
 
                 # correncting the cInvRotated values
+                print(s)
                 for i in range(self.n):
                     if(i == j):
                         self.cInvRotated[i,j] = self.cInvRotated[i,j]* s**2;
@@ -378,6 +382,22 @@ class Qcircuit:
         # finding a spanning tree with maximum correlation with inductor vector
         chosTree = np.argmax(np.sum(LVec*spanTreesVec,1))
         return spanTrees[chosTree]
+
+    def spanTreeMinJJ(self):
+        # function that gives the spanning tree with maximum inductor
+        
+        spanTrees = self.findSpanningTrees()
+        
+        spanTreesVec = self.spanTreeToVec(spanTrees)
+        
+        spanTreesVec=np.array(spanTreesVec)
+
+        JJVec = np.array(self.JJ);
+
+        # finding a spanning tree with maximum correlation with inductor vector
+        chosTree = np.argmin(np.sum(JJVec*spanTreesVec,1))
+        return spanTrees[chosTree]
+
     
 
     def treeDirec(self,startNode,previousNode,newTree,tree): 
@@ -413,8 +433,8 @@ class Qcircuit:
                     loopEq[cycle[i]]+=1;
                 # if the direction is not the same
                 elif [cycle[i],cycle[i-1]] in treeWithDirec:
-                    loopEq[cycle[i-1]]+=1;
-                    loopEq[cycle[i]]-=1;
+                    loopEq[cycle[i-1]]-=1;
+                    loopEq[cycle[i]]+=1;
                 # find the edges that are not in the spanning tree and store them.
                 else:
                     notInSpanLoop.append([cycle[i-1],cycle[i]]);
@@ -523,25 +543,23 @@ class Qcircuit:
                 index = self.graph.index(edgeSwap)
 
             if(self.JJ[index] != 0):
+
+                Eq = [0 for i in range(V)];
+                i1 , i2 = edge;
+                if(i1==0 or i2 ==0):
+                    Eq[i1 + i2]+=1;
+                else:
+                    Eq[i1]+=1;
+                    Eq[i2]-=1;
+
+                JJEq.append(Eq[1:]); 
+                JJEj.append(self.JJ[index]); 
+
                 if(isinstance(self.JJ[index],list)):
                     indParall = self.indExtParall(self.graph[index])
-                    JJEj.append(self.JJ[index]);
-                    JJExcite.append([processedEquationIndex[i0]]+[indParall])
-
-                    equation = np.zeros(self.n)
-                    for index2 in processedEquationIndex[i0]:
-                        equation += np.array(O[index2]);
-
-                    JJEq.append(list(equation))                    
+                    JJExcite.append([processedEquationIndex[i0]]+[indParall])       
                 else:
-                    JJEj.append(self.JJ[index]);
                     JJExcite.append(processedEquationIndex[i0])
-
-                    equation = np.zeros(self.n)
-                    for index2 in processedEquationIndex[i0]:
-                        equation += np.array(O[index2]);
-
-                    JJEq.append(list(equation))
                          
         for i0 in range(self.E):
             # if JJ is in spanning tree
@@ -572,7 +590,7 @@ class Qcircuit:
 
         self.cleanUpLC();
 
-        self.lRotated, self.cInvRotated , S = self.buildDiag()
+        self.lRotated, self.cInvRotated , self.S = self.buildDiag()
 
         # R = np.array([[1,0,1],[0,1,1],[1,1,1]])
         # RInv = np.linalg.inv(R)
@@ -580,6 +598,7 @@ class Qcircuit:
         # Lx = self.giveMatL()
         # self.lRotated = R @ Lx @ R 
         # self.cInvRotated = RInv@ np.linalg.inv(Cx) @RInv
+        # self.S = R
 
         # vector of frequencies
         self.omega = np.sqrt(np.diag(self.cInvRotated)*np.diag(self.lRotated))
@@ -592,7 +611,8 @@ class Qcircuit:
         self.graphSt.simplestCycles = simplestCycles;
 
 		# span tree with maximum inductors and corrected direction
-        spanTree = self.giveMaxInd() 
+        # spanTree = self.giveMaxInd()
+        spanTree = self.spanTreeMinJJ()
         treeWithDirec = self.treeDirec(0,None,[],spanTree.copy())
 
         # store the spanningTree
@@ -605,19 +625,20 @@ class Qcircuit:
         self.JJEj , self.JJEq , self.JJExcite = self.giveJJEq(O,notInSpan)
 
         # JJEq in rotated frame
-        self.JJEqRotated = np.array(self.JJEq) @ S
+        self.JJEqRotated = np.array(self.JJEq) @ self.S
 
         # check if we can use this algorithm to solve the circuit and change c inorder to handel
         # flux coordinates inside the cosine in case of singularity
-        self.correctC(np.array(self.JJEq)@S)
+        self.correctC(np.array(self.JJEq)@self.S)
 
-        ## Do not read these comments
-        # self.JJEqRotated = np.array(self.JJEq) @ R
 
     def setExcitation(self,external):
         self.JJExt = external;
 
     def setPhi(self):
+        #reset the phiExt:
+        self.phiExt = [];
+
         for el in self.JJExt:
             _ , phi = el;
             self.phiExt.append(phi); 
@@ -746,18 +767,22 @@ class Qcircuit:
  
         # # identity operator for each mode
         # I = q.qeye(self.m)
+        H=0;
 
         for i in range(len(self.JJEj)):
 
             # tensor multiplication of displacement operator for JJ Hamiltonian
             for j in range(self.n):
-                if(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] == 0):
-                    I = q.qeye(self.m[j])
-                    H = I;
-
-                elif(j == 0 and self.omega[j]==0 and self.JJEqRotated[i,j] != 0):
-                    d = self.chargeDisp(self.m[j])
-                    H = d;
+                if(j == 0 and self.omega[j]==0):
+                    if(self.JJEqRotated[i,j] == 0):
+                        I = q.qeye(self.m[j])
+                        H = I;
+                    elif(self.JJEqRotated[i,j] > 0):
+                        d = self.chargeDisp(self.m[j])
+                        H = d;
+                    else:
+                        d = self.chargeDisp(self.m[j])
+                        H = d.dag();
 
                 elif(j == 0 and self.omega[j]!=0):
                     alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
@@ -765,13 +790,16 @@ class Qcircuit:
                     H = q.displace(self.m[j],alpha)
 
 
-                if(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] == 0):
-                    I = q.qeye(self.m[j])
-                    H = q.tensor(H,I);
-
-                elif(j!=0 and self.omega[j] == 0 and self.JJEqRotated[i,j] != 0):
-                    d = self.chargeDisp(self.m[j])
-                    H = q.tensor(H,d);
+                if(j!=0 and self.omega[j] == 0):
+                    if(self.JJEqRotated[i,j] == 0):
+                        I = q.qeye(self.m[j])
+                        H = q.tensor(H,I);
+                    elif(self.JJEqRotated[i,j] > 0):
+                        d = self.chargeDisp(self.m[j])
+                        H = q.tensor(H,d);
+                    else:
+                        d = self.chargeDisp(self.m[j])
+                        H = q.tensor(H,d.dag());
 
                 elif(j!=0 and self.omega[j] != 0):
                     alpha = 2*np.pi/Phi0*1j*np.sqrt(hbar/2*np.sqrt(self.cInvRotated[j,j]/self.lRotated[j,j]))\
@@ -799,7 +827,8 @@ class Qcircuit:
                 phi = 0
                 if(self.JJExcite[i]):
                     for ind in self.JJExcite[i]:
-                        phi += phiInput[ind];
+                        phi+= phiInput[ind];
+
                 H  =  np.exp(1j*phi) * self.JJEj[i]/2* H;
                 H = H + H.dag();
 
@@ -813,6 +842,7 @@ class Qcircuit:
         # function that use qutip package to define number operator and displacement operators to calculate
         # the hailtonian and diogonalize it. At the end,the final eignevalues of the
         # of the total Hamiltonian is stored in the self.HamilEig. 
+
 
         HLC = self.giveLCHamil()
 
@@ -852,11 +882,11 @@ class Qcircuit:
             self.HamilEig[:,i] = eigenValues
 
     def plotEigFreq(self,numBand,numDegen = 0):
-    	# function that plots eigen frequency of the total Hamiltonian.
-    	# -- numDegen is the parameter to avoid the degenercy of the bands when we have eigenfrequency 
-    	# close to zero. For example if we have one resonance frequency of the circuit is zero. Therfore, 
-    	# numDegen is zero.
-    	# -- numBand is the number of bands that we want to plot.
+        # function that plots eigen frequency of the total Hamiltonian.
+        # -- numDegen is the parameter to avoid the degenercy of the bands when we have eigenfrequency 
+        # close to zero. For example if we have one resonance frequency of the circuit is zero. Therfore, 
+        # numDegen is zero.
+        # -- numBand is the number of bands that we want to plot.
 
 
         indSweep = 0;
