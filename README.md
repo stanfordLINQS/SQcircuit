@@ -17,8 +17,8 @@ First step is to create an object of the Qcircuit class by the following code:
 # Import circuitClass that contains Qcircuit
 from circuitClass import *
 
-# cicuitParam is a dictionary that contains the information about the graph structure
-# the graph structure, capacitor values, inductor values, and Josephson Junction Values.
+# cicuitParam is a dictionary that contains the information about the graph structure,
+# capacitor values, inductor values, and Josephson Junction Values.
 circuitParam = {
 	'graph':[[0,1],[1,2],[2,3],[0,2],[0,3]],
 	'capacitors':[C1,C2,C3,C4,C5],
@@ -44,7 +44,7 @@ cr.configure()
 
 `cr.setModeNumbers([m1,m2,m3])` sets the truncation number for each modes of the circuit. Each element of `[m1,m2,m3]` should be an integer, and they should be large enough that Qcircuit converges. By calling `cr.configure()` Qcircuit sets up the equations needed to calculate the Hamiltonian. Additionally, this function preprocess and calculate the quantum operators and part of the Hamiltonian that are independent from external fluxes.
 
-Next, we try to find the inductive loops that we can apply external fluxes to them.
+Next, we find the inductive loops that we can apply external fluxes to them.
 
 ```python
 cr.getExternalLinks()
