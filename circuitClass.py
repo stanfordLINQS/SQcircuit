@@ -384,7 +384,7 @@ class Qcircuit:
         return spanTrees[chosTree]
 
     def spanTreeMinJJ(self):
-        # function that gives the spanning tree with maximum inductor
+        # function that gives the spanning tree with minimum JJ
         
         spanTrees = self.findSpanningTrees()
         
@@ -392,13 +392,12 @@ class Qcircuit:
         
         spanTreesVec=np.array(spanTreesVec)
 
-        JJVec = np.array(self.JJ);
+        JJVec = np.array(self.JJ) != 0;
 
-        # finding a spanning tree with maximum correlation with inductor vector
+        # finding a spanning tree with minimum correlation with JJ vector
         chosTree = np.argmin(np.sum(JJVec*spanTreesVec,1))
+        # print(np.argmin(np.sum(JJVec*spanTreesVec,1)))
         return spanTrees[chosTree]
-
-    
 
     def treeDirec(self,startNode,previousNode,newTree,tree): 
         # To make sure we are not removing any element when we are in the loop.(For speeding up)
@@ -746,6 +745,8 @@ class Qcircuit:
                 if(j-1==i):
                     d[i,j] = 1;
         d = q.Qobj(d);
+
+        d = d.dag()
 
         return d
 
