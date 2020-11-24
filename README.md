@@ -1,6 +1,8 @@
 # Qcircuit
-[nope](#nope)
-
+[**What is Qcircuit?**](#What-is-Qcircuit?)
+|[**Quick Tutorial**](#Quick-Tutorial)
+|[**Installation**](#Installation)
+|[**Examples**](#Examples)
 
 ## What is Qcircuit?
 
@@ -82,8 +84,14 @@ cr.HamilEigVal
 cr.HamilEigVecList
 ```
 
-# nope
-is good
+## Installation
+To use Qcircuit, you just need to put `circuitClass.py` and `PhysicsConstants.py` from source folder inside your project folder and follow the [**Quick Tutorial**](#Quick-Tutorial) and [**Examples**](#Examples) sections.
 
+## Examples
 
+To see how Qcircuit is working and its robustness, we put several examples from the sate of the art superconducting circuits in the litreture, which Qcircuit can efficiently calculate the spectrum of those circuits.
+
+* [Zero-Pi Qubit](https://github.com/taha1373/Qcircuit/blob/master/examples/zeroPiQubit.ipynb)
+* [Inductively Shunted Circuits](https://github.com/taha1373/Qcircuit/blob/master/examples/inductivelyShunted.ipynb)
+* [4 Local Coupler Circuit](https://github.com/taha1373/Qcircuit/blob/master/examples/4localCoupler.ipynb)
 
