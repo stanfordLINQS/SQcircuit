@@ -85,7 +85,7 @@ cr.HamilEigVecList
 ```
 
 ## Installation
-To use Qcircuit, you just need to put `circuitClass.py` and `PhysicsConstants.py` from source folder inside your project folder and follow the [**Quick Tutorial**](#Quick-Tutorial) and [**Examples**](#Examples) sections.
+To use Qcircuit, you just need to put `circuitClass.py` and `PhysicsConstants.py` from [source](https://github.com/taha1373/Qcircuit/tree/master/source) folder inside your project folder and follow the [**Quick Tutorial**](#Quick-Tutorial) and [**Examples**](#Examples) sections.
 
 ## Examples
 
