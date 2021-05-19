@@ -1035,21 +1035,72 @@ class Qcircuit:
         plt.show()
 
 
-    def eigVecPhaseSpace(self,eigInd,node,phi):
-        # This function gives the egin vectors in the phase space representation rather than fock basis.
+    def eigVecPhaseSpace(self,eigInd,phiList):
+        # This function gives the egin vectors in the phase space representation.
         # eigInd: Index of eigen vector that we try to represent in phase space
+        # phiList: list of phases for all nodes
 
-        if(self.omega[node-1] == 0):
-            print("I'm still working for the case of charge basis rather than harmonic oscillator basis")
-        else:
-            x0 = np.sqrt(hbar*np.sqrt(self.cInvRotated[node-1,node-1]/self.lRotated[node-1,node-1]));
-            varphi0 = x0/Phi0
-            vecPhase = 0
-            for n in range(self.m[node-1]):
-                coef = self.HamilEigVecList[0][eigInd][n]/np.sqrt(np.sqrt(np.pi)*2**n*scipy.special.factorial(n)*x0)
-                vecPhase += coef*np.exp(-(phi/varphi0)**2/2)*scipy.special.eval_hermite(n,phi/varphi0)
+        # Eigen vector for the eigInd index
+        eigVec = self.HamilEigVecList[0][eigInd]
 
-        return vecPhase
+        # caluclate the total dimension of circuit 
+        netDimension = 1;
+        for i in range(len(self.m)):
+            netDimension *= self.m[i]
+
+        state = 0;
+
+        for i in range(netDimension):
+            # here I assume that each mode has equal truncation number( I should change it lader)
+            # index of each mode for each i 
+            phiInd = self.getPhiIndex(i)
+
+            # phiInd = list(base(i,10,self.m[0]))
+            # phiInd = (self.n-(len(phiInd)))*[0]+phiInd
+
+            term = self.HamilEigVecList[0][eigInd][i][0,0]
+
+            for node in range(self.n):
+
+                # mode number related to that node
+                n = phiInd[node]
+
+                if(self.omega[node] == 0):
+                    term *= 1/np.sqrt(2*np.pi)*np.exp(1j*phiList[node]*n)
+                    
+                else:
+                    x0 = np.sqrt(hbar*np.sqrt(self.cInvRotated[node,node]/self.lRotated[node,node]));
+                    varphi0 = x0/Phi0
+                    coef = 1/np.sqrt(np.sqrt(np.pi)*2**n*scipy.special.factorial(n)*x0)
+                    term *= coef*np.exp(-(phiList[node]/varphi0)**2/2)*scipy.special.eval_hermite(n,phiList[node]/varphi0)
+
+            state += term
+
+        return state
+
+    def getPhiIndex(self, index):
+        # this function gives the decomposed mode indices from the tensor product space index.
+        # For example index 5 of the tensor product space can be decomposed to [1,0,1] modes if
+        # the truncation number for each mode is 2.
+
+        # ith mP element is the multiplicatoin of the self.m elements until its ith element
+        mP = []
+        for i in range(self.n-1):
+            if(i == 0):
+                mP.append(self.m[-1])
+            else:
+                mP = [mP[0]*self.m[-1-i]] + mP
+
+        indList = []
+        indexP = index
+        for i in range(self.n):
+            if(i==self.n-1):
+                indList.append(indexP)
+                continue
+            indList.append(int(indexP/mP[i]))
+            indexP = indexP%mP[i]
+
+        return indList    
 
     def getPotentialNode(self,node,phi,phiExt):
         # This function gives the potential related to speicific node as a function 
