@@ -1,5 +1,4 @@
-## Physics Constants
-
+# Physics Constants
 
 # Henry units
 mH = 1.0e-3;
@@ -26,9 +25,12 @@ THz = 1.0e12;
 
 # hbar
 hbar = 1.0545718e-34
+# hbar = 1/np.pi
 
 # magnetic flux quantum
 Phi0 = 2.067833e-15
+# Phi0 = 1
 
 # electron electric charge
 e = 1.6021766e-19
+# e = 1
