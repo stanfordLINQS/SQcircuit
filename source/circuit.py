@@ -178,13 +178,16 @@ class SQcircuit:
 
         # find the zero singular values
         singLoc = []
-        for i in range(self.n):
-            # the case that there is not any inductor in the circuit
-            if np.max(D) == 0:
-                continue
-            elif D[i] / np.max(D) < 1e-6:
-                singLoc.append(i)
-        D[singLoc] = np.max(D)
+
+        # the case that there is not any inductor in the circuit
+        if np.max(D) == 0:
+            D = np.diag(np.eye(self.n))
+            singLoc = list(range(0, self.n))
+        else:
+            for i in range(self.n):
+                if D[i] / np.max(D) < 1e-6:
+                    singLoc.append(i)
+            D[singLoc] = np.max(D)
 
         # build S1 and R1 matrix
         S1 = cMatRootInv @ U.T @ np.diag(np.sqrt(D))
