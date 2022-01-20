@@ -686,7 +686,7 @@ class SQcircuit:
     # Methods that calculate circuit properties
     ###############################################
 
-    def tensorToModes(self, tensorIndex: list):
+    def tensorToModes(self, tensorIndex: int):
         """
         decomposes the tensor product space index to each mode indices. For example index 5 of the tensor
         product space can be decomposed to [1,0,1] modes if the truncation number for each mode is 2.
@@ -750,10 +750,9 @@ class SQcircuit:
                 # For harmonic basis
                 else:
                     x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
-                    varphi0 = x0 / Phi0
                     coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0)
-                    term *= coef * np.exp(-(phiList[mode] / varphi0) ** 2 / 2) * scipy.special.eval_hermite(n, phiList[
-                        mode] / varphi0)
+                    term *= coef * np.exp(-(phiList[mode]*Phi0 / x0) ** 2 / 2) * scipy.special.eval_hermite(n, phiList[
+                        mode]*Phi0 / x0)
 
             state += term
 
