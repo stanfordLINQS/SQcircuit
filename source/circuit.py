@@ -1,7 +1,8 @@
 # Libraries:
+from elements import *
+from PhysicsConstants import *
 import numpy as np
 import qutip as q
-from PhysicsConstants import *
 
 import scipy.special
 import scipy.sparse
@@ -10,7 +11,7 @@ import copy
 import collections
 
 
-class SQcircuit:
+class Circuit:
     """
     SQcircuit class gets superconducting quantum circuit and calculates the following circuit properties:
     -- eigenvalues and eigenvectors
@@ -18,6 +19,7 @@ class SQcircuit:
     -- matrix elements of the circuit
     -- decay rates
     """
+
     def __init__(self, circuitParam: dict):
 
         """
@@ -26,8 +28,7 @@ class SQcircuit:
                             branch of the circuit.
         """
 
-        self.circuitParam = collections.defaultdict(lambda: [],
-                                                    copy.deepcopy(circuitParam))
+        self.circuitParam = collections.defaultdict(lambda: [], copy.deepcopy(circuitParam))
 
         # number of nodes
         self.n = max(max(self.circuitParam))
@@ -56,6 +57,18 @@ class SQcircuit:
         # eigenvectors of the circuit
         self.HamilEigVec = []
 
+    @staticmethod
+    def elementModel(elementList: list, model):
+        """
+            get the list of element with specific model from the list of elements.
+            inputs:
+                -- elementList: a list of objects from Capacitor, Inductor, and JJ class.
+                -- model: model of the element( can be Capacitor, Inductor, or JJ)
+            outputs:
+                -- modelList: list of element with specified model.
+        """
+        return [el for el in elementList if isinstance(el, model)]
+
     def getMatC(self):
         """ Get the capacitance matrix from circuit parameters.
         output:
@@ -68,12 +81,11 @@ class SQcircuit:
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
-            # capacitor of that edge
-            cap = self.circuitParam[edge].get("C", 0)
+            # list of capacitors of the edge.
+            capList = self.elementModel(self.circuitParam[edge], Capacitor)
 
-            # in case that cap is a list( the parallel capacitors at the edge)
-            if isinstance(cap, list):
-                cap = sum(cap)
+            # summation of the capacitor values.
+            cap = sum(list(map(Capacitor.value, capList)))
 
             if i1 != 0 and i2 == 0:
                 cMat[i1 - 1, i1 - 1] += cap
@@ -99,16 +111,11 @@ class SQcircuit:
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
-            # inductor of that edge
-            ind = self.circuitParam[edge].get("L", None)
+            # list of inductors of the edge
+            indList = self.elementModel(self.circuitParam[edge], Inductor)
 
-            if ind is None:
-                x = 0
-            # in case that ind is a list( the parallel inductors at the edge)
-            elif isinstance(ind, list):
-                x = np.sum(1 / np.array(ind))
-            else:
-                x = 1 / ind
+            # summation of the inductor values.
+            x = np.sum(1 / np.array(list(map(Inductor.value, indList))))
 
             if i1 != 0 and i2 == 0:
                 lMat[i1 - 1, i1 - 1] += x
@@ -136,10 +143,10 @@ class SQcircuit:
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
-            # Josephson junction of that edge
-            JJ = self.circuitParam[edge].get("JJ", None)
+            # list of Josephson Junction of the edge.
+            JJList = self.elementModel(self.circuitParam[edge], Junction)
 
-            if JJ is not None:
+            if len(JJList) != 0:
                 w = [0] * (self.n + 1)
 
                 if i1 == 0 or i2 == 0:
@@ -265,7 +272,7 @@ class SQcircuit:
                         if abs(self.wTrans[i, j] / s) <= 1e-11:
                             self.wTrans[i, j] = 0
 
-                    S3[j, j] = 1/s
+                    S3[j, j] = 1 / s
 
                 # correcting the cInvRotated values
                 for i in range(self.n):
@@ -277,15 +284,15 @@ class SQcircuit:
             else:
                 # note: alpha here is absolute value of alpha( alpha is pure imaginary)
                 # alpha for j-th mode
-                alpha =np.abs(2 * np.pi / Phi0 * np.sqrt(hbar / 2 * np.sqrt(
-                    self.cInvDiag[j, j] / self.lDiag[j, j]))*self.wTrans[:, j])
+                alpha = np.abs(2 * np.pi / Phi0 * np.sqrt(hbar / 2 * np.sqrt(
+                    self.cInvDiag[j, j] / self.lDiag[j, j])) * self.wTrans[:, j])
                 self.wTrans[:, j][alpha < 1e-11] = 0
                 if np.max(alpha) > 1e-11:
                     # find the coefficient in wTrans for j-th mode that has maximum alpha
                     s = np.abs(self.wTrans[np.argmax(alpha), j])
                     # scale that mode with s
-                    self.wTrans[:, j] = self.wTrans[:, j]/s
-                    self.cInvDiag[j] *= s**2
+                    self.wTrans[:, j] = self.wTrans[:, j] / s
+                    self.cInvDiag[j] *= s ** 2
                     self.lDiag[j] /= s ** 2
                     S3[j, j] = 1 / s
 
@@ -600,13 +607,14 @@ class SQcircuit:
 
         for edge in self.circuitParam:
 
-            # get the JJ of the edge
-            EJ = self.circuitParam[edge].get("JJ", None)
-            if EJ is None:
+            # list of Josephson Junction of the edge.
+            JJList = self.elementModel(self.circuitParam[edge], Junction)
+            if len(JJList) == 0:
                 continue
 
+            EJ = list(map(Junction.value, JJList))
             # Parallel JJ case
-            if isinstance(EJ, list):
+            if len(EJ) > 1:
 
                 H = 0
                 phi = fluxExt.get(edge, []) + fluxExt.get((edge[1], edge[0]), [])
@@ -624,7 +632,7 @@ class SQcircuit:
                 # return zero if external flux is not specified for that edge
                 phi = fluxExt.get(edge, 0) + fluxExt.get((edge[1], edge[0]), 0)
 
-                H = np.exp(1j * phi) * EJ / 2 * HJJExpList[i]
+                H = np.exp(1j * phi) * EJ[0] / 2 * HJJExpList[i]
                 H = H + H.dag()
 
                 # sin(phi/2) for the quasi-particle decay rate
@@ -660,21 +668,12 @@ class SQcircuit:
 
         # get the data out of qutip variable and use scipy eigen solver which is faster than
         # qutip eigen solver( I tested this experimentally)
-        # eigenValues, eigenVectors = scipy.sparse.linalg.eigs(H.data, numEig, which='SR')
-        # # the output of eigen solver is not sorted
-        # eigenValuesSorted = np.sort(eigenValues.real)
-        # sortArg = np.argsort(eigenValues)
-        # eigenVectorsSorted = [q.Qobj(eigenVectors[:, ind], dims=[self.m, len(self.m) * [1]])
-        #                       for ind in sortArg]
-
-        eigenValues, eigenVectors = scipy.sparse.linalg.eigsh(H.data, numEig, which='SR')
+        eigenValues, eigenVectors = scipy.sparse.linalg.eigs(H.data, numEig, which='SR')
+        # the output of eigen solver is not sorted
         eigenValuesSorted = np.sort(eigenValues.real)
         sortArg = np.argsort(eigenValues)
         eigenVectorsSorted = [q.Qobj(eigenVectors[:, ind], dims=[self.m, len(self.m) * [1]])
                               for ind in sortArg]
-
-        # eigenValuesSorted, eigenVectorsSorted = scipy.linalg.eigh(H.data.todense(),
-        #                                                           subset_by_index=[0, numEig-1])
 
         # store the eigenvalues and eigenvectors of the circuit Hamiltonian
         self.HamilEigVal = eigenValuesSorted
@@ -686,7 +685,7 @@ class SQcircuit:
     # Methods that calculate circuit properties
     ###############################################
 
-    def tensorToModes(self, tensorIndex: list):
+    def tensorToModes(self, tensorIndex: int):
         """
         decomposes the tensor product space index to each mode indices. For example index 5 of the tensor
         product space can be decomposed to [1,0,1] modes if the truncation number for each mode is 2.
@@ -750,10 +749,11 @@ class SQcircuit:
                 # For harmonic basis
                 else:
                     x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
-                    varphi0 = x0 / Phi0
+
                     coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0)
-                    term *= coef * np.exp(-(phiList[mode] / varphi0) ** 2 / 2) * scipy.special.eval_hermite(n, phiList[
-                        mode] / varphi0)
+
+                    term *= coef * np.exp(-(phiList[mode] * Phi0 / x0) ** 2 / 2) * \
+                            scipy.special.eval_hermite(n, phiList[mode] * Phi0 / x0)
 
             state += term
 
