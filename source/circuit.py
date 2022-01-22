@@ -33,8 +33,17 @@ class Circuit:
         # number of nodes
         self.n = max(max(self.circuitParam))
 
+        # the inverse of transformation of coordinates for charge operators
+        self.R = np.zeros((self.n, self.n))
+
+        # the inverse of transformation of coordinates for flux operators
+        self.S = np.zeros((self.n, self.n))
+
         # transform the Hamiltonian of the circuit
         self.transformHamil()
+
+        # truncation numbers for each mode
+        self.m = []
 
         # list of charge operators (self.n)
         self.chargeOpList = []
@@ -310,7 +319,7 @@ class Circuit:
         self.lDiag, self.cInvDiag, self.S1, self.R1 = self.transform1()
         # second transformation
 
-        # natural frequencies of the circuit(are zero for modes in charge basis)
+        # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvDiag) * np.diag(self.lDiag))
 
         # get the second transformation:
@@ -444,7 +453,7 @@ class Circuit:
                 elif j > i:
                     QQ = q.tensor(Q, QList[j])
 
-                    # we tensor product the QQ with I for other modes
+                    # Tensor product the QQ with I for other modes
                     for k in range(n - j - 1):
                         QQ = q.tensor(QQ, q.qeye(m[k + j + 1]))
                     chargeRowList.append(QQ)
@@ -659,12 +668,12 @@ class Circuit:
             -- eigenVectorsSorted: a list of qutip operators that contains the eigenvectors (eigNum)
         """
 
+        assert len(self.m) != 0, "Please specify the truncation number for each mode."
         assert isinstance(numEig, int), "The numEig( number of eigenvalues) should be an integer."
 
-        HJJ, H2SinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
+        HJJ, self.qpSinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
 
         H = -HJJ + self.HLC
-        self.qpSinList.append(H2SinList)
 
         # get the data out of qutip variable and use scipy eigen solver which is faster than
         # qutip eigen solver( I tested this experimentally)
@@ -684,6 +693,45 @@ class Circuit:
     ###############################################
     # Methods that calculate circuit properties
     ###############################################
+
+    def coordinateTransformation(self, opType: str):
+        """
+        returns the transformation of the coordinates for each type of operators( either charge operators or flux
+        operators)
+        inputs:
+            -- opType: the type of the operator that can be either "charge" or "flux".
+        outputs:
+            -- transCoord: transformation of the charge or flux node operator (self.n, self.n)
+        """
+        if opType == "charge" or opType == "Charge":
+            return np.linalg.inv(self.R)
+        elif opType == "flux" or opType == "Flux":
+            return np.linalg.inv(self.S)
+        else:
+            raise ValueError(" The input must be either \"charge\" or \"flux\".")
+
+    def hamiltonian(self, part="all"):
+        """
+        returns the transformed hamiltonian of the circuit for specified part that can be LC, JJ, or both parts
+        of the Hamiltonian.
+        inputs:
+            -- part: the specific part of the Hamiltonian( can be "LC", "JJ", or "all")
+        """
+        assert len(self.m) != 0, "Please specify the truncation number for each mode."
+
+        if part == "LC" or part == "lc":
+            return self.HLC
+        elif part == "JJ" or part == "jj":
+            HJJ, _ = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
+            return HJJ
+        elif part == "all":
+            HJJ, _ = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
+            return -HJJ + self.HLC
+        else:
+            raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
+
+    def operator(self, opType, node):
+        pass
 
     def tensorToModes(self, tensorIndex: int):
         """
@@ -750,7 +798,7 @@ class Circuit:
                 else:
                     x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
 
-                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0)
+                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0/Phi0)
 
                     term *= coef * np.exp(-(phiList[mode] * Phi0 / x0) ** 2 / 2) * \
                             scipy.special.eval_hermite(n, phiList[mode] * Phi0 / x0)

@@ -84,7 +84,7 @@ class Inductor:
 
     def energy(self):
         """
-        returns the charging energy of the capacitor in Hz.
+        returns the inductive energy of the inductor in Hz.
         """
         if self.lUnit in self.ut.freq:
             return self.lValue * self.ut.freq[self.lUnit]
