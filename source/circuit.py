@@ -1,6 +1,6 @@
 # Libraries:
 from elements import *
-from PhysicsConstants import *
+from units import *
 import numpy as np
 import qutip as q
 
@@ -20,18 +20,18 @@ class Circuit:
     -- decay rates
     """
 
-    def __init__(self, circuitParam: dict):
+    def __init__(self, circuitElements: dict):
 
         """
         inputs:
-            -- circuitParam: a dictionary that contains the circuit properties at each edge or
+            -- circuitElements: a dictionary that contains the circuit properties at each edge or
                             branch of the circuit.
         """
 
-        self.circuitParam = collections.defaultdict(lambda: [], copy.deepcopy(circuitParam))
+        self.circuitElements = collections.defaultdict(lambda: [], copy.deepcopy(circuitElements))
 
         # number of nodes
-        self.n = max(max(self.circuitParam))
+        self.n = max(max(self.circuitElements))
 
         # the inverse of transformation of coordinates for charge operators
         self.R = np.zeros((self.n, self.n))
@@ -86,12 +86,12 @@ class Circuit:
 
         cMat = np.zeros((self.n, self.n))
 
-        for edge in self.circuitParam.keys():
+        for edge in self.circuitElements.keys():
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
             # list of capacitors of the edge.
-            capList = self.elementModel(self.circuitParam[edge], Capacitor)
+            capList = self.elementModel(self.circuitElements[edge], Capacitor)
 
             # summation of the capacitor values.
             cap = sum(list(map(Capacitor.value, capList)))
@@ -116,12 +116,12 @@ class Circuit:
 
         lMat = np.zeros((self.n, self.n))
 
-        for edge in self.circuitParam.keys():
+        for edge in self.circuitElements.keys():
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
             # list of inductors of the edge
-            indList = self.elementModel(self.circuitParam[edge], Inductor)
+            indList = self.elementModel(self.circuitElements[edge], Inductor)
 
             # summation of the inductor values.
             x = np.sum(1 / np.array(list(map(Inductor.value, indList))))
@@ -148,12 +148,12 @@ class Circuit:
         """
 
         wMat = []
-        for edge in self.circuitParam.keys():
+        for edge in self.circuitElements.keys():
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
             # list of Josephson Junction of the edge.
-            JJList = self.elementModel(self.circuitParam[edge], Junction)
+            JJList = self.elementModel(self.circuitElements[edge], Junction)
 
             if len(JJList) != 0:
                 w = [0] * (self.n + 1)
@@ -293,7 +293,7 @@ class Circuit:
             else:
                 # note: alpha here is absolute value of alpha( alpha is pure imaginary)
                 # alpha for j-th mode
-                alpha = np.abs(2 * np.pi / Phi0 * np.sqrt(hbar / 2 * np.sqrt(
+                alpha = np.abs(2 * np.pi / unit.Phi0 * np.sqrt(unit.hbar / 2 * np.sqrt(
                     self.cInvDiag[j, j] / self.lDiag[j, j])) * self.wTrans[:, j])
                 self.wTrans[:, j][alpha < 1e-11] = 0
                 if np.max(alpha) > 1e-11:
@@ -398,7 +398,7 @@ class Circuit:
         QList = []
         for i in range(n):
             if omega[i] == 0:
-                Q0 = (2 * e / np.sqrt(hbar)) * q.charge((m[i] - 1) / 2)
+                Q0 = (2 * unit.e / np.sqrt(unit.hbar)) * q.charge((m[i] - 1) / 2)
             else:
                 coef = -1j * np.sqrt(1 / 2 * np.sqrt(lDiag[i, i] / cInvDiag[i, i]))
                 Q0 = coef * (q.destroy(m[i]) - q.create(m[i]))
@@ -564,8 +564,8 @@ class Circuit:
                         H2 = d
 
                 elif j == 0 and omega[j] != 0:
-                    alpha = 2 * np.pi / Phi0 * 1j * np.sqrt(
-                        hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
+                    alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
+                        unit.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
                     H = q.displace(m[j], alpha)
                     H2 = q.displace(m[j], alpha / 2)
 
@@ -582,8 +582,8 @@ class Circuit:
                         H = q.tensor(H, d.dag())
 
                 elif j != 0 and omega[j] != 0:
-                    alpha = 2 * np.pi / Phi0 * 1j * np.sqrt(
-                        hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
+                    alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
+                        unit.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
                     H = q.tensor(H, q.displace(m[j], alpha))
                     H2 = q.tensor(H2, q.displace(m[j], alpha / 2))
 
@@ -614,10 +614,10 @@ class Circuit:
         # count when we address any JJ( when EJ is not None)
         i = 0
 
-        for edge in self.circuitParam:
+        for edge in self.circuitElements:
 
             # list of Josephson Junction of the edge.
-            JJList = self.elementModel(self.circuitParam[edge], Junction)
+            JJList = self.elementModel(self.circuitElements[edge], Junction)
             if len(JJList) == 0:
                 continue
 
@@ -685,10 +685,10 @@ class Circuit:
                               for ind in sortArg]
 
         # store the eigenvalues and eigenvectors of the circuit Hamiltonian
-        self.HamilEigVal = eigenValuesSorted
+        self.HamilEigVal = eigenValuesSorted / (2 * np.pi * unit.freq)
         self.HamilEigVec = eigenVectorsSorted
 
-        return eigenValuesSorted, eigenVectorsSorted
+        return eigenValuesSorted.real / (2 * np.pi * unit.freq), eigenVectorsSorted
 
     ###############################################
     # Methods that calculate circuit properties
@@ -731,6 +731,9 @@ class Circuit:
             raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
 
     def operator(self, opType, node):
+        pass
+
+    def matrixElements(self, coType, node1, node2):
         pass
 
     def tensorToModes(self, tensorIndex: int):
@@ -798,10 +801,10 @@ class Circuit:
                 else:
                     x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
 
-                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0/Phi0)
+                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0/unit.Phi0)
 
-                    term *= coef * np.exp(-(phiList[mode] * Phi0 / x0) ** 2 / 2) * \
-                            scipy.special.eval_hermite(n, phiList[mode] * Phi0 / x0)
+                    term *= coef * np.exp(-(phiList[mode] * uniy.Phi0 / x0) ** 2 / 2) * \
+                            scipy.special.eval_hermite(n, phiList[mode] * unit.Phi0 / x0)
 
             state += term
 
