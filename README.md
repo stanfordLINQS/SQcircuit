@@ -1,4 +1,4 @@
-# SQcircuit
+# <span style="color:Orange">*SQ*</span>circuit
 [**What is SQcircuit?**](#What-is-SQcircuit?)
 |[**Quick Tutorial**](#Quick-Tutorial)
 |[**Installation**](#Installation)
