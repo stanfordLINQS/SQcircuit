@@ -45,8 +45,10 @@ class Circuit:
         # truncation numbers for each mode
         self.m = []
 
-        # list of charge operators (self.n)
+        # list of charge operators( transformed operators) (self.n)
         self.chargeOpList = []
+        # list of flux operators(transformed operators) (self.n)
+        self.fluxOpList = []
         # cross multiplication of charge operators as list
         self.chargeByChargeList = []
         # list of number operators (self.n)
@@ -301,8 +303,8 @@ class Circuit:
                     s = np.abs(self.wTrans[np.argmax(alpha), j])
                     # scale that mode with s
                     self.wTrans[:, j] = self.wTrans[:, j] / s
-                    self.cInvDiag[j] *= s ** 2
-                    self.lDiag[j] /= s ** 2
+                    self.cInvDiag[j, j] *= s ** 2
+                    self.lDiag[j, j] /= s ** 2
                     S3[j, j] = 1 / s
 
         R3 = np.linalg.inv(S3.T)
@@ -355,8 +357,8 @@ class Circuit:
         assert len(truncNum) == self.n, error2
         self.m = truncNum
 
-        self.chargeOpList, self.numOpList, self.chargeByChargeList = self.buildOpMemory(self.lDiag, self.cInvDiag,
-                                                                                        self.omega, self.m, self.n)
+        self.chargeOpList, self.numOpList, self.chargeByChargeList, self.fluxOpList = self.buildOpMemory(
+            self.lDiag, self.cInvDiag, self.omega, self.m, self.n)
 
         self.HLC = self.getLCHamil(self.cInvDiag, self.omega, self.chargeByChargeList, self.numOpList)
 
@@ -384,17 +386,18 @@ class Circuit:
             -- n: number of circuit nodes
         outputs:
             -- chargeOpList : list of charge operators (self.n)
+            -- fluxOpList: list of flux operators (self.n)
             -- chargeByChargeList : cross multiplication of charge operators as list
             -- numOpList : list of number operators (self.n)
         """
 
-        # list of charge operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-
         chargeOpList = []
+        fluxOpList = []
         numOpList = []
         chargeByChargeList = []
 
+        # list of charge operators in their own mode basis
+        # (tensor product of other modes are not applied yet!)
         QList = []
         for i in range(n):
             if omega[i] == 0:
@@ -403,6 +406,17 @@ class Circuit:
                 coef = -1j * np.sqrt(1 / 2 * np.sqrt(lDiag[i, i] / cInvDiag[i, i]))
                 Q0 = coef * (q.destroy(m[i]) - q.create(m[i]))
             QList.append(Q0)
+
+        fluxList = []
+        # list of flux operators in their own mode basis
+        # (tensor product of other modes are not applied yet!)
+        for i in range(n):
+            if omega[i] == 0:
+                flux0 = q.qeye(0)
+            else:
+                coef = np.sqrt(1 / 2 * np.sqrt(cInvDiag[i, i] / lDiag[i, i]))
+                flux0 = coef * (q.destroy(m[i]) + q.create(m[i]))
+            fluxList.append(flux0)
 
         # list of number operators in their own mode basis
         # (tensor product of other modes are not applied yet!)
@@ -416,13 +430,16 @@ class Circuit:
 
         for i in range(n):
             chargeRowList = []
+            num = q.Qobj()
+            Q = q.Qobj()
+            flux = q.Qobj()
             for j in range(n):
-
                 # find the appropriate charge and number operator for first mode
                 if j == 0 and i == 0:
                     Q2 = QList[j] * QList[j]
                     Q = QList[j]
                     num = nList[j]
+                    flux = fluxList[j]
 
                     # Tensor product the charge with I for other modes
                     for k in range(n - 1):
@@ -433,17 +450,20 @@ class Circuit:
                     I = q.qeye(m[j])
                     Q = I
                     num = I
+                    flux = I
 
                 # find the rest of the modes
                 elif j != 0 and j < i:
                     I = q.qeye(m[j])
                     Q = q.tensor(Q, I)
                     num = q.tensor(num, I)
+                    flux = q.tensor(flux, I)
 
                 elif j != 0 and j == i:
                     Q2 = q.tensor(Q, QList[j] * QList[j])
                     Q = q.tensor(Q, QList[j])
                     num = q.tensor(num, nList[j])
+                    flux = q.tensor(flux, fluxList[j])
 
                     # Tensor product the charge with I for other modes
                     for k in range(n - j - 1):
@@ -461,12 +481,14 @@ class Circuit:
                     I = q.qeye(m[j])
                     Q = q.tensor(Q, I)
                     num = q.tensor(num, I)
+                    flux = q.tensor(flux, I)
 
             chargeOpList.append(Q)
             numOpList.append(num)
             chargeByChargeList.append(chargeRowList)
+            fluxOpList.append(flux)
 
-        return chargeOpList, numOpList, chargeByChargeList
+        return chargeOpList, numOpList, chargeByChargeList, fluxOpList
 
     def getLCHamil(self, cInvDiag: np.array, omega: np.array, chargeByChargeList: list, numOpList: list):
         """
@@ -667,7 +689,6 @@ class Circuit:
             -- eigenvaluesSorted: the eigen values of the Hamiltonian (eigNum)
             -- eigenVectorsSorted: a list of qutip operators that contains the eigenvectors (eigNum)
         """
-
         assert len(self.m) != 0, "Please specify the truncation number for each mode."
         assert isinstance(numEig, int), "The numEig( number of eigenvalues) should be an integer."
 
@@ -730,10 +751,28 @@ class Circuit:
         else:
             raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
 
-    def operator(self, opType, node):
-        pass
+    # def operator(self, opType: str, node: int):
+    #     """
+    #     return the node operator for each operator type.
+    #     inputs:
+    #         -- opType: Type of the circuit node operator.It must be either "n" for charge operator
+    #         in number of Cooper pairs, or phi for phase operator
+    #         -- node: The desired node.
+    #     outputs:
+    #         -- op: The operator as qutip object.
+    #     """
+    #     assert opType in ["n", "phi"], "The operator type must be either \"n\" or \"phi\"."
+    #     assert isinstance(node, int), "The node number must be an integer."
+    #     assert len(self.m) != 0, "Please specify the truncation number for each mode."
+    #
+    #     op = q.Qobj()
+    #
+    #     for i in range(self.n):
+    #         if opType == "n":
+    #             op += self.R[node-1,i] * self.chargeOpList[node-1]/(2 * unit.e / np.sqrt(unit.hbar))
+    #         elif opType == "phi":
 
-    def matrixElements(self, coType, node1, node2):
+    def matrixElements(self, copType, node1, node2):
         pass
 
     def tensorToModes(self, tensorIndex: int):
@@ -801,7 +840,7 @@ class Circuit:
                 else:
                     x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
 
-                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0/unit.Phi0)
+                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0 / unit.Phi0)
 
                     term *= coef * np.exp(-(phiList[mode] * uniy.Phi0 / x0) ** 2 / 2) * \
                             scipy.special.eval_hermite(n, phiList[mode] * unit.Phi0 / x0)
