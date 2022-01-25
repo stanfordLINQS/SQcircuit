@@ -23,34 +23,34 @@ circuitElements = {(0, 1): [CJ, JJ],
                 (1, 3): [L],
                 (2, 3): [CJ, JJ]}
 
-# cr is an object of Qcircuit
+
 cr1 = sq.Circuit(circuitElements)
 cr1.setTruncationNumbers([25, 1, 25])
-
-omegaList = []
-
-for i in range(10000):
-    cr1 = sq.Circuit(circuitElements, random=True)
-    omegaList.append(cr1.omega[0].real/sq.unit.freqList['GHz'])
-
-plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
-plt.show()
-
-# numEig = 5
-# phiExt = np.linspace(0, 1, 100) * 2 * np.pi
-# eigenValues = np.zeros((numEig, len(phiExt)))
 #
-# for i in range(len(phiExt)):
-#     cr1.setExternalFluxes({(0, 1): phiExt[i]})
-#     eigenValues[:, i], _ = cr1.run(numEig)
+# omegaList = []
 #
-# plt.figure()
-# for i in range(5):
-#     plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
+# for i in range(10000):
+#     cr1 = sq.Circuit(circuitElements, random=True)
+#     omegaList.append(cr1.omega[0].real/sq.unit.freqList['GHz'])
 #
-# plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
-# plt.ylabel(r"($\omega_i-\omega_0$)GHz")
+# plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
 # plt.show()
+
+numEig = 5
+phiExt = np.linspace(0, 1, 100) * 2 * np.pi
+eigenValues = np.zeros((numEig, len(phiExt)))
+
+for i in range(len(phiExt)):
+    cr1.linkFluxes({(0, 1): sq.Flux(phiExt[i])})
+    eigenValues[:, i], _ = cr1.run(numEig)
+
+plt.figure()
+for i in range(5):
+    plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
+
+plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+plt.ylabel(r"($\omega_i-\omega_0$)GHz")
+plt.show()
 
 # circuitParam = {(0, 1): [CJ, JJ, L]}
 

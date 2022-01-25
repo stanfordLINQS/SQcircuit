@@ -15,9 +15,9 @@ class Capacitor:
     def __init__(self, value, cUnit, error=0):
         """
         inputs:
-            -- value: the value of the capacitor
-            -- units: the unit of input value
-            -- error: the error in fabrication( as a percentage)
+            -- value: The value of the capacitor.
+            -- units: The unit of input value.
+            -- error: The error in fabrication.( as a percentage)
         """
 
         if cUnit not in unit.freqList and cUnit not in unit.faradList:
@@ -67,8 +67,9 @@ class Inductor:
     def __init__(self, value, lUnit, error=0):
         """
         inputs:
-            -- value: the value of the inductor
-            -- units: the unit of input value
+            -- value: The value of the inductor.
+            -- units: The unit of input value.
+            -- error: The error in fabrication.( as a percentage)
         """
 
         if lUnit not in unit.freqList and lUnit not in unit.henryList:
@@ -118,8 +119,9 @@ class Junction:
     def __init__(self, value, jUnit, error=0):
         """
         inputs:
-            -- value: the value of the inductor
-            -- units: the unit of input value
+            -- value: The value of the inductor.
+            -- units: The unit of input value.
+            -- error: The error in fabrication.( as a percentage)
         """
 
         if jUnit not in unit.freqList:
@@ -147,16 +149,16 @@ class Junction:
             return np.random.normal(jMean, jMean * self.error / 100, 1)[0]
 
 
-class FluxBias:
+class Flux:
     """
-    class that contains the flux bias properties
+    class that contains the flux bias properties.
     """
 
     def __init__(self, value=0, noise=0):
         """
         inputs:
-            -- value: the value of the bias.
-            -- noise: the amplitude of the noise.
+            -- value: The value of the bias.
+            -- noise: The amplitude of the noise.
         """
         self.fValue = value
         self.noise = noise

@@ -376,7 +376,7 @@ class Circuit:
         self.HJJExpList, self.HJJExpRootList = self.getHJJExp(self.cInvDiag, self.lDiag, self.omega,
                                                               self.wTrans, self.m, self.n)
 
-    def setExternalFluxes(self, externalFluxes: dict):
+    def linkFluxes(self, externalFluxes: dict):
         """set the external fluxes for each Josephson Junction
         input:
             -- externalFluxes: a dictionary that contains the external flux
@@ -660,10 +660,10 @@ class Circuit:
 
                 H = 0
                 phi = fluxExt.get(edge, []) + fluxExt.get((edge[1], edge[0]), [])
-                phi = phi + [0] * (len(EJ) - len(phi))
+                phi = phi + [FLux()] * (len(EJ) - len(phi))
 
                 for j in range(len(EJ)):
-                    H += np.exp(1j * phi[j]) * EJ[j] / 2 * HJJExpList[i]
+                    H += np.exp(1j * phi[j].value(self.random)) * EJ[j] / 2 * HJJExpList[i]
 
                 H = H + H.dag()
                 # needed to be implemented 
@@ -671,14 +671,18 @@ class Circuit:
 
             # single JJ case
             else:
-                # return zero if external flux is not specified for that edge
-                phi = fluxExt.get(edge, 0) + fluxExt.get((edge[1], edge[0]), 0)
+                if edge in fluxExt:
+                    phi = fluxExt[edge]
+                elif (edge[1], edge[0]) in fluxExt:
+                    phi = fluxExt[(edge[1], edge[0])]
+                else:
+                    phi = Flux()
 
-                H = np.exp(1j * phi) * EJ[0] / 2 * HJJExpList[i]
+                H = np.exp(1j * phi.value(self.random)) * EJ[0] / 2 * HJJExpList[i]
                 H = H + H.dag()
 
                 # sin(phi/2) for the quasi-particle decay rate
-                H2 = np.exp(1j * phi / 2) * HJJExpRootList[i]
+                H2 = np.exp(1j * phi.value(self.random) / 2) * HJJExpRootList[i]
                 H2 = q.Qobj(H2)
                 H2 = (H2.dag() - H2) / 2j
 
@@ -882,91 +886,91 @@ class Circuit:
 
         return state
 
-    # def setDieTanLoss(self, DieTanList):
-    #     self.dieTanList = DieTanList;
-    #
-    # def setQuasiparticleFraction(self, x_qpList):
-    #     self.x_qpList = x_qpList
-    #
-    # def setTemperature(self, T):
-    #     self.T = T
-    #
-    # def decayRateProcess(self, state1, state2, mode='all'):
-    #     """function that calculate the effective decay rates for
-    #     specific process of |state1> and |state2>"""
-    #
-    #     # state2 should be larger than state1
-    #     assert state2 > state1, "State2 index should be larger than state1 index"
-    #     assert self.T != None, "Set the temperature first"
-    #
-    #     decayList = []
-    #
-    #     # loop over all the external fluxes
-    #     for i1 in range(len(self.HamilEigVecList)):
-    #         # list of effective decay rate for each capacitor
-    #         dieDecayList = [];
-    #         qpDecayList = [];
-    #
-    #         ketState1 = self.HamilEigVecList[i1][state1]
-    #         ketState2 = self.HamilEigVecList[i1][state2]
-    #
-    #         omegaState1 = self.HamilEigVal[state1, i1]
-    #         omegaState2 = self.HamilEigVal[state2, i1]
-    #
-    #         omega_q = omegaState2 - omegaState1
-    #
-    #         # the vector that holds the expectation values of charge operators
-    #         q_ge = np.array([(ketState1.dag() * Qtilde * ketState2)[0, 0] for Qtilde in self.chargeOpList])
-    #
-    #         # the decayVec is the vector which makes calculation easier and faster more
-    #         # explanation in Qcircuit notes
-    #         decayVec = self.cInv @ self.R @ q_ge
-    #
-    #         if (mode == 'dielectric' or mode == 'all'):
-    #
-    #             k_B = 1.38e-23
-    #             # effect of tempreture
-    #
-    #             # prevent the exponential over flow(exp(709) is biggest number that numpy can calculate)
-    #             if (hbar * (omega_q) / (k_B * self.T) > 709):
-    #                 nbar = 0
-    #             else:
-    #                 nbar = 1 / (np.exp(hbar * (omega_q) / (k_B * self.T)) - 1)
-    #
-    #             for i, c_x in enumerate(self.C):
-    #
-    #                 # extracting the nodes
-    #                 node1, node2 = self.graph[i]
-    #
-    #                 # check if the node is connected to ground
-    #                 if (node1 == 0):
-    #                     dieDecayList.append(
-    #                         2 * c_x * self.dieTanList[i] * np.abs(decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
-    #                 elif (node2 == 0):
-    #                     dieDecayList.append(
-    #                         2 * c_x * self.dieTanList[i] * np.abs(decayVec[node1 - 1]) ** 2 * (2 * nbar + 1))
-    #
-    #                 else:
-    #                     dieDecayList.append(2 * c_x * self.dieTanList[i] *
-    #                                         np.abs(decayVec[node1 - 1] - decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
-    #
-    #         if (mode == 'quasiparticles' or mode == 'all'):
-    #             for i in range(len(self.JJEj)):
-    #                 """https://www.researchgate.net/figure/SIS-parameters-for-cold-
-    #                 and-room-temperature-evaporations-Number-of-samples-measured_tbl1_1896356
-    #                 """
-    #                 Delta = 250 * 1e-6 * 1.6e-19;
-    #
-    #                 # opExpt = (ketState1.dag()*(self.qpPrevList[i].dag() - self.qpPrevList[i])/(2j)*ketState2)[0,0]
-    #                 opExpt = (ketState1.dag() * self.qpSinList[i1][i] * ketState2)[0, 0] + 1e-23
-    #                 S = self.x_qpList[self.JJIndex[i]] * 8 * hbar * self.JJEj[i] / np.pi / hbar * np.sqrt(
-    #                     2 * Delta / hbar / omega_q)
-    #                 qpDecayList.append(np.abs(opExpt) ** 2 * S)
-    #
-    #         decayList.append(np.sum(dieDecayList) + np.sum(qpDecayList))
-    #
-    #     return np.array(decayList).real
-    #
+    def setDieTanLoss(self, DieTanList):
+        self.dieTanList = DieTanList
+
+    def setQuasiparticleFraction(self, x_qpList):
+        self.x_qpList = x_qpList
+
+    def setTemperature(self, T):
+        self.T = T
+
+    def decayRateProcess(self, state1, state2, mode='all'):
+        """function that calculate the effective decay rates for
+        specific process of |state1> and |state2>"""
+
+        # state2 should be larger than state1
+        assert state2 > state1, "State2 index should be larger than state1 index"
+        assert self.T != None, "Set the temperature first"
+
+        decayList = []
+
+        # loop over all the external fluxes
+        for i1 in range(len(self.HamilEigVecList)):
+            # list of effective decay rate for each capacitor
+            dieDecayList = []
+            qpDecayList = []
+
+            ketState1 = self.HamilEigVecList[i1][state1]
+            ketState2 = self.HamilEigVecList[i1][state2]
+
+            omegaState1 = self.HamilEigVal[state1, i1]
+            omegaState2 = self.HamilEigVal[state2, i1]
+
+            omega_q = omegaState2 - omegaState1
+
+            # the vector that holds the expectation values of charge operators
+            q_ge = np.array([(ketState1.dag() * Qtilde * ketState2)[0, 0] for Qtilde in self.chargeOpList])
+
+            # the decayVec is the vector which makes calculation easier and faster more
+            # explanation in Qcircuit notes
+            decayVec = self.cInv @ self.R @ q_ge
+
+            if (mode == 'dielectric' or mode == 'all'):
+
+                k_B = 1.38e-23
+                # effect of tempreture
+
+                # prevent the exponential over flow(exp(709) is biggest number that numpy can calculate)
+                if (hbar * (omega_q) / (k_B * self.T) > 709):
+                    nbar = 0
+                else:
+                    nbar = 1 / (np.exp(hbar * (omega_q) / (k_B * self.T)) - 1)
+
+                for i, c_x in enumerate(self.C):
+
+                    # extracting the nodes
+                    node1, node2 = self.graph[i]
+
+                    # check if the node is connected to ground
+                    if (node1 == 0):
+                        dieDecayList.append(
+                            2 * c_x * self.dieTanList[i] * np.abs(decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
+                    elif (node2 == 0):
+                        dieDecayList.append(
+                            2 * c_x * self.dieTanList[i] * np.abs(decayVec[node1 - 1]) ** 2 * (2 * nbar + 1))
+
+                    else:
+                        dieDecayList.append(2 * c_x * self.dieTanList[i] *
+                                            np.abs(decayVec[node1 - 1] - decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
+
+            if (mode == 'quasiparticles' or mode == 'all'):
+                for i in range(len(self.JJEj)):
+                    """https://www.researchgate.net/figure/SIS-parameters-for-cold-
+                    and-room-temperature-evaporations-Number-of-samples-measured_tbl1_1896356
+                    """
+                    Delta = 250 * 1e-6 * 1.6e-19;
+
+                    # opExpt = (ketState1.dag()*(self.qpPrevList[i].dag() - self.qpPrevList[i])/(2j)*ketState2)[0,0]
+                    opExpt = (ketState1.dag() * self.qpSinList[i1][i] * ketState2)[0, 0] + 1e-23
+                    S = self.x_qpList[self.JJIndex[i]] * 8 * hbar * self.JJEj[i] / np.pi / hbar * np.sqrt(
+                        2 * Delta / hbar / omega_q)
+                    qpDecayList.append(np.abs(opExpt) ** 2 * S)
+
+            decayList.append(np.sum(dieDecayList) + np.sum(qpDecayList))
+
+        return np.array(decayList).real
+
     #
     # def getPotentialNode(self, node, phi, phiExt):
     #     # This function gives the potential related to speicific node as a function
