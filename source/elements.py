@@ -12,11 +12,12 @@ class Capacitor:
     class that contains the capacitor properties.
     """
 
-    def __init__(self, value, cUnit):
+    def __init__(self, value, cUnit, error=0):
         """
         inputs:
             -- value: the value of the capacitor
             -- units: the unit of input value
+            -- error: the error in fabrication( as a percentage)
         """
 
         if cUnit not in unit.freqList and cUnit not in unit.faradList:
@@ -26,16 +27,26 @@ class Capacitor:
 
         self.cValue = value
         self.cUnit = cUnit
+        self.error = error
+        self.type = type(self)
 
-    def value(self):
+    def value(self, random: bool = False):
         """
-        returns the value of the capacitor in Farad units
+        returns the value of the capacitor in Farad units. If random flag is true, it samples from a normal
+        distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
         """
         if self.cUnit in unit.faradList:
-            return self.cValue * unit.faradList[self.cUnit]
+            cMean = self.cValue * unit.faradList[self.cUnit]
         else:
             E_c = self.cValue * unit.freqList[self.cUnit] * (2 * np.pi * unit.hbar)
-            return unit.e ** 2 / 2 / E_c
+            cMean = unit.e ** 2 / 2 / E_c
+
+        if not random:
+            return cMean
+        else:
+            return np.random.normal(cMean, cMean * self.error / 100, 1)[0]
 
     def energy(self):
         """
@@ -53,7 +64,7 @@ class Inductor:
     class that contains the inductor properties.
     """
 
-    def __init__(self, value, lUnit):
+    def __init__(self, value, lUnit, error=0):
         """
         inputs:
             -- value: the value of the inductor
@@ -67,16 +78,26 @@ class Inductor:
 
         self.lValue = value
         self.lUnit = lUnit
+        self.error = error
+        self.type = type(self)
 
-    def value(self):
+    def value(self, random: bool = False):
         """
-        returns the value of the inductor in Henry units
+        returns the value of the inductor in Henry units. If random flag is true, it samples from a normal
+        distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
         """
         if self.lUnit in unit.henryList:
-            return self.lValue * unit.henryList[self.lUnit]
+            lMean = self.lValue * unit.henryList[self.lUnit]
         else:
             E_l = self.lValue * unit.freqList[self.lUnit] * (2 * np.pi * unit.hbar)
-            return (unit.Phi0 / 2 / np.pi) ** 2 / E_l
+            lMean = (unit.Phi0 / 2 / np.pi) ** 2 / E_l
+
+        if not random:
+            return lMean
+        else:
+            return np.random.normal(lMean, lMean * self.error / 100, 1)[0]
 
     def energy(self):
         """
@@ -94,7 +115,7 @@ class Junction:
     class that contains the Josephson Junction properties.
     """
 
-    def __init__(self, value, jUnit):
+    def __init__(self, value, jUnit, error=0):
         """
         inputs:
             -- value: the value of the inductor
@@ -108,9 +129,49 @@ class Junction:
 
         self.jValue = value
         self.jUnit = jUnit
+        self.error = error
+        self.type = type(self)
 
-    def value(self):
+    def value(self, random: bool = False):
         """
-        returns the value of the Josephson Junction in angular frequency
+        returns the value of the Josephson Junction in angular frequency. If random flag is true, it samples
+        from a normal distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
         """
-        return self.jValue * unit.freqList[self.jUnit] * 2 * np.pi
+        jMean = self.jValue * unit.freqList[self.jUnit] * 2 * np.pi
+
+        if not random:
+            return jMean
+        else:
+            return np.random.normal(jMean, jMean * self.error / 100, 1)[0]
+
+
+class FluxBias:
+    """
+    class that contains the flux bias properties
+    """
+
+    def __init__(self, value=0, noise=0):
+        """
+        inputs:
+            -- value: the value of the bias.
+            -- noise: the amplitude of the noise.
+        """
+        self.fValue = value
+        self.noise = noise
+
+    def value(self, random: bool = False):
+        """
+        returns the value of flux. If random flag is true, it samples from a normal distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
+        """
+        if not random:
+            return self.fValue
+        else:
+            return np.random.normal(self.fValue, noise, 1)[0]
+
+
+class ChargeBias:
+    pass

@@ -20,15 +20,19 @@ class Circuit:
     -- decay rates
     """
 
-    def __init__(self, circuitElements: dict):
+    def __init__(self, circuitElements: dict, random: bool = False):
 
         """
         inputs:
             -- circuitElements: a dictionary that contains the circuit properties at each edge or
                             branch of the circuit.
+            -- random: if true, the circuit considers the effects of noise in biases as well as
+                      error in circuit fabrication.
         """
 
         self.circuitElements = collections.defaultdict(lambda: [], copy.deepcopy(circuitElements))
+
+        self.random = random
 
         # number of nodes
         self.n = max(max(self.circuitElements))
@@ -44,6 +48,9 @@ class Circuit:
 
         # truncation numbers for each mode
         self.m = []
+
+        # external fluxes of the circuit
+        self.extFlux = {}
 
         # list of charge operators( transformed operators) (self.n)
         self.chargeOpList = []
@@ -61,12 +68,11 @@ class Circuit:
         self.HJJExpRootList = []
         # sin(phi/2) operator related to each JJ for quasi-particle Loss
         self.qpSinList = []
-        # external fluxes of the circuit
-        self.extFlux = {}
+
         # eigenvalues of the circuit
-        self.HamilEigVal = []
+        self.hamilEigVal = []
         # eigenvectors of the circuit
-        self.HamilEigVec = []
+        self.hamilEigVec = []
 
     @staticmethod
     def elementModel(elementList: list, model):
@@ -96,7 +102,7 @@ class Circuit:
             capList = self.elementModel(self.circuitElements[edge], Capacitor)
 
             # summation of the capacitor values.
-            cap = sum(list(map(Capacitor.value, capList)))
+            cap = sum(list(map(lambda c: c.value(self.random), capList)))
 
             if i1 != 0 and i2 == 0:
                 cMat[i1 - 1, i1 - 1] += cap
@@ -126,7 +132,7 @@ class Circuit:
             indList = self.elementModel(self.circuitElements[edge], Inductor)
 
             # summation of the inductor values.
-            x = np.sum(1 / np.array(list(map(Inductor.value, indList))))
+            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
 
             if i1 != 0 and i2 == 0:
                 lMat[i1 - 1, i1 - 1] += x
@@ -303,9 +309,14 @@ class Circuit:
                     s = np.abs(self.wTrans[np.argmax(alpha), j])
                     # scale that mode with s
                     self.wTrans[:, j] = self.wTrans[:, j] / s
-                    self.cInvDiag[j, j] *= s ** 2
-                    self.lDiag[j, j] /= s ** 2
                     S3[j, j] = 1 / s
+                    for i in range(self.n):
+                        if i == j:
+                            self.cInvDiag[i, j] *= s ** 2
+                            self.lDiag[i, j] /= s ** 2
+                        else:
+                            self.cInvDiag[i, j] *= s
+                            self.lDiag[i, j] /= s
 
         R3 = np.linalg.inv(S3.T)
 
@@ -340,10 +351,10 @@ class Circuit:
         self.S = self.S1 @ self.S2 @ self.S3
         self.R = self.R1 @ self.R2 @ self.R3
 
-        print("Natural frequencies of the circuit:")
-        print(self.omega)
-        print("W transformed matrix:")
-        print(self.wTrans)
+        # print("Natural frequencies of the circuit:")
+        # print(self.omega)
+        # print("W transformed matrix:")
+        # print(self.wTrans)
 
     def setTruncationNumbers(self, truncNum: list):
         """set the truncation numbers for each mode
@@ -643,7 +654,7 @@ class Circuit:
             if len(JJList) == 0:
                 continue
 
-            EJ = list(map(Junction.value, JJList))
+            EJ = list(map(lambda jj: jj.value(self.random), JJList))
             # Parallel JJ case
             if len(EJ) > 1:
 
@@ -706,8 +717,8 @@ class Circuit:
                               for ind in sortArg]
 
         # store the eigenvalues and eigenvectors of the circuit Hamiltonian
-        self.HamilEigVal = eigenValuesSorted / (2 * np.pi * unit.freq)
-        self.HamilEigVec = eigenVectorsSorted
+        self.hamilEigVal = eigenValuesSorted / (2 * np.pi * unit.freq)
+        self.hamilEigVec = eigenVectorsSorted
 
         return eigenValuesSorted.real / (2 * np.pi * unit.freq), eigenVectorsSorted
 
@@ -751,26 +762,48 @@ class Circuit:
         else:
             raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
 
-    # def operator(self, opType: str, node: int):
-    #     """
-    #     return the node operator for each operator type.
-    #     inputs:
-    #         -- opType: Type of the circuit node operator.It must be either "n" for charge operator
-    #         in number of Cooper pairs, or phi for phase operator
-    #         -- node: The desired node.
-    #     outputs:
-    #         -- op: The operator as qutip object.
-    #     """
-    #     assert opType in ["n", "phi"], "The operator type must be either \"n\" or \"phi\"."
-    #     assert isinstance(node, int), "The node number must be an integer."
-    #     assert len(self.m) != 0, "Please specify the truncation number for each mode."
-    #
-    #     op = q.Qobj()
-    #
-    #     for i in range(self.n):
-    #         if opType == "n":
-    #             op += self.R[node-1,i] * self.chargeOpList[node-1]/(2 * unit.e / np.sqrt(unit.hbar))
-    #         elif opType == "phi":
+    def couplingOperator(self, copType: str, nodes: tuple):
+        """
+        returns the "capacitive" or "inductive" coupling operator related to the specified nodes.
+        inputs:
+            copType: coupling type which is either "capacitive" or "inductive".
+            nodes: circuit nodes to which we want to couple.
+        returns:
+            op: coupling operator which is a charge operator in number of Cooper pairs for capacitive coupling
+            and is phase drop operator across an inductor for inductive coupling.
+        """
+        error = "The coupling type must be either \"capacitive\" or \"inductive\""
+        assert copType in ["capacitive", "inductive"], error
+        assert isinstance(nodes, tuple) or isinstance(nodes, list), "Nodes must be either a list or a set."
+
+        op = q.Qobj()
+
+        node1 = nodes[0]
+        node2 = nodes[1]
+
+        # for the case that we have ground in the edge
+        if 0 in nodes:
+            node = node1 + node2
+            if copType == "capacitive":
+                K = np.linalg.inv(self.getMatC()) @ self.R
+                for i in range(self.n):
+                    op += K[node-1, i] * self.chargeOpList[i]
+            if copType == "inductive":
+                K = self.S
+                for i in range(self.n):
+                    op += K[node-1, i] * self.fluxOpList[i]
+
+        else:
+            if copType == "capacitive":
+                K = np.linalg.inv(self.getMatC()) @ self.R
+                for i in range(self.n):
+                    op += (K[node2-1, i] - K[node1-1, i]) * self.chargeOpList[i]
+            if copType == "inductive":
+                K = self.S
+                for i in range(self.n):
+                    op += (K[node2-1, i] - K[node1-1, i]) * self.fluxOpList[i]
+
+        return op
 
     def matrixElements(self, copType, node1, node2):
         pass
@@ -934,50 +967,6 @@ class Circuit:
     #
     #     return np.array(decayList).real
     #
-    # def setDrive(self, node):
-    #     # function that builds the Hamiltonian related to drive the special node of the circuit.
-    #     # The varibales are the same as the notation that I used in the notes.
-    #
-    #     # charge drive vector
-    #     qd = np.zeros((self.n, 1));
-    #     qd[node - 1] = 1
-    #
-    #     W_total = 0;
-    #     weights = (qd.T @ self.cInv @ self.R)[0, :]
-    #
-    #     # calculate the W
-    #     for i in range(self.n):
-    #         W = 0
-    #         for j in range(self.n):
-    #             if (j == 0 and j == i):
-    #                 if (self.omega[j] == 0):
-    #                     Q = 2 * e / hbar * q.charge((self.m[j] - 1) / 2)
-    #                     W = Q
-    #                 else:
-    #                     disMinCreat = q.destroy(self.m[j]) - q.create(self.m[j]);
-    #                     coef = -1j * np.sqrt(1 / 2 * np.sqrt(self.lRotated[j, j] / self.cInvRotated[j, j]) / hbar)
-    #                     W = coef * disMinCreat;
-    #
-    #             elif (j == 0 and j != i):
-    #                 I = q.qeye(self.m[j])
-    #                 W = I
-    #
-    #             if (j != 0 and j == i):
-    #                 if (self.omega[j] == 0):
-    #                     Q = 2 * e / hbar * q.charge((self.m[j] - 1) / 2)
-    #                     W = q.tensor(W, Q)
-    #                 else:
-    #                     disMinCreat = q.destroy(self.m[j]) - q.create(self.m[j]);
-    #                     coef = -1j * np.sqrt(1 / 2 * np.sqrt(self.lRotated[j, j] / self.cInvRotated[j, j]) / hbar)
-    #                     W = q.tensor(W, coef * disMinCreat);
-    #
-    #             elif (j != 0 and j != i):
-    #                 I = q.qeye(self.m[j])
-    #                 W = q.tensor(w, I)
-    #
-    #         W_total = weights[i] * W
-    #
-    #     return W_total
     #
     # def getPotentialNode(self, node, phi, phiExt):
     #     # This function gives the potential related to speicific node as a function

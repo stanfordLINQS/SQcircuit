@@ -2,12 +2,21 @@ import SQcircuit as sq
 import numpy as np
 import matplotlib.pyplot as plt
 
-C = sq.Capacitor(0.15, "GHz")
-CJ = sq.Capacitor(10, "GHz")
-JJ = sq.Junction(5, "GHz")
-L = sq.Inductor(0.13, "GHz")
+C = sq.Capacitor(0.15, "GHz", error=10)
+CJ = sq.Capacitor(10, "GHz", error=10)
+JJ = sq.Junction(5, "GHz", error=10)
+L = sq.Inductor(0.13, "GHz", error=10)
 
-circuitParam = {(0, 1): [CJ, JJ],
+# C = sq.Capacitor(0.15, "GHz", error=10)
+# print(C.value()/sq.unit.faradList['pF'])
+# cList = []
+# for i in range(100000):
+#     cList.append(C.value(random=True)/sq.unit.faradList['pF'])
+#
+# plt.hist(cList, 30)
+# plt.show()
+
+circuitElements = {(0, 1): [CJ, JJ],
                 (0, 2): [L],
                 (0, 3): [C],
                 (1, 2): [C],
@@ -15,24 +24,33 @@ circuitParam = {(0, 1): [CJ, JJ],
                 (2, 3): [CJ, JJ]}
 
 # cr is an object of Qcircuit
-cr1 = sq.Circuit(circuitParam)
+cr1 = sq.Circuit(circuitElements)
 cr1.setTruncationNumbers([25, 1, 25])
-numEig = 5
-phiExt = np.linspace(0, 1, 100) * 2 * np.pi
-eigenValues = np.zeros((numEig, len(phiExt)))
 
-for i in range(len(phiExt)):
-    cr1.setExternalFluxes({(0, 1): phiExt[i]})
-    eigenValues[:, i], _ = cr1.run(numEig)
+omegaList = []
 
-plt.figure()
-for i in range(5):
-    plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
+for i in range(10000):
+    cr1 = sq.Circuit(circuitElements, random=True)
+    omegaList.append(cr1.omega[0].real/sq.unit.freqList['GHz'])
 
-plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
-plt.ylabel(r"($\omega_i-\omega_0$)GHz")
+plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
 plt.show()
 
+# numEig = 5
+# phiExt = np.linspace(0, 1, 100) * 2 * np.pi
+# eigenValues = np.zeros((numEig, len(phiExt)))
+#
+# for i in range(len(phiExt)):
+#     cr1.setExternalFluxes({(0, 1): phiExt[i]})
+#     eigenValues[:, i], _ = cr1.run(numEig)
+#
+# plt.figure()
+# for i in range(5):
+#     plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
+#
+# plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+# plt.ylabel(r"($\omega_i-\omega_0$)GHz")
+# plt.show()
 
 # circuitParam = {(0, 1): [CJ, JJ, L]}
 
