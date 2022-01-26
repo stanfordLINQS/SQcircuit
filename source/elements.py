@@ -12,12 +12,13 @@ class Capacitor:
     class that contains the capacitor properties.
     """
 
-    def __init__(self, value, cUnit, error=0):
+    def __init__(self, value, cUnit, Q=None, error=0):
         """
         inputs:
             -- value: The value of the capacitor.
             -- units: The unit of input value.
             -- error: The error in fabrication.( as a percentage)
+            -- Q: quality factor of the dielectric in the capacitor which is one over tangent loss
         """
 
         if cUnit not in unit.freqList and cUnit not in unit.faradList:
@@ -27,6 +28,7 @@ class Capacitor:
 
         self.cValue = value
         self.cUnit = cUnit
+        self.Q = Q
         self.error = error
         self.type = type(self)
 
@@ -64,12 +66,13 @@ class Inductor:
     class that contains the inductor properties.
     """
 
-    def __init__(self, value, lUnit, error=0):
+    def __init__(self, value, lUnit, Q=None, error=0):
         """
         inputs:
             -- value: The value of the inductor.
             -- units: The unit of input value.
             -- error: The error in fabrication.( as a percentage)
+            -- Q: quality factor of the inductor.
         """
 
         if lUnit not in unit.freqList and lUnit not in unit.henryList:
@@ -172,7 +175,7 @@ class Flux:
         if not random:
             return self.fValue
         else:
-            return np.random.normal(self.fValue, noise, 1)[0]
+            return np.random.normal(self.fValue, self.noise, 1)[0]
 
 
 class ChargeBias:

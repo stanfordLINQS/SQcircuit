@@ -48,6 +48,8 @@ class Circuit:
 
         # truncation numbers for each mode
         self.m = []
+        # squeezed truncation numbers( eliminating the modes with truncation number equals 1)
+        self.ms = []
 
         # external fluxes of the circuit
         self.extFlux = {}
@@ -73,6 +75,9 @@ class Circuit:
         self.hamilEigVal = []
         # eigenvectors of the circuit
         self.hamilEigVec = []
+
+        # temperature of the circuit
+        self.T = 1e-3
 
     @staticmethod
     def elementModel(elementList: list, model):
@@ -368,6 +373,9 @@ class Circuit:
         assert len(truncNum) == self.n, error2
         self.m = truncNum
 
+        # squeeze the mode with truncation number equal to 1.
+        self.ms = list(filter(lambda x: x != 1, self.m))
+
         self.chargeOpList, self.numOpList, self.chargeByChargeList, self.fluxOpList = self.buildOpMemory(
             self.lDiag, self.cInvDiag, self.omega, self.m, self.n)
 
@@ -423,7 +431,7 @@ class Circuit:
         # (tensor product of other modes are not applied yet!)
         for i in range(n):
             if omega[i] == 0:
-                flux0 = q.qeye(0)
+                flux0 = q.qeye(m[i])
             else:
                 coef = np.sqrt(1 / 2 * np.sqrt(cInvDiag[i, i] / lDiag[i, i]))
                 flux0 = coef * (q.destroy(m[i]) + q.create(m[i]))
@@ -717,11 +725,11 @@ class Circuit:
         # the output of eigen solver is not sorted
         eigenValuesSorted = np.sort(eigenValues.real)
         sortArg = np.argsort(eigenValues)
-        eigenVectorsSorted = [q.Qobj(eigenVectors[:, ind], dims=[self.m, len(self.m) * [1]])
+        eigenVectorsSorted = [q.Qobj(eigenVectors[:, ind], dims=[self.ms, len(self.ms) * [1]])
                               for ind in sortArg]
 
         # store the eigenvalues and eigenvectors of the circuit Hamiltonian
-        self.hamilEigVal = eigenValuesSorted / (2 * np.pi * unit.freq)
+        self.hamilEigVal = eigenValuesSorted
         self.hamilEigVec = eigenVectorsSorted
 
         return eigenValuesSorted.real / (2 * np.pi * unit.freq), eigenVectorsSorted
@@ -765,52 +773,6 @@ class Circuit:
             return -HJJ + self.HLC
         else:
             raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
-
-    def couplingOperator(self, copType: str, nodes: tuple):
-        """
-        returns the "capacitive" or "inductive" coupling operator related to the specified nodes.
-        inputs:
-            copType: coupling type which is either "capacitive" or "inductive".
-            nodes: circuit nodes to which we want to couple.
-        returns:
-            op: coupling operator which is a charge operator in number of Cooper pairs for capacitive coupling
-            and is phase drop operator across an inductor for inductive coupling.
-        """
-        error = "The coupling type must be either \"capacitive\" or \"inductive\""
-        assert copType in ["capacitive", "inductive"], error
-        assert isinstance(nodes, tuple) or isinstance(nodes, list), "Nodes must be either a list or a set."
-
-        op = q.Qobj()
-
-        node1 = nodes[0]
-        node2 = nodes[1]
-
-        # for the case that we have ground in the edge
-        if 0 in nodes:
-            node = node1 + node2
-            if copType == "capacitive":
-                K = np.linalg.inv(self.getMatC()) @ self.R
-                for i in range(self.n):
-                    op += K[node-1, i] * self.chargeOpList[i]
-            if copType == "inductive":
-                K = self.S
-                for i in range(self.n):
-                    op += K[node-1, i] * self.fluxOpList[i]
-
-        else:
-            if copType == "capacitive":
-                K = np.linalg.inv(self.getMatC()) @ self.R
-                for i in range(self.n):
-                    op += (K[node2-1, i] - K[node1-1, i]) * self.chargeOpList[i]
-            if copType == "inductive":
-                K = self.S
-                for i in range(self.n):
-                    op += (K[node2-1, i] - K[node1-1, i]) * self.fluxOpList[i]
-
-        return op
-
-    def matrixElements(self, copType, node1, node2):
-        pass
 
     def tensorToModes(self, tensorIndex: int):
         """
@@ -886,146 +848,100 @@ class Circuit:
 
         return state
 
-    def setDieTanLoss(self, DieTanList):
-        self.dieTanList = DieTanList
+    def couplingOperator(self, copType: str, nodes: tuple):
+        """
+        returns the "capacitive" or "inductive" coupling operator related to the specified nodes.
+        inputs:
+            copType: coupling type which is either "capacitive" or "inductive".
+            nodes: circuit nodes to which we want to couple.
+        returns:
+            op: coupling operator which is a charge operator in number of Cooper pairs for capacitive coupling
+            and is phase drop operator across an inductor for inductive coupling.
+        """
+        error = "The coupling type must be either \"capacitive\" or \"inductive\""
+        assert copType in ["capacitive", "inductive"], error
+        assert isinstance(nodes, tuple) or isinstance(nodes, list), "Nodes must be either a list or a set."
 
-    def setQuasiparticleFraction(self, x_qpList):
-        self.x_qpList = x_qpList
+        op = q.Qobj()
+
+        node1 = nodes[0]
+        node2 = nodes[1]
+
+        # for the case that we have ground in the edge
+        if 0 in nodes:
+            node = node1 + node2
+            if copType == "capacitive":
+                K = np.linalg.inv(self.getMatC()) @ self.R
+                for i in range(self.n):
+                    op += K[node-1, i] * self.chargeOpList[i]
+            if copType == "inductive":
+                K = self.S
+                for i in range(self.n):
+                    op += K[node-1, i] * self.fluxOpList[i]
+
+        else:
+            if copType == "capacitive":
+                K = np.linalg.inv(self.getMatC()) @ self.R
+                for i in range(self.n):
+                    op += (K[node2-1, i] - K[node1-1, i]) * self.chargeOpList[i]
+            if copType == "inductive":
+                K = self.S
+                for i in range(self.n):
+                    op += (K[node2-1, i] - K[node1-1, i]) * self.fluxOpList[i]
+
+        # squeezing the dimension
+        op.dims = [self.ms, self.ms]
+
+        return op
+
+    def matrixElements(self, copType: str, nodes: tuple, states: tuple):
+        """
+        return the matrix element related to...
+        """
+
+        state1 = self.hamilEigVec[states[0]]
+        state2 = self.hamilEigVec[states[1]]
+
+        # get the coupling operator/
+        op = self.couplingOperator(copType, nodes)
+
+        return (state1.dag()*op*state2).data[0, 0]
 
     def setTemperature(self, T):
+        """
+        set temperature of the circuit
+        input:
+            -- T: temperature in K
+        """
         self.T = T
 
-    def decayRateProcess(self, state1, state2, mode='all'):
-        """function that calculate the effective decay rates for
-        specific process of |state1> and |state2>"""
+    def decayRate(self, decType: str, states: tuple):
+        """ Calculate the decay rate."""
 
-        # state2 should be larger than state1
-        assert state2 > state1, "State2 index should be larger than state1 index"
-        assert self.T != None, "Set the temperature first"
+        omega1 = self.hamilEigVal[states[0]]
+        omega2 = self.hamilEigVal[states[1]]
 
-        decayList = []
+        omega = np.abs(omega2 - omega1)
 
-        # loop over all the external fluxes
-        for i1 in range(len(self.HamilEigVecList)):
-            # list of effective decay rate for each capacitor
-            dieDecayList = []
-            qpDecayList = []
+        decay = 0
 
-            ketState1 = self.HamilEigVecList[i1][state1]
-            ketState2 = self.HamilEigVecList[i1][state2]
+        # prevent the exponential overflow(exp(709) is the biggest number that numpy can calculate)
+        if unit.hbar * omega / (unit.k_B * self.T) > 709:
+            nbar = 0
+        else:
+            nbar = 1 / (np.exp(unit.hbar * omega / (unit.k_B * self.T)) - 1)
 
-            omegaState1 = self.HamilEigVal[state1, i1]
-            omegaState2 = self.HamilEigVal[state2, i1]
+        if decType == 'dielectric' or decType == 'all':
 
-            omega_q = omegaState2 - omegaState1
+            for edge in self.circuitElements.keys():
 
-            # the vector that holds the expectation values of charge operators
-            q_ge = np.array([(ketState1.dag() * Qtilde * ketState2)[0, 0] for Qtilde in self.chargeOpList])
+                # list of capacitors of the edge.
+                capList = self.elementModel(self.circuitElements[edge], Capacitor)
 
-            # the decayVec is the vector which makes calculation easier and faster more
-            # explanation in Qcircuit notes
-            decayVec = self.cInv @ self.R @ q_ge
+                for cap in capList:
 
-            if (mode == 'dielectric' or mode == 'all'):
+                    if cap.Q:
+                        decay += 2 * cap.value() / cap.Q * (2 * nbar + 1) * np.abs(self.matrixElements(
+                            "capacitive", edge, states))**2
 
-                k_B = 1.38e-23
-                # effect of tempreture
-
-                # prevent the exponential over flow(exp(709) is biggest number that numpy can calculate)
-                if (hbar * (omega_q) / (k_B * self.T) > 709):
-                    nbar = 0
-                else:
-                    nbar = 1 / (np.exp(hbar * (omega_q) / (k_B * self.T)) - 1)
-
-                for i, c_x in enumerate(self.C):
-
-                    # extracting the nodes
-                    node1, node2 = self.graph[i]
-
-                    # check if the node is connected to ground
-                    if (node1 == 0):
-                        dieDecayList.append(
-                            2 * c_x * self.dieTanList[i] * np.abs(decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
-                    elif (node2 == 0):
-                        dieDecayList.append(
-                            2 * c_x * self.dieTanList[i] * np.abs(decayVec[node1 - 1]) ** 2 * (2 * nbar + 1))
-
-                    else:
-                        dieDecayList.append(2 * c_x * self.dieTanList[i] *
-                                            np.abs(decayVec[node1 - 1] - decayVec[node2 - 1]) ** 2 * (2 * nbar + 1))
-
-            if (mode == 'quasiparticles' or mode == 'all'):
-                for i in range(len(self.JJEj)):
-                    """https://www.researchgate.net/figure/SIS-parameters-for-cold-
-                    and-room-temperature-evaporations-Number-of-samples-measured_tbl1_1896356
-                    """
-                    Delta = 250 * 1e-6 * 1.6e-19;
-
-                    # opExpt = (ketState1.dag()*(self.qpPrevList[i].dag() - self.qpPrevList[i])/(2j)*ketState2)[0,0]
-                    opExpt = (ketState1.dag() * self.qpSinList[i1][i] * ketState2)[0, 0] + 1e-23
-                    S = self.x_qpList[self.JJIndex[i]] * 8 * hbar * self.JJEj[i] / np.pi / hbar * np.sqrt(
-                        2 * Delta / hbar / omega_q)
-                    qpDecayList.append(np.abs(opExpt) ** 2 * S)
-
-            decayList.append(np.sum(dieDecayList) + np.sum(qpDecayList))
-
-        return np.array(decayList).real
-
-    #
-    # def getPotentialNode(self, node, phi, phiExt):
-    #     # This function gives the potential related to speicific node as a function
-    #     # of phase.(I'm assuming that the phase related to other nodes is zero)
-    #
-    #     potential = 1 / 2 * self.lRotated[node - 1, node - 1] * (phi * Phi0) ** 2 + 0j
-    #
-    #     # for i, EJ in enumerate(self.JJEj):
-    #     #     potential -= hbar * EJ * np.cos(2*np.pi*self.JJEqRotated[i,node-1]*phi)
-    #
-    #     JJprevList = []
-    #
-    #     for i, EJ in enumerate(self.JJEj):
-    #         JJprevList.append(np.exp(1j * 2 * np.pi * self.JJEqRotated[i, node - 1] * phi))
-    #
-    #         # List of individual JJ Hamiltonian
-    #     potenList = [];
-    #
-    #     for i in range(len(self.JJEj)):
-    #
-    #         # add external excitation
-    #
-    #         # Parallel JJ case
-    #         if (isinstance(self.JJEj[i], list)):
-    #             JJEjIn, JJEjOut = self.JJEj[i]
-    #             JJExcIn, JJExcOut = self.JJExcite[i]
-    #             phiIn = 0;
-    #             PhiOut = 0;
-    #             if (JJExcIn):
-    #                 for ind in JJExcIn:
-    #                     phiIn = phiExt[ind];
-    #             phiOut = phiIn + phiExt[JJExcOut];
-    #
-    #             H = -hbar * np.exp(1j * phiIn)
-    #
-    #             * JJEjIn / 2 * JJprevList[i] - hbar * np.exp(1j * phiOut) * JJEjOut / 2 * \
-    #                 JJprevList[i]
-    #             H = H + np.conj(H)
-    #
-    #         # single JJ case
-    #         else:
-    #             phi = 0
-    #             # fluxoniumSituation
-    #             if (len(self.graph) * len(self.L) == 1):
-    #                 self.JJExcite = [[0]]
-    #
-    #             if (self.JJExcite[i]):
-    #                 for ind in self.JJExcite[i]:
-    #                     phi += phiExt[ind];
-    #
-    #             H = -hbar * np.exp(1j * phi) * self.JJEj[i] / 2 * JJprevList[i];
-    #             H = H + np.conj(H)
-    #
-    #         potenList.append(H);
-    #
-    #     potential += sum(potenList)
-    #
-    #     return potential
+        return decay

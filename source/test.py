@@ -17,11 +17,11 @@ L = sq.Inductor(0.13, "GHz", error=10)
 # plt.show()
 
 circuitElements = {(0, 1): [CJ, JJ],
-                (0, 2): [L],
-                (0, 3): [C],
-                (1, 2): [C],
-                (1, 3): [L],
-                (2, 3): [CJ, JJ]}
+                   (0, 2): [L],
+                   (0, 3): [C],
+                   (1, 2): [C],
+                   (1, 3): [L],
+                   (2, 3): [CJ, JJ]}
 
 
 cr1 = sq.Circuit(circuitElements)
@@ -33,7 +33,7 @@ cr1.setTruncationNumbers([25, 1, 25])
 #     cr1 = sq.Circuit(circuitElements, random=True)
 #     omegaList.append(cr1.omega[0].real/sq.unit.freqList['GHz'])
 #
-# plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
+plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
 # plt.show()
 
 numEig = 5

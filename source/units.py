@@ -22,6 +22,8 @@ class Units:
         # electron charge
         self.e = 1.6021766e-19
 
+        self.k_B = 1.38e-23
+
         # main frequency unit of the SQcircuit
         self.freq = self.freqList["GHz"]
 
