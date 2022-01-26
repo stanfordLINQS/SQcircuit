@@ -825,7 +825,7 @@ class Circuit:
             # decomposes the tensor product space index (i) to each mode indices as a list
             indList = self.tensorToModes(i)
 
-            term = self.HamilEigVec[eigInd][i][0, 0]
+            term = self.hamilEigVec[eigInd][i][0, 0]
 
             for mode in range(self.n):
 
@@ -837,11 +837,11 @@ class Circuit:
                     term *= 1 / np.sqrt(2 * np.pi) * np.exp(1j * phiList[mode] * n)
                 # For harmonic basis
                 else:
-                    x0 = np.sqrt(hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
+                    x0 = np.sqrt(unit.hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
 
                     coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0 / unit.Phi0)
 
-                    term *= coef * np.exp(-(phiList[mode] * uniy.Phi0 / x0) ** 2 / 2) * \
+                    term *= coef * np.exp(-(phiList[mode] * unit.Phi0 / x0) ** 2 / 2) * \
                             scipy.special.eval_hermite(n, phiList[mode] * unit.Phi0 / x0)
 
             state += term
