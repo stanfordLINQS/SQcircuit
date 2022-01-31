@@ -33,7 +33,7 @@ cr1.setTruncationNumbers([25, 1, 25])
 #     cr1 = sq.Circuit(circuitElements, random=True)
 #     omegaList.append(cr1.omega[0].real/sq.unit.freqList['GHz'])
 #
-plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
+# plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
 # plt.show()
 
 numEig = 5
@@ -41,7 +41,7 @@ phiExt = np.linspace(0, 1, 100) * 2 * np.pi
 eigenValues = np.zeros((numEig, len(phiExt)))
 
 for i in range(len(phiExt)):
-    cr1.linkFluxes({(0, 1): sq.Flux(phiExt[i])})
+    cr1.linkFluxes({(1, 3): sq.Flux(phiExt[i])})
     eigenValues[:, i], _ = cr1.run(numEig)
 
 plt.figure()
