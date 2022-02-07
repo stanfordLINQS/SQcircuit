@@ -2,30 +2,103 @@ import SQcircuit as sq
 import numpy as np
 import matplotlib.pyplot as plt
 
-C = sq.Capacitor(0.15, "GHz", error=10)
-CJ = sq.Capacitor(10, "GHz", error=10)
-JJ = sq.Junction(5, "GHz", error=10)
-L = sq.Inductor(0.13, "GHz", error=10)
 
-# C = sq.Capacitor(0.15, "GHz", error=10)
-# print(C.value()/sq.unit.faradList['pF'])
-# cList = []
-# for i in range(100000):
-#     cList.append(C.value(random=True)/sq.unit.faradList['pF'])
+# test case 1:
+# loop1 = sq.Loop()
 #
-# plt.hist(cList, 30)
+# C = sq.Capacitor(0.15, "GHz", error=10)
+# CJ = sq.Capacitor(10, "GHz", error=10)
+# JJ1 = sq.Junction(5, "GHz", error=10, loops=[loop1], cap=CJ)
+# JJ2 = sq.Junction(5, "GHz", error=10, loops=[loop1])
+# L = sq.Inductor(0.13, "GHz", error=10, loops=[loop1])
+#
+# circuitElements = {(0, 1): [JJ2, CJ],
+#                    (0, 2): [L],
+#                    (0, 3): [C],
+#                    (1, 2): [C],
+#                    (1, 3): [L],
+#                    (2, 3): [JJ1]}
+#
+# cr1 = sq.Circuit(circuitElements)
+#
+# cr1.setTruncationNumbers([25, 1, 25])
+#
+# print(cr1.K2)
+#
+# numEig = 5
+# phiExt = np.linspace(0, 1, 100) * 2 * np.pi
+# eigenValues = np.zeros((numEig, len(phiExt)))
+#
+# for i in range(len(phiExt)):
+#     loop1.setFlux(phiExt[i])
+#     eigenValues[:, i], _ = cr1.run(numEig)
+#
+# plt.figure()
+# for i in range(5):
+#     plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
 # plt.show()
 
-circuitElements = {(0, 1): [CJ, JJ],
-                   (0, 2): [L],
-                   (0, 3): [C],
-                   (1, 2): [C],
-                   (1, 3): [L],
-                   (2, 3): [CJ, JJ]}
+# test case 2:
+
+# loop1 = sq.Loop()
+# loop2 = sq.Loop()
+#
+# C = sq.Capacitor(0.15, "GHz", error=10)
+# JJ1 = sq.Junction(5, "GHz", error=10, loops=[loop1])
+# JJ2 = sq.Junction(5, "GHz", error=10, loops=[loop2])
+# L = sq.Inductor(0.13, "GHz", error=10, loops=[loop1, loop2])
+#
+# circuitElements = {(0, 1): [C, L, JJ1, JJ2]}
+#
+# cr1 = sq.Circuit(circuitElements)
+#
+# print(loop1.K1)
+# print(loop2.K1)
+#
+# print(cr1.loops)
 
 
-cr1 = sq.Circuit(circuitElements)
-cr1.setTruncationNumbers([25, 1, 25])
+
+# test case 3:
+# loop1 = sq.Loop()
+# loop2 = sq.Loop()
+#
+# C = sq.Capacitor(1, "F", error=10)
+# JJ1 = sq.Junction(5, "GHz", error=10, loops=[loop1], cap=C)
+# JJ2 = sq.Junction(5, "GHz", error=10, loops=[loop2], cap=C)
+# L = sq.Inductor(0.13, "GHz", error=10, loops=[loop1, loop2], cap=C)
+#
+# circuitElements = {(0, 1): [JJ1],
+#                    (1, 2): [JJ1],
+#                    (0, 2): [L],
+#                    (2, 3): [JJ2],
+#                    (0, 3): [JJ2]}
+#
+# cr1 = sq.Circuit(circuitElements)
+
+# print(loop1.K1)
+# print(loop2.K1)
+
+# print(cr1.K1)
+#
+# a = np.zeros_like(loop1.K1)
+# select = np.sum(loop1.K1 != a, axis=0) != 0
+# print(select)
+# print(np.array(loop1.K1)[:, select].T)
+
+# p = loop1.getP()
+# a = np.zeros((1, len(circuitElements)))
+# a[0, loop1.indices] = p
+# print(a)
+#
+# p = loop2.getP()
+# a = np.zeros((1, len(circuitElements)))
+# a[0, loop2.indices] = p
+# print(a)
+#
+# print(cr1.K1.T)
+
+
 #
 # omegaList = []
 #
@@ -36,21 +109,10 @@ cr1.setTruncationNumbers([25, 1, 25])
 # plt.hist(omegaList, 30, color="orange", edgecolor='black', density=True)
 # plt.show()
 
-numEig = 5
-phiExt = np.linspace(0, 1, 100) * 2 * np.pi
-eigenValues = np.zeros((numEig, len(phiExt)))
 
-for i in range(len(phiExt)):
-    cr1.linkFluxes({(1, 3): sq.Flux(phiExt[i])})
-    eigenValues[:, i], _ = cr1.run(numEig)
-
-plt.figure()
-for i in range(5):
-    plt.plot(phiExt / 2 / np.pi, (eigenValues[i, :] - eigenValues[0, :]))
-
-plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
-plt.ylabel(r"($\omega_i-\omega_0$)GHz")
-plt.show()
+# plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+# plt.ylabel(r"($\omega_i-\omega_0$)GHz")
+# plt.show()
 
 # circuitParam = {(0, 1): [CJ, JJ, L]}
 
@@ -69,3 +131,22 @@ plt.show()
 #
 # l1 = Inductor(1.2573952415, "uF")
 # print(l1.energy)
+
+
+loop1 = sq.Loop()
+
+C_r = sq.Capacitor(20.3, "fF")
+L_r = sq.Inductor(15.6, "nH")
+C_q = sq.Capacitor(5.3, "fF")
+L_q = sq.Inductor(386, "nH", loops=[loop1])
+JJ = sq.Junction(6.2, "GHz", loops=[loop1])
+L_s = sq.Inductor(4.5, "nH", loops=[loop1])
+
+circuitElements = {(0, 1): [C_r],
+                   (1, 2): [L_r],
+                   (0, 2): [L_s],
+                   (2, 3): [L_q],
+                   (0, 3): [JJ, C_q]}
+
+# cr is an object of Qcircuit
+cr1 = sq.Circuit(circuitElements)

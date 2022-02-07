@@ -12,7 +12,7 @@ class Capacitor:
     class that contains the capacitor properties.
     """
 
-    def __init__(self, value, cUnit, Q=None, error=0):
+    def __init__(self, value=1e-20, cUnit="F", Q=None, error=0):
         """
         inputs:
             -- value: The value of the capacitor.
@@ -66,15 +66,20 @@ class Inductor:
     class that contains the inductor properties.
     """
 
-    def __init__(self, value, lUnit, Q=None, error=0):
+    def __init__(self, value, lUnit, cap=Capacitor(), Q=None, error=0, loops=[]):
         """
         inputs:
             -- value: The value of the inductor.
             -- units: The unit of input value.
+            -- cap: capacitor associated to the inductor
             -- error: The error in fabrication.( as a percentage)
             -- Q: quality factor of the inductor.
+            -- loops: loops that Inductor belongs to
+
         """
 
+        if loops is None:
+            loops = []
         if lUnit not in unit.freqList and lUnit not in unit.henryList:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
                     "format."
@@ -82,9 +87,11 @@ class Inductor:
 
         self.lValue = value
         self.lUnit = lUnit
+        self.cap = cap
         self.Q = Q
         self.error = error
         self.type = type(self)
+        self.loops = loops
 
     def value(self, random: bool = False):
         """
@@ -120,14 +127,18 @@ class Junction:
     class that contains the Josephson Junction properties.
     """
 
-    def __init__(self, value, jUnit, error=0):
+    def __init__(self, value, jUnit, cap=Capacitor(), error=0, loops=[]):
         """
         inputs:
             -- value: The value of the inductor.
             -- units: The unit of input value.
+            -- cap: capacitor associated to the Josephson Junction.
             -- error: The error in fabrication.( as a percentage)
+            -- loops: loops that JJ belongs to
         """
 
+        if loops is None:
+            loops = []
         if jUnit not in unit.freqList:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
                     "correct input format."
@@ -135,8 +146,10 @@ class Junction:
 
         self.jValue = value
         self.jUnit = jUnit
+        self.cap = cap
         self.error = error
         self.type = type(self)
+        self.loops = loops
 
     def value(self, random: bool = False):
         """
@@ -151,6 +164,59 @@ class Junction:
             return jMean
         else:
             return np.random.normal(jMean, jMean * self.error / 100, 1)[0]
+
+
+class Loop:
+    """
+    class that contains the inductive loop properties.
+    """
+    def __init__(self, value=0, noise=0):
+        """
+        inputs:
+            -- value: The value of the external flux at the loop.
+            -- noise: The amplitude of the flux noise.
+        """
+        self.lpValue = value
+        self.noise = noise
+        # indices of inductive elements.
+        self.indices = []
+        # k1 matrix related to this specific loop
+        self.K1 = []
+
+    def reset(self):
+        self.K1 = []
+        self.indices = []
+
+    def value(self, random: bool = False):
+        """
+        returns the value of flux. If random flag is true, it samples from a normal distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
+        """
+        if not random:
+            return self.lpValue
+        else:
+            return np.random.normal(self.lpValue, self.noise, 1)[0]
+
+    def setFlux(self, value):
+        self.lpValue = value
+
+    def addIndex(self, index):
+        self.indices.append(index)
+
+    def addK1(self, w):
+        self.K1.append(w)
+
+    def getP(self):
+        K1 = np.array(self.K1)
+        a = np.zeros_like(K1)
+        select = np.sum(K1 != a, axis=0) != 0
+        # eliminate the zero columns
+        K1 = K1[:, select]
+        b = np.zeros((1, K1.shape[0]))
+        b[0, 0] = 1
+        p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
+        return p.T
 
 
 class Flux:

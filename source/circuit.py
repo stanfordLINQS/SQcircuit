@@ -30,12 +30,19 @@ class Circuit:
                       error in circuit fabrication.
         """
 
-        self.circuitElements = collections.defaultdict(lambda: [], copy.deepcopy(circuitElements))
+        # circuit inductive loops
+        self.loops = []
+
+        self.circuitElements = circuitElements
+        # self.circuitElements = collections.defaultdict(lambda: [], copy.deepcopy(circuitElements))
 
         self.random = random
 
         # number of nodes
         self.n = max(max(self.circuitElements))
+
+        # get the capacitance matrix, inductance matrix, and w matrix
+        self.C, self.L, self.W = self.loopLCW()
 
         # the inverse of transformation of coordinates for charge operators
         self.R = np.zeros((self.n, self.n))
@@ -93,97 +100,234 @@ class Circuit:
         """
         return [el for el in elementList if isinstance(el, model)]
 
-    def getMatC(self):
-        """ Get the capacitance matrix from circuit parameters.
-        output:
+    def addLoop(self, loop):
+        """
+        Add loop to the circuit loops.
+        """
+        if loop not in self.loops:
+            loop.reset()
+            self.loops.append(loop)
+
+    def loopLCW(self):
+        """
+        calculate the capacitance matrix, inductance matrix, w matrix, and the flux distribution over
+        inductive elements.
+        outputs:
             -- cMat: capacitance matrix (self.n,self.n)
+            -- lMat: inductance matrix (self.n,self.n)
+            -- wMat:  W matrix(linear combination of the flux node operators in the JJ cosine (n_J,self.n)
         """
 
         cMat = np.zeros((self.n, self.n))
+        lMat = np.zeros((self.n, self.n))
+        wMat = []
+
+        # count of inductive elements
+        count = 0
+
+        # K1 is a matrix that transfer node coordinates to edge phase drop for inductive elements
+        K1 = []
+        # capacitor at each inductive elements
+        cEd = []
 
         for edge in self.circuitElements.keys():
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
+            w = [0] * (self.n + 1)
+
+            if i1 == 0 or i2 == 0:
+                w[i1 + i2] += 1
+            else:
+                w[i1] += 1
+                w[i2] -= 1
+
+            # elements of the edge
+            edgeElements = self.circuitElements[edge]
+
             # list of capacitors of the edge.
-            capList = self.elementModel(self.circuitElements[edge], Capacitor)
+            capList = []
+            # list of inductors of the edge
+            indList = []
+            # list of Josephson Junction of the edge.
+            JJList = []
+
+            for el in edgeElements:
+
+                if isinstance(el, Capacitor):
+                    capList.append(el)
+
+                elif isinstance(el, Inductor):
+                    indList.append(el)
+                    # capacitor of inductor
+                    capList.append(el.cap)
+                    loops = el.loops
+                    for loop in loops:
+                        self.addLoop(loop)
+                        loop.addIndex(count)
+                        loop.addK1(w[1:])
+
+                    K1.append(w[1:])
+                    cEd.append(el.cap.value())
+
+                    count += 1
+
+                elif isinstance(el, Junction):
+                    JJList.append(el)
+                    # capacitor of JJ
+                    capList.append(el.cap)
+                    loops = el.loops
+                    for loop in loops:
+                        self.addLoop(loop)
+                        loop.addIndex(count)
+                        loop.addK1(w[1:])
+
+                    K1.append(w[1:])
+                    cEd.append(el.cap.value())
+
+                    count += 1
 
             # summation of the capacitor values.
             cap = sum(list(map(lambda c: c.value(self.random), capList)))
 
+            # summation of the one over inductor values.
+            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
+
             if i1 != 0 and i2 == 0:
                 cMat[i1 - 1, i1 - 1] += cap
+                lMat[i1 - 1, i1 - 1] += x
             elif i1 == 0 and i2 != 0:
                 cMat[i2 - 1, i2 - 1] += cap
+                lMat[i2 - 1, i2 - 1] += x
             else:
                 cMat[i1 - 1, i2 - 1] = - cap
                 cMat[i2 - 1, i1 - 1] = - cap
                 cMat[i1 - 1, i1 - 1] += cap
                 cMat[i2 - 1, i2 - 1] += cap
-
-        return cMat
-
-    def getMatL(self):
-        """ Get the inductance matrix from circuit parameters.
-        output:
-            -- cMat: inductance matrix (self.n,self.n)
-        """
-
-        lMat = np.zeros((self.n, self.n))
-
-        for edge in self.circuitElements.keys():
-            # i1 and i2 are the nodes of the edge
-            i1, i2 = edge
-
-            # list of inductors of the edge
-            indList = self.elementModel(self.circuitElements[edge], Inductor)
-
-            # summation of the inductor values.
-            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
-
-            if i1 != 0 and i2 == 0:
-                lMat[i1 - 1, i1 - 1] += x
-            elif i1 == 0 and i2 != 0:
-                lMat[i2 - 1, i2 - 1] += x
-            else:
                 lMat[i1 - 1, i2 - 1] = -x
                 lMat[i2 - 1, i1 - 1] = -x
                 lMat[i1 - 1, i1 - 1] += x
                 lMat[i2 - 1, i2 - 1] += x
 
-        return lMat
-
-    def getMatW(self):
-        """Get the w matrix which contains the linear combination of
-        the flux coordinates in Josephson Junction cosine without transformation
-        of coordinates.
-        output:
-            -- wMat: W matrix(linear combination of the fluxes in the
-                    JJ cosine (n_J,self.n)
-        """
-
-        wMat = []
-        for edge in self.circuitElements.keys():
-            # i1 and i2 are the nodes of the edge
-            i1, i2 = edge
-
-            # list of Josephson Junction of the edge.
-            JJList = self.elementModel(self.circuitElements[edge], Junction)
-
             if len(JJList) != 0:
-                w = [0] * (self.n + 1)
-
-                if i1 == 0 or i2 == 0:
-                    w[i1 + i2] += 1
-                else:
-                    w[i1] += 1
-                    w[i2] -= 1
-
                 wMat.append(w[1:])
 
         wMat = np.array(wMat)
 
-        return wMat
+        ########### DEEEEBUUGGG
+        self.K1 = K1
+
+        K1 = np.array(K1)
+        a = np.zeros_like(K1)
+        select = np.sum(K1 != a, axis=0) != 0
+        # eliminate the zero columns
+        K1 = K1[:, select]
+
+        X = K1.T@np.diag(cEd)
+        for loop in self.loops:
+            p = np.zeros((1, count))
+            p[0, loop.indices] = loop.getP()
+            X = np.concatenate((X, p), axis=0)
+        # number of inductive loops of the circuit
+        numLoop = len(self.loops)
+        Y = np.concatenate((np.zeros((count-numLoop, numLoop)), np.eye(numLoop)), axis=0)
+        self.K2 = np.linalg.inv(X)@Y
+        ########### DEEEEBUUGGG
+        self.X = X
+
+        return cMat, lMat, wMat
+
+    # def getMatC(self):
+    #     """ Get the capacitance matrix from circuit parameters.
+    #     output:
+    #         -- cMat: capacitance matrix (self.n,self.n)
+    #     """
+    #
+    #     cMat = np.zeros((self.n, self.n))
+    #
+    #     for edge in self.circuitElements.keys():
+    #         # i1 and i2 are the nodes of the edge
+    #         i1, i2 = edge
+    #
+    #         # list of capacitors of the edge.
+    #         capList = self.elementModel(self.circuitElements[edge], Capacitor)
+    #
+    #         # summation of the capacitor values.
+    #         cap = sum(list(map(lambda c: c.value(self.random), capList)))
+    #
+    #         if i1 != 0 and i2 == 0:
+    #             cMat[i1 - 1, i1 - 1] += cap
+    #         elif i1 == 0 and i2 != 0:
+    #             cMat[i2 - 1, i2 - 1] += cap
+    #         else:
+    #             cMat[i1 - 1, i2 - 1] = - cap
+    #             cMat[i2 - 1, i1 - 1] = - cap
+    #             cMat[i1 - 1, i1 - 1] += cap
+    #             cMat[i2 - 1, i2 - 1] += cap
+    #
+    #     return cMat
+
+    # def getMatL(self):
+    #     """ Get the inductance matrix from circuit parameters.
+    #     output:
+    #         -- lMat: inductance matrix (self.n,self.n)
+    #     """
+    #
+    #     lMat = np.zeros((self.n, self.n))
+    #
+    #     for edge in self.circuitElements.keys():
+    #         # i1 and i2 are the nodes of the edge
+    #         i1, i2 = edge
+    #
+    #         # list of inductors of the edge
+    #         indList = self.elementModel(self.circuitElements[edge], Inductor)
+    #
+    #         # summation of the inductor values.
+    #         x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
+    #
+    #         if i1 != 0 and i2 == 0:
+    #             lMat[i1 - 1, i1 - 1] += x
+    #         elif i1 == 0 and i2 != 0:
+    #             lMat[i2 - 1, i2 - 1] += x
+    #         else:
+    #             lMat[i1 - 1, i2 - 1] = -x
+    #             lMat[i2 - 1, i1 - 1] = -x
+    #             lMat[i1 - 1, i1 - 1] += x
+    #             lMat[i2 - 1, i2 - 1] += x
+    #
+    #     return lMat
+    #
+    # def getMatW(self):
+    #     """Get the w matrix which contains the linear combination of
+    #     the flux coordinates in Josephson Junction cosine without transformation
+    #     of coordinates.
+    #     output:
+    #         -- wMat: W matrix(linear combination of the fluxes in the
+    #                 JJ cosine (n_J,self.n)
+    #     """
+    #
+    #     wMat = []
+    #     for edge in self.circuitElements.keys():
+    #         # i1 and i2 are the nodes of the edge
+    #         i1, i2 = edge
+    #
+    #         # list of Josephson Junction of the edge.
+    #         JJList = self.elementModel(self.circuitElements[edge], Junction)
+    #
+    #         if len(JJList) != 0:
+    #             w = [0] * (self.n + 1)
+    #
+    #             if i1 == 0 or i2 == 0:
+    #                 w[i1 + i2] += 1
+    #             else:
+    #                 w[i1] += 1
+    #                 w[i2] -= 1
+    #
+    #             wMat.append(w[1:])
+    #
+    #     wMat = np.array(wMat)
+    #
+    #     return wMat
 
     def transform1(self):
         """
@@ -197,8 +341,10 @@ class Circuit:
             --  S1: transformation of flux operators (self.n,self.n)
         """
 
-        cMat = self.getMatC()
-        lMat = self.getMatL()
+        # cMat = self.getMatC()
+        cMat = self.C
+        # lMat = self.getMatL()
+        lMat = self.L
         cMatInv = np.linalg.inv(cMat)
 
         cMatRoot = sqrtm(cMat)
@@ -242,7 +388,8 @@ class Circuit:
         """
 
         # apply the first transformation on w and get the charge basis part
-        wTrans1 = self.getMatW() @ S1
+        # wTrans1 = self.getMatW() @ S1
+        wTrans1 = self.W @ S1
         wQ = wTrans1[:, omega == 0]
         # number of operators represented in charge bases
         nq = wQ.shape[1]
@@ -349,7 +496,8 @@ class Circuit:
         self.cInvDiag = self.R2.T @ self.cInvDiag @ self.R2
 
         # get the transformed W matrix
-        self.wTrans = self.getMatW() @ self.S1 @ self.S2
+        # self.wTrans = self.getMatW() @ self.S1 @ self.S2
+        self.wTrans = self.W @ self.S1 @ self.S2
 
         # scaling the modes
         self.S3, self.R3 = self.transform3()
@@ -557,26 +705,26 @@ class Circuit:
                         HLC += cInvDiag[i, i + j] * chargeByChargeList[i][j]
 
         # calculate the effect of the external flux at inductors
-        for edge in self.circuitElements:
-
-            # list of inductors of the edge
-            indList = self.elementModel(self.circuitElements[edge], Inductor)
-
-            # summation of the 1 over inductor values.
-            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
-
-            if x == 0 or (edge not in self.extFlux and (edge[1], edge[0]) not in self.extFlux):
-                continue
-            else:
-                if edge in self.extFlux:
-                    phi = self.extFlux[edge].value(self.random)
-                elif (edge[1], edge[0]) in self.extFlux:
-                    phi = self.extFlux[(edge[1], edge[0])].value(self.random)
-                else:
-                    phi = Flux().value(self.random)
-                O = self.couplingOperator("inductive", edge)
-                O.dims = [self.m, self.m]
-                HLC += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
+        # for edge in self.circuitElements:
+        #
+        #     # list of inductors of the edge
+        #     indList = self.elementModel(self.circuitElements[edge], Inductor)
+        #
+        #     # summation of the 1 over inductor values.
+        #     x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
+        #
+        #     if x == 0 or (edge not in self.extFlux and (edge[1], edge[0]) not in self.extFlux):
+        #         continue
+        #     else:
+        #         if edge in self.extFlux:
+        #             phi = self.extFlux[edge].value(self.random)
+        #         elif (edge[1], edge[0]) in self.extFlux:
+        #             phi = self.extFlux[(edge[1], edge[0])].value(self.random)
+        #         else:
+        #             phi = Flux().value(self.random)
+        #         O = self.couplingOperator("inductive", edge)
+        #         O.dims = [self.m, self.m]
+        #         HLC += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
 
         return HLC
 
@@ -743,6 +891,49 @@ class Circuit:
 
         return HJJ, HJJSinHalfList
 
+    def indHamil(self, HJJExpList: list):
+
+        countInd = 0
+        countJJ = 0
+        H = q.Qobj()
+
+        for edge in self.circuitElements.keys():
+
+            # elements of the edge
+            edgeElements = self.circuitElements[edge]
+
+            for el in edgeElements:
+
+                if isinstance(el, Inductor):
+
+                    phi = 0
+                    for i, loop in enumerate(self.loops):
+                        phi += loop.value(self.random) * self.K2[countInd, i]
+
+                    # summation of the 1 over inductor values.
+                    x = 1 / el.value(self.random)
+                    O = self.couplingOperator("inductive", edge)
+                    O.dims = [self.m, self.m]
+                    H += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
+
+                    countInd += 1
+
+                if isinstance(el, Junction):
+
+                    phi = 0
+                    for i, loop in enumerate(self.loops):
+                        phi += loop.value(self.random) * self.K2[countInd, i]
+
+                    EJ = el.value(self.random)
+                    HJ = np.exp(1j * phi) * EJ / 2 * HJJExpList[countJJ]
+                    HJ = HJ + HJ.dag()
+                    H -= HJ
+
+                    countInd += 1
+                    countJJ += 1
+
+        return H
+
     def run(self, numEig: int):
         """
         calculate the Hamiltonian of the circuit and get the eigenvalue and eigenvectors of the circuit up
@@ -756,9 +947,12 @@ class Circuit:
         assert len(self.m) != 0, "Please specify the truncation number for each mode."
         assert isinstance(numEig, int), "The numEig( number of eigenvalues) should be an integer."
 
-        HJJ, self.qpSinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
+        # HJJ, self.qpSinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
 
-        H = -HJJ + self.HLC
+        Hind = self.indHamil(self.HJJExpList)
+
+        # H = -HJJ + self.HLC
+        H = Hind + self.HLC
 
         # get the data out of qutip variable and use scipy eigen solver which is faster than
         # qutip eigen solver( I tested this experimentally)
@@ -912,7 +1106,8 @@ class Circuit:
         if 0 in nodes:
             node = node1 + node2
             if copType == "capacitive":
-                K = np.linalg.inv(self.getMatC()) @ self.R
+                # K = np.linalg.inv(self.getMatC()) @ self.R
+                K = np.linalg.inv(self.C) @ self.R
                 for i in range(self.n):
                     op += K[node - 1, i] * self.chargeOpList[i]
             if copType == "inductive":
@@ -928,7 +1123,7 @@ class Circuit:
             if copType == "inductive":
                 K = self.S
                 for i in range(self.n):
-                    op += (K[node2 - 1, i] - K[node1 - 1, i]) * self.fluxOpList[i]
+                    op += (K[node1 - 1, i] - K[node2 - 1, i]) * self.fluxOpList[i]
 
         # squeezing the dimension
         op.dims = [self.ms, self.ms]
