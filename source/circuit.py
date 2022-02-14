@@ -86,7 +86,11 @@ class Circuit:
         self.hamilEigVec = []
 
         # temperature of the circuit
-        self.T = 1e-3
+        self.T = 0.015
+        # low-frequency cut off
+        self.omegaLow = 2 * np.pi
+        # experiment time
+        self.tExp = 10e-6
 
     @staticmethod
     def elementModel(elementList: list, model):
@@ -223,111 +227,19 @@ class Circuit:
         # eliminate the zero columns
         K1 = K1[:, select]
 
-        X = K1.T@np.diag(cEd)
+        X = K1.T @ np.diag(cEd)
         for loop in self.loops:
             p = np.zeros((1, count))
             p[0, loop.indices] = loop.getP()
             X = np.concatenate((X, p), axis=0)
         # number of inductive loops of the circuit
         numLoop = len(self.loops)
-        Y = np.concatenate((np.zeros((count-numLoop, numLoop)), np.eye(numLoop)), axis=0)
-        self.K2 = np.linalg.inv(X)@Y
+        Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
+        self.K2 = np.linalg.inv(X) @ Y
         ########### DEEEEBUUGGG
         self.X = X
 
         return cMat, lMat, wMat
-
-    # def getMatC(self):
-    #     """ Get the capacitance matrix from circuit parameters.
-    #     output:
-    #         -- cMat: capacitance matrix (self.n,self.n)
-    #     """
-    #
-    #     cMat = np.zeros((self.n, self.n))
-    #
-    #     for edge in self.circuitElements.keys():
-    #         # i1 and i2 are the nodes of the edge
-    #         i1, i2 = edge
-    #
-    #         # list of capacitors of the edge.
-    #         capList = self.elementModel(self.circuitElements[edge], Capacitor)
-    #
-    #         # summation of the capacitor values.
-    #         cap = sum(list(map(lambda c: c.value(self.random), capList)))
-    #
-    #         if i1 != 0 and i2 == 0:
-    #             cMat[i1 - 1, i1 - 1] += cap
-    #         elif i1 == 0 and i2 != 0:
-    #             cMat[i2 - 1, i2 - 1] += cap
-    #         else:
-    #             cMat[i1 - 1, i2 - 1] = - cap
-    #             cMat[i2 - 1, i1 - 1] = - cap
-    #             cMat[i1 - 1, i1 - 1] += cap
-    #             cMat[i2 - 1, i2 - 1] += cap
-    #
-    #     return cMat
-
-    # def getMatL(self):
-    #     """ Get the inductance matrix from circuit parameters.
-    #     output:
-    #         -- lMat: inductance matrix (self.n,self.n)
-    #     """
-    #
-    #     lMat = np.zeros((self.n, self.n))
-    #
-    #     for edge in self.circuitElements.keys():
-    #         # i1 and i2 are the nodes of the edge
-    #         i1, i2 = edge
-    #
-    #         # list of inductors of the edge
-    #         indList = self.elementModel(self.circuitElements[edge], Inductor)
-    #
-    #         # summation of the inductor values.
-    #         x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
-    #
-    #         if i1 != 0 and i2 == 0:
-    #             lMat[i1 - 1, i1 - 1] += x
-    #         elif i1 == 0 and i2 != 0:
-    #             lMat[i2 - 1, i2 - 1] += x
-    #         else:
-    #             lMat[i1 - 1, i2 - 1] = -x
-    #             lMat[i2 - 1, i1 - 1] = -x
-    #             lMat[i1 - 1, i1 - 1] += x
-    #             lMat[i2 - 1, i2 - 1] += x
-    #
-    #     return lMat
-    #
-    # def getMatW(self):
-    #     """Get the w matrix which contains the linear combination of
-    #     the flux coordinates in Josephson Junction cosine without transformation
-    #     of coordinates.
-    #     output:
-    #         -- wMat: W matrix(linear combination of the fluxes in the
-    #                 JJ cosine (n_J,self.n)
-    #     """
-    #
-    #     wMat = []
-    #     for edge in self.circuitElements.keys():
-    #         # i1 and i2 are the nodes of the edge
-    #         i1, i2 = edge
-    #
-    #         # list of Josephson Junction of the edge.
-    #         JJList = self.elementModel(self.circuitElements[edge], Junction)
-    #
-    #         if len(JJList) != 0:
-    #             w = [0] * (self.n + 1)
-    #
-    #             if i1 == 0 or i2 == 0:
-    #                 w[i1 + i2] += 1
-    #             else:
-    #                 w[i1] += 1
-    #                 w[i2] -= 1
-    #
-    #             wMat.append(w[1:])
-    #
-    #     wMat = np.array(wMat)
-    #
-    #     return wMat
 
     def transform1(self):
         """
@@ -353,17 +265,15 @@ class Circuit:
 
         V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
 
-        # find the zero singular values
-        singLoc = []
-
         # the case that there is not any inductor in the circuit
         if np.max(D) == 0:
             D = np.diag(np.eye(self.n))
             singLoc = list(range(0, self.n))
         else:
-            for i in range(self.n):
-                if D[i] / np.max(D) < 1e-6:
-                    singLoc.append(i)
+            # find the number of singularity in the circuit
+            lEig, _ = np.linalg.eig(lMat)
+            numSing = len(lEig[lEig / np.max(lEig) < 1e-11])
+            singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
 
         # build S1 and R1 matrix
@@ -401,15 +311,23 @@ class Circuit:
             wQ_norm = wQ / np.linalg.norm(wQ, axis=1).reshape(wQ.shape[0], 1)
 
             # list of indices of w vectors that are independent
-            indList = [0]
-            j = 1
-            while len(indList) != nq:
-                # inner product of the jth w with selected wQ( indList)
-                iner = np.abs(np.sum(wQ_norm[indList, :] * wQ_norm[j, :], 1))
-                # check if we found a new w that is not parallel with selected w
-                if np.max(iner) <= 1 - 1e-12:
-                    indList.append(j)
-                j += 1
+            indList = []
+
+            # use Gram–Schmidt to find the linear independent rows of normalized wQ (wQ_norm)
+            basis = []
+            for i, w in enumerate(wQ_norm):
+                wPrime = w - sum([np.dot(w, e) * e for e in basis])
+                if (np.abs(wPrime) > 1e-7).any():
+                    indList.append(i)
+                    basis.append(wPrime / np.linalg.norm(wPrime))
+
+            # while len(indList) != nq:
+            #     # inner product of the jth w with selected wQ( indList)
+            #     iner = np.abs(np.sum(wQ_norm[indList, :] * wQ_norm[j, :], 1))
+            #     # check if we found a new w that is not parallel with selected w
+            #     if np.max(iner) <= 1 - 1e-12:
+            #         indList.append(j)
+            #     j += 1
 
             # the second S and R matrix are:
             S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(wQ[indList, :]))
@@ -704,28 +622,6 @@ class Circuit:
                     if cInvDiag[i, i + j] != 0:
                         HLC += cInvDiag[i, i + j] * chargeByChargeList[i][j]
 
-        # calculate the effect of the external flux at inductors
-        # for edge in self.circuitElements:
-        #
-        #     # list of inductors of the edge
-        #     indList = self.elementModel(self.circuitElements[edge], Inductor)
-        #
-        #     # summation of the 1 over inductor values.
-        #     x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random), indList))))
-        #
-        #     if x == 0 or (edge not in self.extFlux and (edge[1], edge[0]) not in self.extFlux):
-        #         continue
-        #     else:
-        #         if edge in self.extFlux:
-        #             phi = self.extFlux[edge].value(self.random)
-        #         elif (edge[1], edge[0]) in self.extFlux:
-        #             phi = self.extFlux[(edge[1], edge[0])].value(self.random)
-        #         else:
-        #             phi = Flux().value(self.random)
-        #         O = self.couplingOperator("inductive", edge)
-        #         O.dims = [self.m, self.m]
-        #         HLC += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
-
         return HLC
 
     @staticmethod
@@ -784,14 +680,16 @@ class Circuit:
                         H2 = I
                     elif wTrans[i, j] > 0:
                         d = self.chargeDisp(self.m[j])
+                        I = q.qeye(self.m[j])
                         H = d
                         # not correct just to avoid error:
-                        H2 = d
+                        H2 = I
                     else:
                         d = self.chargeDisp(self.m[j])
+                        I = q.qeye(self.m[j])
                         H = d.dag()
                         # not correct just to avoid error:
-                        H2 = d
+                        H2 = I
 
                 elif j == 0 and omega[j] != 0:
                     alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
@@ -805,11 +703,15 @@ class Circuit:
                         H = q.tensor(H, I)
                         H2 = q.tensor(H2, I)
                     elif wTrans[i, j] > 0:
+                        I = q.qeye(self.m[j])
                         d = self.chargeDisp(self.m[j])
                         H = q.tensor(H, d)
+                        H2 = q.tensor(H2, I)
                     else:
+                        I = q.qeye(self.m[j])
                         d = self.chargeDisp(self.m[j])
                         H = q.tensor(H, d.dag())
+                        H2 = q.tensor(H2, I)
 
                 elif j != 0 and omega[j] != 0:
                     alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
@@ -822,80 +724,13 @@ class Circuit:
 
         return HJJExpList, HJJExpRootList
 
-    def getJJHamil(self, HJJExpList: list, HJJExpRootList: list, fluxExt: dict):
-        """
-        get the Josephson Junction part of the Hamiltonian, cos(phi), for each Josephson Junction.
-        It also returns the sin(phi/2) for quasi-particle loss calculation.
-        inputs:
-            -- HJJExpList: List of exponential part of the Josephson Junction cosine (nJ)
-            -- HJJExpRootList: List of square root of exponential part of the Josephson Junction cosine (nJ)
-            -- fluxExt:  A dictionary that contains the external flux at each edge
-        outputs:
-            -- HJJ: Josephson Junctions part of the Hamiltonian(qutip operator)
-            -- HJJSinHalfList: A list that contains the sin(phi/2) part of Hamiltonian for each JJ (nJ)
-        """
-
-        # List of each JJ Hamiltonian
-        HJJList = []
-
-        # list of sin(phi/2) of each JJs
-        HJJSinHalfList = []
-
-        # count when we address any JJ( when EJ is not None)
-        i = 0
-
-        for edge in self.circuitElements:
-
-            # list of Josephson Junction of the edge.
-            JJList = self.elementModel(self.circuitElements[edge], Junction)
-            if len(JJList) == 0:
-                continue
-
-            EJ = list(map(lambda jj: jj.value(self.random), JJList))
-            # Parallel JJ case
-            if len(EJ) > 1:
-
-                H = 0
-                phi = fluxExt.get(edge, []) + fluxExt.get((edge[1], edge[0]), [])
-                phi = phi + [FLux()] * (len(EJ) - len(phi))
-
-                for j in range(len(EJ)):
-                    H += np.exp(1j * phi[j].value(self.random)) * EJ[j] / 2 * HJJExpList[i]
-
-                H = H + H.dag()
-                # needed to be implemented 
-                H2 = 0
-
-            # single JJ case
-            else:
-                if edge in fluxExt:
-                    phi = fluxExt[edge]
-                elif (edge[1], edge[0]) in fluxExt:
-                    phi = fluxExt[(edge[1], edge[0])]
-                else:
-                    phi = Flux()
-
-                H = np.exp(1j * phi.value(self.random)) * EJ[0] / 2 * HJJExpList[i]
-                H = H + H.dag()
-
-                # sin(phi/2) for the quasi-particle decay rate
-                H2 = np.exp(1j * phi.value(self.random) / 2) * HJJExpRootList[i]
-                H2 = q.Qobj(H2)
-                H2 = (H2.dag() - H2) / 2j
-
-            HJJList.append(H)
-            HJJSinHalfList.append(H2)
-            i += 1
-
-        HJJ = sum(HJJList)
-
-        return HJJ, HJJSinHalfList
-
-    def indHamil(self, HJJExpList: list):
+    def indHamil(self, HJJExpList: list, HJJExpRootList: list):
 
         countInd = 0
         countJJ = 0
         H = q.Qobj()
+        self.junctionHamil = {'cos': {}, 'sin': {}, 'sinHalf': {}}
+        self.inductorHamil = {}
 
         for edge in self.circuitElements.keys():
 
@@ -916,6 +751,9 @@ class Circuit:
                     O.dims = [self.m, self.m]
                     H += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
 
+                    # save the operators for loss calculation
+                    self.inductorHamil[(countInd, el)] = np.sqrt(x) * O
+
                     countInd += 1
 
                 if isinstance(el, Junction):
@@ -925,9 +763,15 @@ class Circuit:
                         phi += loop.value(self.random) * self.K2[countInd, i]
 
                     EJ = el.value(self.random)
-                    HJ = np.exp(1j * phi) * EJ / 2 * HJJExpList[countJJ]
-                    HJ = HJ + HJ.dag()
+                    HJ_exp = np.exp(1j * phi) * EJ / 2 * HJJExpList[countJJ]
+                    HJ_expRoot = np.exp(1j * phi / 2) * np.sqrt(EJ) / 2 * HJJExpRootList[countJJ]
+                    HJ = HJ_exp + HJ_exp.dag()
                     H -= HJ
+
+                    # save the operators for loss calculations.
+                    self.junctionHamil['cos'][el] = HJ
+                    self.junctionHamil['sin'][(countInd, el)] = (HJ_exp - HJ_exp.dag()) / 1j
+                    self.junctionHamil['sinHalf'][el] = (HJ_expRoot - HJ_expRoot.dag()) / 1j
 
                     countInd += 1
                     countJJ += 1
@@ -949,7 +793,7 @@ class Circuit:
 
         # HJJ, self.qpSinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
 
-        Hind = self.indHamil(self.HJJExpList)
+        Hind = self.indHamil(self.HJJExpList, self.HJJExpRootList)
 
         # H = -HJJ + self.HLC
         H = Hind + self.HLC
@@ -1117,7 +961,8 @@ class Circuit:
 
         else:
             if copType == "capacitive":
-                K = np.linalg.inv(self.getMatC()) @ self.R
+                # K = np.linalg.inv(self.getMatC()) @ self.R
+                K = np.linalg.inv(self.C) @ self.R
                 for i in range(self.n):
                     op += (K[node2 - 1, i] - K[node1 - 1, i]) * self.chargeOpList[i]
             if copType == "inductive":
@@ -1157,6 +1002,9 @@ class Circuit:
         omega1 = self.hamilEigVal[states[0]]
         omega2 = self.hamilEigVal[states[1]]
 
+        state1 = self.hamilEigVec[states[0]]
+        state2 = self.hamilEigVec[states[1]]
+
         omega = np.abs(omega2 - omega1)
 
         decay = 0
@@ -1167,17 +1015,77 @@ class Circuit:
         else:
             nbar = 1 / (np.exp(unit.hbar * omega / (unit.k_B * self.T)) - 1)
 
-        if decType == 'dielectric' or decType == 'all':
+        if decType == "capacitive":
 
             for edge in self.circuitElements.keys():
 
-                # list of capacitors of the edge.
-                capList = self.elementModel(self.circuitElements[edge], Capacitor)
-
-                for cap in capList:
+                for el in self.circuitElements[edge]:
+                    if isinstance(el, Capacitor):
+                        cap = el
+                    else:
+                        cap = el.cap
 
                     if cap.Q:
                         decay += 2 * cap.value() / cap.Q * (2 * nbar + 1) * np.abs(self.matrixElements(
                             "capacitive", edge, states)) ** 2
+
+        if decType == "inductive":
+
+            for indx, el in self.inductorHamil:
+                op = self.inductorHamil[(indx, el)]
+                op.dims = [self.ms, self.ms]
+                if el.Q:
+                    decay += 2 / el.Q * (2 * nbar + 1) * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
+
+        if decType == "quasiparticle":
+
+            for el in self.junctionHamil['sinHalf']:
+                op = self.junctionHamil['sinHalf'][el]
+                op.dims = [self.ms, self.ms]
+
+                # Delta = 0.00025 * 1.6e-19
+                # Y = el.x_qp * 8 * unit.hbar / np.pi / unit.hbar * np.sqrt(2 * Delta / unit.hbar / omega)
+
+                Delta = 0.00034 * 1.6e-19
+                x = unit.hbar * omega / (2 * unit.k_B * self.T)
+                Y = np.sqrt(2 / np.pi) * (8 / Delta / (unit.hbar * 2 * np.pi / unit.e ** 2)) \
+                    * (2 * Delta / unit.hbar / omega)**1.5 \
+                    * el.x_qp * np.sqrt(x) * scipy.special.kn(0, x) * np.sinh(x) * omega * unit.hbar
+
+                decay += 2 * Y * (2 * nbar + 1) * np.abs((state1.dag() * op * state2).data[0, 0])**2
+        elif decType == "charge_noise":
+
+            # first derivative of the Hamiltonian with respect to charge noise
+            op = q.Qobj()
+            for i in range(self.n):
+                if self.omega[i] == 0:
+                    for j in range(self.n):
+                        op += self.cInvDiag[i, j] * self.chargeOpList[j] / np.sqrt(unit.hbar)
+                    op.dims = [self.ms, self.ms]
+                    partialOmega = np.abs((state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])
+                    decay += partialOmega * (self.extCharge.get(i, Charge()).noise * 2 * unit.e) \
+                             * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
+
+        elif decType == "cc_noise":
+
+            for el in self.junctionHamil['cos']:
+                op = self.junctionHamil['cos'][el]
+                op.dims = [self.ms, self.ms]
+                partialOmega = np.abs((state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])
+                decay += partialOmega * el.A_c * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
+
+        elif decType == "flux_noise":
+
+            for indx, el in self.inductorHamil:
+                op = self.inductorHamil[(indx, el)]
+                op.dims = [self.ms, self.ms]
+                partialOmega = np.abs(
+                    (state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])/np.sqrt(el.value())
+
+                A = 0
+                for i, loop in enumerate(self.loops):
+                    A += loop.A * self.K2[indx, i] * unit.Phi0
+
+                decay += partialOmega * A * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp))) / np.sqrt(unit.hbar)
 
         return decay

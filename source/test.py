@@ -133,20 +133,48 @@ import matplotlib.pyplot as plt
 # print(l1.energy)
 
 
+# loop1 = sq.Loop()
+#
+# C_r = sq.Capacitor(20.3, "fF")
+# L_r = sq.Inductor(15.6, "nH")
+# C_q = sq.Capacitor(5.3, "fF")
+# L_q = sq.Inductor(386, "nH", loops=[loop1])
+# JJ = sq.Junction(6.2, "GHz", loops=[loop1])
+# L_s = sq.Inductor(4.5, "nH", loops=[loop1])
+# # L_q = sq.Inductor(386, "nH")
+# # JJ = sq.Junction(6.2, "GHz")
+# # L_s = sq.Inductor(4.5, "nH")
+#
+# circuitElements = {(0, 1): [C_r],
+#                    (1, 2): [L_r],
+#                    (0, 2): [L_s],
+#                    (2, 3): [L_q],
+#                    (0, 3): [JJ, C_q]}
+#
+# # cr is an object of Qcircuit
+# cr1 = sq.Circuit(circuitElements)
+#
+# print(cr1.omega)
+# print(cr1.cInvDiag)
+
 loop1 = sq.Loop()
+loop2 = sq.Loop()
 
-C_r = sq.Capacitor(20.3, "fF")
-L_r = sq.Inductor(15.6, "nH")
-C_q = sq.Capacitor(5.3, "fF")
-L_q = sq.Inductor(386, "nH", loops=[loop1])
-JJ = sq.Junction(6.2, "GHz", loops=[loop1])
-L_s = sq.Inductor(4.5, "nH", loops=[loop1])
+# import sympy
 
-circuitElements = {(0, 1): [C_r],
-                   (1, 2): [L_r],
-                   (0, 2): [L_s],
-                   (2, 3): [L_q],
-                   (0, 3): [JJ, C_q]}
+CJ = sq.Capacitor(0.15, "GHz")
+JJ1 = sq.Junction(5, "GHz", loops=[loop1], cap=CJ)
+JJ2 = sq.Junction(5, "GHz", loops=[loop2], cap=CJ)
+L = sq.Inductor(0.13, "GHz", loops=[loop1, loop2])
 
-# cr is an object of Qcircuit
+circuitElements = {(0, 1): [JJ1],
+                   (1, 2): [JJ1],
+                   (2, 3): [JJ1],
+                   (3, 5): [JJ2],
+                   (5, 4): [JJ2],
+                   (4, 0): [JJ2],
+                   (0, 3): [L]}
+
 cr1 = sq.Circuit(circuitElements)
+
+print(cr1.wTrans)

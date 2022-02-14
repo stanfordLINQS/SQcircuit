@@ -127,12 +127,13 @@ class Junction:
     class that contains the Josephson Junction properties.
     """
 
-    def __init__(self, value, jUnit, cap=Capacitor(), error=0, loops=[]):
+    def __init__(self, value, jUnit, cap=Capacitor(), A_c=1e-7, x_qp=3e-06, error=0, loops=[]):
         """
         inputs:
             -- value: The value of the inductor.
             -- units: The unit of input value.
             -- cap: capacitor associated to the Josephson Junction.
+            -- A_c: critical current noise.
             -- error: The error in fabrication.( as a percentage)
             -- loops: loops that JJ belongs to
         """
@@ -150,6 +151,8 @@ class Junction:
         self.error = error
         self.type = type(self)
         self.loops = loops
+        self.A_c = A_c
+        self.x_qp = x_qp
 
     def value(self, random: bool = False):
         """
@@ -170,14 +173,14 @@ class Loop:
     """
     class that contains the inductive loop properties.
     """
-    def __init__(self, value=0, noise=0):
+    def __init__(self, value=0, A=0):
         """
         inputs:
             -- value: The value of the external flux at the loop.
-            -- noise: The amplitude of the flux noise.
+            -- A: The amplitude of the flux noise.
         """
         self.lpValue = value
-        self.noise = noise
+        self.A = A
         # indices of inductive elements.
         self.indices = []
         # k1 matrix related to this specific loop
@@ -196,7 +199,7 @@ class Loop:
         if not random:
             return self.lpValue
         else:
-            return np.random.normal(self.lpValue, self.noise, 1)[0]
+            return np.random.normal(self.lpValue, self.A, 1)[0]
 
     def setFlux(self, value):
         self.lpValue = value
