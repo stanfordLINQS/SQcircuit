@@ -299,6 +299,7 @@ class Circuit:
         wTrans1 = self.W @ S1
         wQ = wTrans1[:, omega == 0]
 
+        wQ[np.abs(wQ) < 1e-2] = 0
         a = np.zeros_like(wQ)
         select = np.sum(wQ != a, axis=0) != 0
         # eliminate the zero columns
@@ -411,6 +412,9 @@ class Circuit:
         # get the transformed W matrix
         # self.wTrans = self.getMatW() @ self.S1 @ self.S2
         self.wTrans = self.W @ self.S1 @ self.S2
+        wQ = self.wTrans[:, self.omega == 0]
+        wQ[np.abs(wQ) < 1] = 0
+        self.wTrans[:, self.omega == 0] = wQ
 
         # scaling the modes
         self.S3, self.R3 = self.transform3()
@@ -419,10 +423,19 @@ class Circuit:
         self.S = self.S1 @ self.S2 @ self.S3
         self.R = self.R1 @ self.R2 @ self.R3
 
-        # print("Natural frequencies of the circuit:")
-        # print(self.omega)
-        # print("W transformed matrix:")
-        # print(self.wTrans)
+    def description(self):
+        """
+        prints the circuit modes as well as Josephson Junction prefactors:
+        """
+
+        for i in range(self.n):
+            if self.omega[i] != 0:
+                print("mode_{}: \tharmonic\tfreq={}".format(i + 1, self.omega[i] / (2 * np.pi * unit.freq)))
+            else:
+                print("mode_{}: \tcharge".format(i + 1))
+
+        for i in range(self.wTrans.shape[0]):
+            print("w{}: \t{}".format(i + 1, self.wTrans[i, :]))
 
     def setTruncationNumbers(self, truncNum: list):
         """set the truncation numbers for each mode
@@ -1044,10 +1057,10 @@ class Circuit:
                 Delta = 0.00034 * 1.6e-19
                 x = unit.hbar * omega / (2 * unit.k_B * self.T)
                 Y = np.sqrt(2 / np.pi) * (8 / Delta / (unit.hbar * 2 * np.pi / unit.e ** 2)) \
-                    * (2 * Delta / unit.hbar / omega)**1.5 \
+                    * (2 * Delta / unit.hbar / omega) ** 1.5 \
                     * el.x_qp * np.sqrt(x) * scipy.special.kn(0, x) * np.sinh(x) * omega * unit.hbar
 
-                decay += 2 * Y * (2 * nbar + 1) * np.abs((state1.dag() * op * state2).data[0, 0])**2
+                decay += 2 * Y * (2 * nbar + 1) * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
         elif decType == "charge_noise":
 
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1075,7 +1088,7 @@ class Circuit:
                 op = self.inductorHamil[(indx, el)]
                 op.dims = [self.ms, self.ms]
                 partialOmega = np.abs(
-                    (state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])/np.sqrt(el.value())
+                    (state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0]) / np.sqrt(el.value())
 
                 A = 0
                 for i, loop in enumerate(self.loops):

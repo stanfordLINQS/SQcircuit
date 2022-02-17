@@ -201,17 +201,48 @@ import matplotlib.pyplot as plt
 # print(cr1.wTrans)
 
 
+# loop1 = sq.Loop()
+# C = sq.Capacitor(10, 'fF', Q=1e6)
+# Cg = sq.Capacitor(0.5, 'fF', Q=1e6)
+# L = sq.Inductor(1, 'GHz', Q=500e6, loops=[loop1])
+# JJ = sq.Junction(3, 'GHz', cap=C, A_c=5e-7, loops=[loop1])
+# # JJ = sq.Junction(3, 'GHz', A_c=5e-7, loops=[loop1])
+#
+# circuitElements = {
+#     (0, 1): [Cg],
+#     (1, 2): [L, JJ],
+#     (0, 2): [Cg]
+# }
+#
+# cr1 = sq.Circuit(circuitElements)
+#
+# print(cr1.wTrans)
+#
+# cr1.setTruncationNumbers([30, 1])
+# numEig = 5
+# phiExt = np.linspace(0, 1, 100) * 2 * np.pi
+# eigenValues = np.zeros((numEig, len(phiExt)))
+# for i in range(len(phiExt)):
+#     loop1.setFlux(phiExt[i])
+#     eigenValues[:, i], _ = cr1.run(numEig)
+#
+# for i in range(numEig):
+#     plt.plot(phiExt / 2 / np.pi, eigenValues[i, :] - eigenValues[0, :])
+# plt.show()
+
 loop1 = sq.Loop()
-C = sq.Capacitor(15, 'fF', Q=1e6)
-Cg = sq.Capacitor(0.5, 'fF', Q=1e6)
-L = sq.Inductor(1, 'GHz', Q=500e6, loops=[loop1])
-JJ = sq.Junction(3, 'GHz', cap=C, A_c=5e-7, loops=[loop1])
 
-circuitElements = {
-    (0, 1): [Cg],
-    (1, 2): [C, L, JJ],
-    (0, 2): [Cg]
-}
+C = sq.Capacitor(0.15, "GHz")
+CJ = sq.Capacitor(10, "GHz")
+JJ = sq.Junction(5, "GHz", loops=[loop1])
+L = sq.Inductor(0.13, "GHz", loops=[loop1])
 
-cr = sq.Circuit(circuitElements)
+circuitElements = {(0, 1): [CJ, JJ],
+                   (0, 2): [L],
+                   (0, 3): [C],
+                   (1, 2): [C],
+                   (1, 3): [L],
+                   (2, 3): [CJ, JJ]}
 
+# cr is an object of Qcircuit
+cr1 = sq.Circuit(circuitElements)
