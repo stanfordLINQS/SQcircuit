@@ -216,6 +216,8 @@ class Loop:
         select = np.sum(K1 != a, axis=0) != 0
         # eliminate the zero columns
         K1 = K1[:, select]
+        if K1.shape[0] == K1.shape[1]:
+            K1 = K1[:, 0:-1]
         b = np.zeros((1, K1.shape[0]))
         b[0, 0] = 1
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T

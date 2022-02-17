@@ -218,14 +218,13 @@ class Circuit:
 
         wMat = np.array(wMat)
 
-        ########### DEEEEBUUGGG
-        self.K1 = K1
-
         K1 = np.array(K1)
         a = np.zeros_like(K1)
         select = np.sum(K1 != a, axis=0) != 0
         # eliminate the zero columns
         K1 = K1[:, select]
+        if K1.shape[0] == K1.shape[1]:
+            K1 = K1[:, 0:-1]
 
         X = K1.T @ np.diag(cEd)
         for loop in self.loops:
@@ -236,8 +235,6 @@ class Circuit:
         numLoop = len(self.loops)
         Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
         self.K2 = np.linalg.inv(X) @ Y
-        ########### DEEEEBUUGGG
-        self.X = X
 
         return cMat, lMat, wMat
 
@@ -301,6 +298,12 @@ class Circuit:
         # wTrans1 = self.getMatW() @ S1
         wTrans1 = self.W @ S1
         wQ = wTrans1[:, omega == 0]
+
+        a = np.zeros_like(wQ)
+        select = np.sum(wQ != a, axis=0) != 0
+        # eliminate the zero columns
+        wQ = wQ[:, select]
+
         # number of operators represented in charge bases
         nq = wQ.shape[1]
 
@@ -320,14 +323,6 @@ class Circuit:
                 if (np.abs(wPrime) > 1e-7).any():
                     indList.append(i)
                     basis.append(wPrime / np.linalg.norm(wPrime))
-
-            # while len(indList) != nq:
-            #     # inner product of the jth w with selected wQ( indList)
-            #     iner = np.abs(np.sum(wQ_norm[indList, :] * wQ_norm[j, :], 1))
-            #     # check if we found a new w that is not parallel with selected w
-            #     if np.max(iner) <= 1 - 1e-12:
-            #         indList.append(j)
-            #     j += 1
 
             # the second S and R matrix are:
             S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(wQ[indList, :]))

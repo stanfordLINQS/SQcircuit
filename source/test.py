@@ -2,7 +2,6 @@ import SQcircuit as sq
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 # test case 1:
 # loop1 = sq.Loop()
 #
@@ -56,7 +55,6 @@ import matplotlib.pyplot as plt
 # print(loop2.K1)
 #
 # print(cr1.loops)
-
 
 
 # test case 3:
@@ -157,24 +155,63 @@ import matplotlib.pyplot as plt
 # print(cr1.omega)
 # print(cr1.cInvDiag)
 
+# loop1 = sq.Loop()
+# loop2 = sq.Loop()
+#
+# # import sympy
+#
+# CJ = sq.Capacitor(0.15, "GHz")
+# JJ1 = sq.Junction(5, "GHz", loops=[loop1], cap=CJ)
+# JJ2 = sq.Junction(5, "GHz", loops=[loop2], cap=CJ)
+# L = sq.Inductor(0.13, "GHz", loops=[loop1, loop2])
+#
+# circuitElements = {(0, 1): [JJ1],
+#                    (1, 2): [JJ1],
+#                    (2, 3): [JJ1],
+#                    (3, 5): [JJ2],
+#                    (5, 4): [JJ2],
+#                    (4, 0): [JJ2],
+#                    (0, 3): [L]}
+#
+# cr1 = sq.Circuit(circuitElements)
+#
+# print(cr1.wTrans)
+
+
+# loop1 = sq.Loop()
+# loop2 = sq.Loop()
+#
+# # import sympy
+#
+# CJ = sq.Capacitor(0.15, "GHz")
+# JJ1 = sq.Junction(5, "GHz", loops=[loop1], cap=CJ)
+# JJ2 = sq.Junction(5, "GHz", loops=[loop2], cap=CJ)
+# L = sq.Inductor(0.13, "GHz", loops=[loop1, loop2])
+#
+# circuitElements = {(0, 1): [JJ1],
+#                    (1, 2): [JJ1],
+#                    (2, 3): [JJ1],
+#                    (3, 5): [JJ2],
+#                    (5, 4): [JJ2],
+#                    (4, 0): [JJ2],
+#                    (0, 3): [L]}
+#
+# cr1 = sq.Circuit(circuitElements)
+#
+# print(cr1.wTrans)
+
+
 loop1 = sq.Loop()
-loop2 = sq.Loop()
+C = sq.Capacitor(15, 'fF', Q=1e6)
+Cg = sq.Capacitor(0.5, 'fF', Q=1e6)
+L = sq.Inductor(1, 'GHz', Q=500e6, loops=[loop1])
+JJ = sq.Junction(3, 'GHz', cap=C, A_c=5e-7, loops=[loop1])
 
-# import sympy
+circuitElements = {
+    (0, 1): [Cg],
+    (1, 2): [C, L, JJ],
+    (0, 2): [Cg]
+}
 
-CJ = sq.Capacitor(0.15, "GHz")
-JJ1 = sq.Junction(5, "GHz", loops=[loop1], cap=CJ)
-JJ2 = sq.Junction(5, "GHz", loops=[loop2], cap=CJ)
-L = sq.Inductor(0.13, "GHz", loops=[loop1, loop2])
+cr = sq.Circuit(circuitElements)
 
-circuitElements = {(0, 1): [JJ1],
-                   (1, 2): [JJ1],
-                   (2, 3): [JJ1],
-                   (3, 5): [JJ2],
-                   (5, 4): [JJ2],
-                   (4, 0): [JJ2],
-                   (0, 3): [L]}
-
-cr1 = sq.Circuit(circuitElements)
-
-print(cr1.wTrans)
