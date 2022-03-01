@@ -1,17 +1,31 @@
-# <span style="color:Orange">*SQ*</span>circuit
+# <span style="color:Orange">*SQ*</span>circuit: superconducting quantum circuit analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
-|[**Quick Tutorial**](#Quick-Tutorial)
 |[**Installation**](#Installation)
+|[**Quick Tutorial**](#Quick-Tutorial)
 |[**Examples**](#Examples)
 
 ## What is SQcircuit?
 
-SQcircuit is a superconducting quantum circuit solver that is written as Python class. By giving the circuit configuration and its parameter as an input to this solver, it is capable of generating the Hamiltonian for the circuit and find the eigenvalues and eigenfunctions of the Hamiltonian effectively.
+SQcircuit is an open-source Python library that is capable of analyzing an arbitrary superconducting quantum circuit.
+SQcircuit uses the theory discussed in [1] to describe the Hamiltonian in the appropriate basis and to effectively find
+the energy spectrum and eigenvectors of the circuit. To design the desired quantum circuit and to discover new qubits, 
+additional functionalities and methods are provided to extract the circuit properties such as matrix elements, 
+dephasing rate, decay rates, etc.
 
+## Installation
+SQcirucit can be simply installed via pip:
+```
+pip install SQcircuit
+```
+As an alternative, installation via Conda is also provided.
+```
+conda install -c conda-forge scqubits
+```
 
 ## Quick Tutorial
 
-This tutorial shows an overview of how to use SQcircuit. For more details, one can visit the example file which contains a variety examples from the state of the art literature on superconducting quantum circuits.
+This tutorial shows an overview of how to use SQcircuit. For more details, one can visit the example file which
+contains a variety examples from the state of the art literature on superconducting quantum circuits.
 
 <p align="center">
 <img src = pics/README_Pic1.png width= "550px" />
@@ -53,13 +67,10 @@ cr.setExternalFluxes({(1, 2): phi1,
 eigenValues, eigenVectros = cr.run(numBand = N)
 ```
 
-
-## Installation
-To use SQcircuit, you just need to put `circuit.py` and `PhysicsConstants.py` from [source](https://github.com/taha1373/SQcircuit/tree/master/source) folder inside your project folder and follow the [**Quick Tutorial**](#Quick-Tutorial) and [**Examples**](#Examples) sections.
-
 ## Examples
 
-To see how SQcircuit is working and its robustness, we put several examples from the sate of the art superconducting circuits in the litreture, which SQcircuit can efficiently calculate the spectrum of those circuits.
+To see how SQcircuit is working and its robustness, we put several examples from the sate of the art
+superconducting circuits in the litreture, which SQcircuit can efficiently calculate the spectrum of those circuits.
 
 * [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb)
 * [Inductively Shunted Circuits](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb)
