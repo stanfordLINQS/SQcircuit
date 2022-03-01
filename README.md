@@ -19,7 +19,7 @@ pip install SQcircuit
 ```
 As an alternative, installation via Conda is also provided.
 ```
-conda install -c conda-forge scqubits
+conda install -c conda-forge SQcircuit
 ```
 
 ## Quick Tutorial
