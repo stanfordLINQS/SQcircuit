@@ -1,3 +1,7 @@
+<p align="center">
+<img src = pics/README_logo.png width= 250px" />
+</p>
+
 # <span style="color:Orange">*SQ*</span>circuit: superconducting quantum circuit analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
 |[**Installation**](#Installation)
@@ -23,7 +27,7 @@ As an alternative, installation via Conda is also provided.
 conda install -c conda-forge SQcircuit
 ```
 ## Documentation
-THe documentation of the SQcircuit is provided at:
+The documentation of the SQcircuit is provided at:
 
 ## Quick Tutorial
 
@@ -31,7 +35,7 @@ This tutorial shows an overview of how to use SQcircuit. For more details, one c
 contains a variety examples from the state of the art literature on superconducting quantum circuits.
 
 <p align="center">
-<img src = pics/README_Pic1.png width= "550px" />
+<img src = pics/README_zeroPi.png width= "300px" />
 </p>
 
 
