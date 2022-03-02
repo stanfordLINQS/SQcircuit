@@ -88,23 +88,21 @@ the documentation)
 # call this function to set the truncation number for each mode of the circuit. 
 cr.truncationNumber([25, 1, 25])
 ```
-
+We get the first two eigenfrequencies of the circuit to calculate the qubit frequency via:
 
 ```python
-# set external fluxes for each inductive loops of the circuit.
-cr.setExternalFluxes({(1, 2): phi1,
-                      (0, 1): [phi2,phi3]
-                      })
+# get the first two eigenfrequencies and eigenvectors 
+eigFreq, eigVec = cr.diag(numEig=2)
 
-# run the solver to calculate the eigenvalues and eigenvectors of the Hamiltonian for 
-# specific number of bands
-eigenValues, eigenVectros = cr.run(numBand = N)
+# print the qubit frequency
+print("qubit frequency:", eigFreq[1]-eigFreq[0])
 ```
+The frequency unit in SQcircuit is GHz by default. However, one can simply change it by `sq.unit.setFreq()` method.
 
 ## Examples
 
-To see how SQcircuit is working and its robustness, we put several examples from the state of the art
-superconducting circuits of the literature, which SQcircuit can efficiently calculate the spectrum of those circuits.
+To demonstrate the full potential of the SQcircuit we provide the examples from simple qubits to state of the art 
+super conducting circuits. In these jupyter notebook examples, we reproduce the result of the papers by simply
 
 * [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb)
 * [Inductively Shunted Circuits](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb)
