@@ -31,8 +31,8 @@ The documentation of the SQcircuit is provided at:
 
 ## Quick Tutorial
 
-This tutorial shows an overview of how to use SQcircuit. For more details, one can visit the example file which
-contains a variety examples from the state of the art literature on superconducting quantum circuits.
+To show a quick overview of how to use SQcircuit, we find the qubit frequency for the $0-\pi$ circuit with the
+following parameters.
 
 <p align="center">
 <img src = pics/README_zeroPi.png width= "300px" />
@@ -76,8 +76,8 @@ eigenValues, eigenVectros = cr.run(numBand = N)
 
 ## Examples
 
-To see how SQcircuit is working and its robustness, we put several examples from the sate of the art
-superconducting circuits in the litreture, which SQcircuit can efficiently calculate the spectrum of those circuits.
+To see how SQcircuit is working and its robustness, we put several examples from the state of the art
+superconducting circuits of the literature, which SQcircuit can efficiently calculate the spectrum of those circuits.
 
 * [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb)
 * [Inductively Shunted Circuits](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb)
