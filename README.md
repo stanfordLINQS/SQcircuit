@@ -86,7 +86,7 @@ the documentation)
 
 ```python
 # call this function to set the truncation number for each mode of the circuit. 
-cr.truncationNumber([25, 1, 25])
+cr.truncationNumbers([25, 1, 25])
 ```
 We get the first two eigenfrequencies of the circuit to calculate the qubit frequency via:
 
