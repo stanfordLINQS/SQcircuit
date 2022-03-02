@@ -31,37 +31,64 @@ The documentation of the SQcircuit is provided at:
 
 ## Quick Tutorial
 
-To show a quick overview of how to use SQcircuit, we find the qubit frequency for the $0-\pi$ circuit with the
-following parameters.
+To show a quick overview of how to use SQcircuit, we find the qubit frequency for the symmetric zero-pi qubit with the
+following parameters in GHz: E_C=0.15, E_CJ=10, E_L=0.13 , and E_J=5.   
 
 <p align="center">
 <img src = pics/README_zeroPi.png width= "300px" />
 </p>
-
+After installing the SQcircuit, we import it via:
 
 ```python
-# Import circuitClass that contains SQcircuit
-from circuit import *
-
-# cicuitParam is a dictionary that contains the information about the graph structure,
-# capacitor values, inductor values, and Josephson Junction Values.
-circuitParam = {
-    (0, 1): {"C": C1, "L": L1, "JJ": [EJ1, EJ2]},
-    (1, 2): {"C": C2, "JJ": EJ3},
-    (2, 3): {"C": C3},
-    (0, 2): {"C": C4, "L": L2},
-    (0, 3): {"C": C5, "JJ": EJ4}
-}
-
-# cr is an object of SQcircuit
-cr = SQcircuit(circuitParam)
+# import the SQcircuit library
+import SQcircuit as sq
 ```
+Since zero-pi qubit has a single inductive loop, we define its loop by creating a loop object from `Loop` class with
+flux bias at frustration point:
 
+```python
+# inductive loop of zero-pi qubit with flux bias at its frustration point.
+loop1 = sq.Loop(value=0.5)
+```
+We can later change the value of the flux bias by `setFlux()` method. Each circuit component in SQcircuit has their
+own class definition `Capacitor` class for capacitors, `Inductor` class for inductors, and `Junction` class for
+Josephson junctions. We define the elements of our zero-pi circuit as following:
+```python
+# capacitors
+C = sq.Capacitor(value =0.15 ,  unit="GHz")
+CJ = sq.Capacitor(value=10, unit="GHz")
+# inductors
+L = sq.Inductor(value=0.13, unit="GHz", loops = [loop1])
+# JJs
+JJ = sq.Junction(value=5, unit="GHz", loops=[loop1])
+```
+Note that for the inductive elements( inductors as well as Josephson junctions) that are part of an 
+inductive loop, one should indicate the loops of which they are involved. For example here we pass `[loop1]` to `loops`
+argument for both inductors and Josephson Junctions, because all of them are part of `loop1`. After defining all
+components of the circuit, to describe the circuit topology in SQcircuit, one should create an object of `Circuit`
+class by passing a Python dictionary that contains the list of all elements at each edge
+
+```python
+# dictionary that contains the list of all elements at each edge
+elements = {(0, 1): [CJ, JJ],
+            (0, 2): [L],
+            (0, 3): [C],
+            (1, 2): [C],
+            (1, 3): [L],
+            (2, 3): [CJ, JJ]}
+
+# define the circuit
+cr = sq.Circuit(elements)
+```
+One step before diagonalizing the circuit is to define the size of the Hilbert space by specifying the truncation 
+numbers for each mode.(For more information about modes and truncation number check the SQcircuit original paper or
+the documentation)
 
 ```python
 # call this function to set the truncation number for each mode of the circuit. 
-cr.setTruncationNumbers([m1,m2,m3])
+cr.truncationNumber([25, 1, 25])
 ```
+
 
 ```python
 # set external fluxes for each inductive loops of the circuit.
