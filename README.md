@@ -107,17 +107,17 @@ To manifest the potential of the SQcircuit, we prepared the examples from simple
 super conducting circuits of the literature, in which we effortlessly reproduce the main result of the paper 
 by SQcircuit functionalities. One can find the jupyter notebook examples in example folder, some of which are:
 
-* [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb): We calculated the
+* [Zero-Pi Qubit](https://github.com/stanfordLINQS/SQcircuit/blob/main/examples/zeroPiQubit.ipynb): We calculated the
 energy spectrum and eigenfunctions of the zero-pi qubit in the \cite{}
-* [Inductively Shunted Circuit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb):
+* [Inductively Shunted Circuit](https://github.com/stanfordLINQS/SQcircuit/blob/main/examples/inductivelyShunted.ipynb):
 In \cite{}, they explained how the conventional method or perturbation theory does not correctly diagonalize their 
 highly anharmonic inductively-shunted qubits. However, using SQcircuit, we simply reproduced the energy spectrum.
-* [Qubit protected by two Cooper-pair tunneling](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/twoCPB.ipynb):
+* [Qubit protected by two Cooper-pair tunneling](https://github.com/stanfordLINQS/SQcircuit/blob/main/examples/twoCPB.ipynb):
 \cite{} designed a qubit that is protected by two Cooper-pair tunneling. We reproduced the main results of the paper 
 such as energy spectrum, wavefunctions, and matrix elements.
 
 ## Contribution
 You are very welcome to contribute to SQcircuit development by forking this repository and sending pull requests,
-or filing bug reports at the [issues](https://github.com/stanfordLINQS/Qcircuit/issues) page. All code contributions are acknowledged in the contributors section
+or filing bug reports at the [issues](https://github.com/stanfordLINQS/SQcircuit/issues) page. All code contributions are acknowledged in the contributors section
 in the documentation.
 
