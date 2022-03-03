@@ -35,7 +35,7 @@ To show a quick overview of how to use SQcircuit, we find the qubit frequency fo
 following parameters in GHz: E_C=0.15, E_CJ=10, E_L=0.13 , and E_J=5.   
 
 <p align="center">
-<img src = pics/README_zeroPi.png width= "300px" />
+<img src = pics/README_zeroPi.png width= "280px" />
 </p>
 After installing the SQcircuit, we import it via:
 
@@ -101,10 +101,17 @@ The frequency unit in SQcircuit is GHz by default. However, one can simply chang
 
 ## Examples
 
-To demonstrate the full potential of the SQcircuit we provide the examples from simple qubits to state of the art 
-super conducting circuits. In these jupyter notebook examples, we reproduce the result of the papers by simply
+To manifest the potential of the SQcircuit, we prepared the examples from simple qubits to state of the art 
+super conducting circuits of the literature, in which we effortlessly reproduce the main result of the paper 
+by SQcircuit functionalities. One can find the jupyter notebook examples in example folder, some of which are:
 
-* [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb)
-* [Inductively Shunted Circuits](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb)
+* [Zero-Pi Qubit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/zeroPiQubit.ipynb): We calculated the
+energy spectrum and eigenfunctions of the zero-pi qubit in the \cite{}
+* [Inductively Shunted Circuit](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/inductivelyShunted.ipynb):
+In \cite{}, they explained how the conventional method or perturbation theory does not correctly diagonalize their 
+highly anharmonic inductively-shunted qubits. However, using SQcircuit, we simply reproduced the energy spectrum.
+* [Qubit protected by two Cooper-pair tunneling](https://github.com/stanfordLINQS/Qcircuit/blob/main/examples/twoCPB.ipynb):
+\cite{} designed a qubit that is protected by two Cooper-pair tunneling. We reproduced the main results of the paper 
+such as energy spectrum, wavefunctions, and matrix elements.
 
 
