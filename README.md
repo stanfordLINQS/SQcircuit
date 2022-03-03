@@ -8,7 +8,9 @@
 |[**Documentation**](#Documentation)
 |[**Quick Tutorial**](#Quick-Tutorial)
 |[**Examples**](#Examples)
+|[**Contribution**](#Contribution)
 
+[![license](https://img.shields.io/badge/license-New%20BSD-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 ## What is SQcircuit?
 
 SQcircuit is an open-source Python library that is capable of analyzing an arbitrary superconducting quantum circuit.
@@ -114,4 +116,8 @@ highly anharmonic inductively-shunted qubits. However, using SQcircuit, we simpl
 \cite{} designed a qubit that is protected by two Cooper-pair tunneling. We reproduced the main results of the paper 
 such as energy spectrum, wavefunctions, and matrix elements.
 
+## Contribution
+You are very welcome to contribute to SQcircuit development by forking this repository and sending pull requests,
+or filing bug reports at the [issues](https://github.com/stanfordLINQS/Qcircuit/issues) page. All code contributions are acknowledged in the contributors section
+in the documentation.
 
