@@ -6,7 +6,6 @@ capacitors, inductors, and josephson junctions.
 from units import *
 import numpy as np
 
-
 class Capacitor:
     """
     class that contains the capacitor properties.

@@ -1,26 +1,14 @@
 import os
 import sys
 
-import setuptools
+from setuptools import setup, find_packages
 
 DOCLINES = __doc__.split("\n")
 
-CLASSIFIERS = """\
-Development Status :: 5 - Production/Stable
-License :: OSI Approved :: BSD License
-Programming Language :: Python :: 3
-Topic :: Scientific/Engineering
-Intended Audience :: Science/Research
-Operating System :: OS Independent
-"""
-
-
-EXTRA_KWARGS = {}
-
-# version information about scqubits goes here
-MAJOR = 2
-MINOR = 2
-MICRO = 2
+# version of the SQcircuit
+MAJOR = 0
+MINOR = 0
+MICRO = 1
 ISRELEASED = True
 
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, MICRO)
@@ -60,9 +48,9 @@ if not ISRELEASED:
     FULLVERSION += ".dev" + str(MICRO) + git_short_hash()
 
 
-def write_version_py(filename="scqubits/version.py"):
+def write_version_py(filename="SQcircuit/version.py"):
     cnt = """\
-# THIS FILE IS GENERATED FROM scqubits SETUP.PY
+# THIS FILE IS GENERATED FROM SQcircuit SETUP.PY
 short_version = '%(version)s'
 version = '%(fullversion)s'
 release = %(isrelease)s
@@ -84,14 +72,14 @@ release = %(isrelease)s
 local_path = os.path.dirname(os.path.abspath(sys.argv[0]))
 os.chdir(local_path)
 sys.path.insert(0, local_path)
-sys.path.insert(0, os.path.join(local_path, "scqubits"))  # to retrieve _version
+sys.path.insert(0, os.path.join(local_path, "SQcircuit"))  # to retrieve _version
 
 # always rewrite _version
-if os.path.exists("scqubits/version.py"):
-    os.remove("scqubits/version.py")
+if os.path.exists("SQcircuit/version.py"):
+    os.remove("SQcircuit/version.py")
 write_version_py()
 
-setuptools.setup(
+setup(
     name="SQcircuit",
     version=FULLVERSION,
     author="Taha Rajabzadeh, Amir Safavi-Naeini",
@@ -106,7 +94,7 @@ setuptools.setup(
     zip_safe=False,
     include_package_data=True,
     package_dir={"": "src"},
-    packages=setuptools.find_packages(where="src"),
+    packages=find_packages(where="src"),
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 5 - Production/Stable",

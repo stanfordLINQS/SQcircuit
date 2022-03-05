@@ -437,7 +437,7 @@ class Circuit:
         for i in range(self.wTrans.shape[0]):
             print("w{}: \t{}".format(i + 1, self.wTrans[i, :]))
 
-    def setTruncationNumbers(self, truncNum: list):
+    def truncationNumbers(self, truncNum: list):
         """set the truncation numbers for each mode
         input:
             -- truncNum: a list that contains the truncation number for each mode (self.n)
@@ -786,7 +786,7 @@ class Circuit:
 
         return H
 
-    def run(self, numEig: int):
+    def diag(self, numEig: int):
         """
         calculate the Hamiltonian of the circuit and get the eigenvalue and eigenvectors of the circuit up
         to specified number of eigenvalues( reducing the numEig can speed up the eigen solver)
@@ -806,8 +806,8 @@ class Circuit:
         # H = -HJJ + self.HLC
         H = Hind + self.HLC
 
-        # get the data out of qutip variable and use scipy eigen solver which is faster than
-        # qutip eigen solver( I tested this experimentally)
+        # get the data out of qutip variable and use sparse scipy eigen solver which is faster than
+        # non-sparse eigen solver
         eigenValues, eigenVectors = scipy.sparse.linalg.eigs(H.data, numEig, which='SR')
         # the output of eigen solver is not sorted
         eigenValuesSorted = np.sort(eigenValues.real)
@@ -1004,8 +1004,8 @@ class Circuit:
         """
         self.T = T
 
-    def decayRate(self, decType: str, states: tuple):
-        """ Calculate the decay rate."""
+    def decRate(self, decType: str, states: tuple):
+        """ Calculate the decoherence rate."""
 
         omega1 = self.hamilEigVal[states[0]]
         omega2 = self.hamilEigVal[states[1]]
