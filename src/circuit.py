@@ -413,7 +413,7 @@ class Circuit:
         # self.wTrans = self.getMatW() @ self.S1 @ self.S2
         self.wTrans = self.W @ self.S1 @ self.S2
         wQ = self.wTrans[:, self.omega == 0]
-        wQ[np.abs(wQ) < 1] = 0
+        wQ[np.abs(wQ) < 0.98] = 0
         self.wTrans[:, self.omega == 0] = wQ
 
         # scaling the modes

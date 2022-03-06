@@ -202,7 +202,7 @@ import matplotlib.pyplot as plt
 
 
 # loop1 = sq.Loop()
-# C = sq.Capacitor(10, 'fF', Q=1e6)
+# C = sq.Capacitor(11, 'fF', Q=1e6)
 # Cg = sq.Capacitor(0.5, 'fF', Q=1e6)
 # L = sq.Inductor(1, 'GHz', Q=500e6, loops=[loop1])
 # JJ = sq.Junction(3, 'GHz', cap=C, A_c=5e-7, loops=[loop1])
@@ -217,7 +217,7 @@ import matplotlib.pyplot as plt
 # cr1 = sq.Circuit(circuitElements)
 #
 # print(cr1.wTrans)
-#
+
 # cr1.setTruncationNumbers([30, 1])
 # numEig = 5
 # phiExt = np.linspace(0, 1, 100) * 2 * np.pi
@@ -246,3 +246,5 @@ circuitElements = {(0, 1): [CJ, JJ],
 
 # cr is an object of Qcircuit
 cr1 = sq.Circuit(circuitElements)
+
+print(cr1.wTrans)
