@@ -19,17 +19,16 @@ the energy spectrum and eigenvectors of the circuit. To design the desired quant
 additional functionalities and methods are provided to extract the circuit properties such as matrix elements, 
 dephasing rate, decay rates, etc.
 
+[1] To be published soon
+
 ## Installation
 SQcirucit can be simply installed via pip:
 ```
 pip install SQcircuit
 ```
-As an alternative, installation via Conda is also provided.
-```
-conda install -c conda-forge SQcircuit
-```
+
 ## Documentation
-The documentation of the SQcircuit is provided at:
+The documentation of the SQcircuit is provided at: to be published soon
 
 ## Quick Tutorial
 

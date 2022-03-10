@@ -1,6 +1,6 @@
 # Libraries:
-from elements import *
-from units import *
+from SQcircuit.elements import *
+from SQcircuit.units import *
 import numpy as np
 import qutip as q
 
@@ -890,17 +890,19 @@ class Circuit:
 
         return indList
 
-    def eigVecPhaseSpace(self, eigInd: int, phiList: list):
+    def eigPhaseSpace(self, eigInd: int, grid: list):
         """
         gets the eigenvectors in the phase space representation.
         inputs:
             -- eigInd: the index of the eigenvector
-            -- phaseList: list of phases for all nodes
+            -- grid: list of phases for all modes
         outputs:
             -- state: the eigenvector represented in phase space
         """
 
         assert isinstance(eigInd, int), "The eigInd( eigen index) should be an integer."
+
+        phiList = [*np.meshgrid(*grid, indexing='ij')]
 
         # The total dimension of the circuit Hilbert Space
         netDimension = np.prod(self.m)
@@ -932,6 +934,16 @@ class Circuit:
                             scipy.special.eval_hermite(n, phiList[mode] * unit.Phi0 / x0)
 
             state += term
+
+        state = np.squeeze(state)
+
+        # transposing the first two modes
+        if len(state.shape) > 1:
+
+            indModes = list(range(len(state.shape)))
+            indModes[0] = 1
+            indModes[1] = 0
+            state = state.transpose(*indModes)
 
         return state
 
