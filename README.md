@@ -116,7 +116,7 @@ highly anharmonic inductively-shunted qubits. However, by using SQcircuit, we si
 * [Qubit protected by two Cooper-pair tunneling](https://github.com/stanfordLINQS/SQcircuit/blob/main/examples/twoCPB.ipynb):
 [Smith2020](https://doi-org.stanford.idm.oclc.org/10.1038/s41534-019-0231-2)
 designed a qubit that is protected by two Cooper-pair tunneling. We reproduced the main results of the paper such as
-energy spectrum, wavefunctions, and matrix elements.
+energy spectrum, wavefunctions, and matrix elements by use of SQcircuit.
 
 ## Contribution
 You are very welcome to contribute to SQcircuit development by forking this repository and sending pull requests,
