@@ -250,69 +250,169 @@
 # print(cr1.wTrans)
 
 # import the libraries
+# import os
+# os.chdir("../..")
+
+# print(os.getcwd())
+################################ loss calcualation
+# import sys
+# import os
+#
+# import SQcircuit as sq
+#
+# import numpy as np
+# import matplotlib.pyplot as plt
+#
+# sys.path.insert(0, os.path.abspath('..'))
+# print(sys.path)
+#
+# # define the loop of the circuit
+# loop1 = sq.Loop()
+#
+# # define the circuit's elements
+# C = sq.Capacitor(3.6, "GHz", Q=1e6)
+# L = sq.Inductor(0.46, "GHz",
+#                 loops=[loop1])
+# JJ = sq.Junction(10.2, "GHz",
+#                  cap=C, A=5e-7,
+#                  loops=[loop1])
+#
+# # define the Fluxonium circuit
+# elements = {(0, 1): [L, JJ]}
+# cr = sq.Circuit(elements)
+#
+# # set the truncation numbers
+# cr.truncationNumbers([100])
+#
+# # external flux for sweeping over
+# phi = np.linspace(0.1 * 2 * np.pi, 0.9 * 2 * np.pi, 100)
+#
+# # T_1 and T_phi
+# T_1 = np.zeros_like(phi)
+# T_phi = np.zeros_like(phi)
+#
+#
+#
+# for i in range(len(phi)):
+#     # set the external flux for the loop
+#     loop1.setFlux(phi[i])
+#
+#     # diagonalize the circuit
+#     _, _ = cr.diag(numEig=2)
+#
+#     # get the T_1 for capacitive loss
+#     T_1[i] = 1 / cr.decRate(
+#         decType="quasiparticle",
+#         states=(0, 1),
+#         total=False)
+#
+#     # get the T_phi for cc noise
+#     T_phi[i] = 1 / cr.decRate(
+#         decType="flux",
+#         states=(1, 0))
+#
+# # plot the T_1 from the capacitive loss
+# # plt.figure()
+# # plt.semilogy(phi / 2 / np.pi, T_1)
+# # plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+# # plt.ylabel(r"$s$")
+# # plt.show()
+#
+# # plot the T_phi from the critical
+# # current noise
+# plt.figure()
+# plt.semilogy(phi / 2 / np.pi, T_phi)
+# plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+# plt.ylabel(r"$s$")
+# plt.show()
+#
+# import scqubits as scq
+#
+# scq.settings.T1_DEFAULT_WARNING = False
+#
+# # decay = {'capacitive':np.zeros_like(phiExt),
+# #          'inductive':np.zeros_like(phiExt),
+# #          'cc_noise':np.zeros_like(phiExt),
+# #          'quasiparticle':np.zeros_like(phiExt),
+# #         'flux_noise':np.zeros_like(phiExt)}
+#
+# decay = {'capacitive': np.zeros_like(phi),
+#          'inductive': np.zeros_like(phi),
+#          'quasiparticle': np.zeros_like(phi),
+#          'cc': np.zeros_like(phi),
+#          'flux': np.zeros_like(phi)}
+#
+# for i in range(len(phi)):
+#     EJ = 10.2
+#     flxnm = scq.Fluxonium(EJ=EJ, EC=3.6, EL=0.46, flux=phi[i] / 2 / np.pi, cutoff=120)
+#     decay['inductive'][i] = flxnm.t1_inductive(i=1, j=0, get_rate=True, total=True) / 1e-9
+#     decay['capacitive'][i] = flxnm.t1_capacitive(i=0, j=1, get_rate=True, Q_cap=1e6, total=False) / 1e-9
+#     decay['cc'][i] = flxnm.tphi_1_over_f_cc(i=1, j=0, get_rate=True, ) / 1e-9
+#     decay['quasiparticle'][i] = flxnm.t1_quasiparticle_tunneling(i=0, j=1, x_qp=3e-06, get_rate=True,
+#                                                                  total=False) / 1e-9
+#     decay['flux'][i] = flxnm.tphi_1_over_f_flux(A_noise=1e-06, i=1, j=0, get_rate=True) / 1e-9
+#
+# # fig, axs = plt.subplots(2, 2, figsize=(10, 6), constrained_layout=True, dpi=80)
+# # for decType, ax in zip(decay, axs.flat):
+# #     ax.semilogy(phi / 2 / np.pi, 1 / decay[decType], 'orange')
+# #     ax.set_title(decType)
+# #     ax.set_xlabel(r"$\Phi/\Phi_0$")
+# #     ax.set_ylabel(r"$T(s)$")
+# # plt.show()
+#
+# plt.figure()
+# plt.semilogy(phi / 2 / np.pi, 1 / decay['flux'], 'orange')
+# plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
+# plt.ylabel(r"$s$")
+# plt.show()
+#
+# print("SQcircuit:", np.max(T_phi))
+# print("scqubits:", np.max(1 / decay['flux']))
+
+########################### test sweeping
+
+import sys
 import os
-os.chdir("../..")
-
-print(os.getcwd())
-
-# import src
-
-from circuit import *
-# from elements import *
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-# define the loop of the circuit
+sys.path.insert(0, os.path.abspath('..'))
+# print(sys.path)
+
+import SQcircuit as sq
+
 loop1 = sq.Loop()
 
-# define the circuit's elements
-C = sq.Capacitor(3.6, "GHz", Q=1e6)
-L = sq.Inductor(0.46, "GHz",
-                loops=[loop1])
-JJ = sq.Junction(10.2, "GHz",
-                 cap=C, A=5e-7,
-                 loops=[loop1])
+C = sq.Capacitor(0.15, "GHz")
+CJ = sq.Capacitor(10, "GHz")
+JJ = sq.Junction(5, "GHz", loops=[loop1])
+L = sq.Inductor(0.13, "GHz", loops=[loop1])
 
-# define the Fluxonium circuit
-elements = {(0, 1): [L, JJ]}
-cr = sq.Circuit(elements)
+circuitElements = {(0, 1): [CJ, JJ],
+                   (0, 2): [L],
+                   (0, 3): [C],
+                   (1, 2): [C],
+                   (1, 3): [L],
+                   (2, 3): [CJ, JJ]}
 
-# set the truncation numbers
-cr.truncationNumbers([100])
+# cr is an object of Qcircuit
+cr1 = sq.Circuit(circuitElements)
 
-# external flux for sweeping over
-phi = np.linspace(0, 2 * np.pi, 300)
+cr1.truncationNumbers([25, 1, 25])
 
-# T_1 and T_phi
-T_1 = np.zeros_like(phi)
-T_phi = np.zeros_like(phi)
+sweep1 = sq.Sweep(cr1, numEig=5)
 
-for i in range(len(phi)):
-    # set the external flux for the loop
-    loop1.setFlux(phi)
+phi = np.linspace(0, 1, 50) * 2 * np.pi
 
-    # diagonalize the circuit
-    _, _ = cr.diag(numEig=2)
+sweep1.sweepFlux([loop1], [phi], plotF=True)
 
-    # get the T_1 for capacitive loss
-    T_1[i] = 1 / cr.decRate(
-        decType="capacitive",
-        states=(1, 0))
-
-    # get the T_phi for cc noise
-    T_phi[i] = 1 / cr.decRate(
-        decType="cc",
-        states=(1, 0))
-
-# plot the T_1 from the capacitive loss
-plt.semilogy(phi / 2 / np.pi, T_1)
-plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
-plt.ylabel(r"$s$")
-
-# plot the T_phi from the critical
-# current noise
-plt.semilogy(phi / 2 / np.pi, T_phi)
-plt.xlabel(r"$\Phi_{ext}/\Phi_0$")
-plt.ylabel(r"$s$")
-
+# phi = np.linspace(0, 1, 50) * 2 * np.pi
+# eigenValues = np.zeros((numEig, len(phi)))
+# for i in range(len(phi)):
+#     loop1.setFlux(phi[i])
+#     eigenValues[:, i], _ = cr1.diag(numEig)
+#
+# for i in range(numEig):
+#     plt.plot(phi / 2 / np.pi, eigenValues[i, :] - eigenValues[0, :])
+# plt.show()

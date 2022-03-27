@@ -310,3 +310,28 @@ class Loop:
         b[0, 0] = 1
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
+
+class Charge:
+    """
+    class that contains the charge offset properties.
+    """
+
+    def __init__(self, value=0, noise=0):
+        """
+       inputs:
+            -- value: The value of the offset.
+            -- noise: The amplitude of the charge noise.
+        """
+        self.chValue = value
+        self.noise = noise
+
+    def value(self, random: bool = False):
+        """
+        returns the value of charge bias. If random flag is true, it samples from a normal distribution.
+        inputs:
+            -- random: A flag which specifies whether the output is picked deterministically or randomly.
+        """
+        if not random:
+            return self.chValue
+        else:
+            return np.random.normal(self.chValue, self.noise, 1)[0]
