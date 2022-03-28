@@ -405,7 +405,11 @@ sweep1 = sq.Sweep(cr1, numEig=5)
 
 phi = np.linspace(0, 1, 50) * 2 * np.pi
 
-sweep1.sweepFlux([loop1], [phi], plotF=True)
+sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='zeroPi_test1')
+
+data = sq.SQdata.load('zeroPi_test1')
+
+print(data.type)
 
 # phi = np.linspace(0, 1, 50) * 2 * np.pi
 # eigenValues = np.zeros((numEig, len(phi)))

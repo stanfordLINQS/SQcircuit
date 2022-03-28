@@ -3,11 +3,11 @@ sweep.py contains the classes for sweeping
 """
 
 from .circuit import *
+from .storage import *
 from itertools import product
-import matplotlib.pyplot as plt
 
 
-class Sweep:
+class Sweep(SQdata):
     """
     Class that contains the sweeping methods.
 
@@ -17,18 +17,22 @@ class Sweep:
         An object of Circuit class that we want to sweep over its parameters.
     numEig: int
         Number of eigenvalues.
-    properties: list
-        A list of properties that we want to calculate via sweeping.
     """
 
     def __init__(self, cr: Circuit, numEig: int):
-        self.cr = cr
+
         self.numEig = numEig
-        # eigen frequency table
+
+        # type of the data
+        self.type = None
+        # circuit of the data
+        self.cr = cr
+        # eigenfrequencies of the circuit
         self.efreq = None
-        # grid for sweeping
+        # parameters related to data
+        self.params = None
+        # grid related to data
         self.grid = None
-        # self.properties = properties
 
     @staticmethod
     def _gridDims(grid):
@@ -44,10 +48,20 @@ class Sweep:
         """
         return tuple(map(range, map(len, grid)))
 
+    def _save(self, sweepType, params, gird, toFile):
+        """
+        Save the eigenfrequency data to file.
+        """
+        pass
+
     def calProperties(self):
         pass
 
     def sweepFlux(self, loops: list, grid: list, toFile: str = None, plotF: bool = False):
+
+        self.type = "sweepFlux"
+        self.params = loops
+        self.grid = grid
 
         # table of eigenfrequencies that we want to calculate
         self.efreq = np.zeros((self.numEig, *self._gridDims(grid)))
@@ -64,25 +78,14 @@ class Sweep:
         print("Sweeping process is finished!")
 
         if plotF:
-            assert len(self.efreq.shape) <= 2, "SQcircuit can only plot 1D sweep for now"
-
-            plt.figure(figsize=(6.5, 5), linewidth=1)
-            plt.tight_layout()
-            # plt.title("Energy Spectrum", fontsize=18)
-            for i in range(self.numEig):
-                plt.plot(grid[0] / 2 / np.pi, self.efreq[i, :] - self.efreq[0, :],
-                         linewidth=2.2)
-            plt.xlabel(r"$\Phi_{ext}/\Phi_0$", fontsize=18)
-            plt.ylabel(r"$f_i-f_0$[GHz]", fontsize=18)
-            plt.show()
+            self.plot()
 
         if toFile:
-            # save the sweeping
+            self.save(toFile)
             pass
         else:
             return self.efreq
 
     def sweepChargeOffset(self, modes: list, ranges: list, toFile: str = None):
         pass
-
 

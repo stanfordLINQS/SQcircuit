@@ -32,6 +32,40 @@ class Circuit:
             is necessary for robustness analysis.
     """
 
+    # external fluxes of the circuit
+    extFlux = {}
+    # external charges of the circuit
+    extCharge = {}
+
+    # list of charge operators( transformed operators) (self.n)
+    chargeOpList = []
+    # list of flux operators(transformed operators) (self.n)
+    fluxOpList = []
+    # cross multiplication of charge operators as list
+    chargeByChargeList = []
+    # list of number operators (self.n)
+    numOpList = []
+    # LC part of the Hamiltonian
+    HLC = q.Qobj()
+    # List of exponential part of the Josephson Junction cosine
+    HJJExpList = []
+    # List of square root of exponential part of
+    HJJExpRootList = []
+    # sin(phi/2) operator related to each JJ for quasi-particle Loss
+    qpSinList = []
+
+    # eigenvalues of the circuit
+    hamilEigVal = []
+    # eigenvectors of the circuit
+    hamilEigVec = []
+
+    # temperature of the circuit
+    T = 0.015
+    # low-frequency cut off
+    omegaLow = 2 * np.pi
+    # experiment time
+    tExp = 10e-6
+
     def __init__(self, circuitElements: dict, random: bool = False):
 
         # circuit inductive loops
@@ -62,39 +96,14 @@ class Circuit:
         # squeezed truncation numbers( eliminating the modes with truncation number equals 1)
         self.ms = []
 
-        # external fluxes of the circuit
-        self.extFlux = {}
-        # external charges of the circuit
-        self.extCharge = {}
+    def __getstate__(self):
+        attrs = self.__dict__
+        typeAttrs = type(self).__dict__
+        self_dict = {k: attrs[k] for k in attrs if k not in typeAttrs}
+        return self_dict
 
-        # list of charge operators( transformed operators) (self.n)
-        self.chargeOpList = []
-        # list of flux operators(transformed operators) (self.n)
-        self.fluxOpList = []
-        # cross multiplication of charge operators as list
-        self.chargeByChargeList = []
-        # list of number operators (self.n)
-        self.numOpList = []
-        # LC part of the Hamiltonian
-        self.HLC = q.Qobj()
-        # List of exponential part of the Josephson Junction cosine
-        self.HJJExpList = []
-        # List of square root of exponential part of
-        self.HJJExpRootList = []
-        # sin(phi/2) operator related to each JJ for quasi-particle Loss
-        self.qpSinList = []
-
-        # eigenvalues of the circuit
-        self.hamilEigVal = []
-        # eigenvectors of the circuit
-        self.hamilEigVec = []
-
-        # temperature of the circuit
-        self.T = 0.015
-        # low-frequency cut off
-        self.omegaLow = 2 * np.pi
-        # experiment time
-        self.tExp = 10e-6
+    def __setstate__(self, state):
+        self.__dict__ = state
 
     @staticmethod
     def elementModel(elementList: list, model):
