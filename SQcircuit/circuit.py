@@ -1,6 +1,6 @@
 # Libraries:
-from .elements import *
-from .units import *
+from SQcircuit.elements import *
+from SQcircuit.units import *
 import numpy as np
 import qutip as q
 

@@ -8,6 +8,11 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 import SQcircuit as sq
 
+
+#######################################
+# zero-pi qubit
+#######################################
+
 loop1 = sq.Loop()
 
 C = sq.Capacitor(0.15, "GHz")
@@ -31,6 +36,9 @@ sweep1 = sq.Sweep(cr1, numEig=5)
 
 phi = np.linspace(0, 1, 50) * 2 * np.pi
 
-sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/zeroPi_test1')
+sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/zeroPi_1')
 
 
+#######################################
+# zero-pi qubit
+#######################################

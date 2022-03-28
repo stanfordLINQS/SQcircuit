@@ -1,8 +1,8 @@
 """
 Importing all the modules.
 """
-from .units import *
-from .elements import *
-from .circuit import *
-from .sweep import *
-from .storage import *
+from SQcircuit.units import *
+from SQcircuit.elements import *
+from SQcircuit.circuit import *
+from SQcircuit.sweep import *
+from SQcircuit.storage import *

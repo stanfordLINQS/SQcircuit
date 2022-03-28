@@ -3,7 +3,7 @@ elements.py contains the classes for the circuit elements:
 capacitors, inductors, and josephson junctions.
 """
 
-from .units import *
+from SQcircuit.units import *
 import numpy as np
 from scipy.special import kn
 

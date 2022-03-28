@@ -2,8 +2,8 @@
 sweep.py contains the classes for sweeping
 """
 
-from .circuit import *
-from .storage import *
+from SQcircuit.circuit import *
+from SQcircuit.storage import *
 from itertools import product
 
 
