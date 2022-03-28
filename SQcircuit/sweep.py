@@ -48,15 +48,6 @@ class Sweep(SQdata):
         """
         return tuple(map(range, map(len, grid)))
 
-    def _save(self, sweepType, params, gird, toFile):
-        """
-        Save the eigenfrequency data to file.
-        """
-        pass
-
-    def calProperties(self):
-        pass
-
     def sweepFlux(self, loops: list, grid: list, toFile: str = None, plotF: bool = False):
 
         self.type = "sweepFlux"
