@@ -12,7 +12,7 @@ TESTDIR = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(TESTDIR, "data")
 
 
-class TestQubit:
+class QubitTest:
     """
     class that contains the general tests
     """
@@ -23,7 +23,8 @@ class TestQubit:
 
     def test_eigFreq(self):
         # load the test circuit
-        data = SQdata.load(DATADIR + self.fileName)
+        print(self.fileName)
+        data = SQdata.load(DATADIR + "/" + self.fileName)
         testCr = data.cr
 
         # build the new circuit based on test circuit parameters
