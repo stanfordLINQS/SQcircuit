@@ -30,7 +30,7 @@ class Capacitor:
     def __init__(self, value=1e-20, cUnit="F", Q="default", error=0):
 
         if cUnit not in unit.freqList and cUnit not in unit.faradList:
-            error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
+            error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
 
@@ -41,7 +41,7 @@ class Capacitor:
 
         if Q == "default":
             self.Q = lambda omega: 1e6 * (2 * np.pi * 6e9 / np.abs(omega)) ** 0.7
-        elif isinstance(Q, float):
+        elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega: Q
         else:
             self.Q = Q
@@ -73,10 +73,10 @@ class Capacitor:
         by default).
         """
         if self.cUnit in unit.freqList:
-            return self.cValue * unit.freqList[self.cUnit]
+            return self.cValue * unit.freqList[self.cUnit]/unit.freq
         else:
             c = self.cValue * unit.faradList[self.cUnit]
-            return unit.e ** 2 / 2 / c / (2 * np.pi * unit.hbar)
+            return unit.e ** 2 / 2 / c / (2 * np.pi * unit.hbar)/unit.freq
 
 
 class Inductor:
@@ -103,10 +103,8 @@ class Inductor:
         The error in fabrication as a percentage.
     """
 
-    def __init__(self, value, lUnit, cap=Capacitor(Q=None), Q="default", error=0, loops=[]):
+    def __init__(self, value, lUnit, cap=Capacitor(Q=None), Q="default", error=0, loops=None):
 
-        if loops is None:
-            loops = []
         if lUnit not in unit.freqList and lUnit not in unit.henryList:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
                     "format."
@@ -117,7 +115,10 @@ class Inductor:
         self.cap = cap
         self.error = error
         self.type = type(self)
-        self.loops = loops
+        if loops is None:
+            self.loops = []
+        else:
+            self.loops = loops
 
         def qInd(omega, T):
             alpha = unit.hbar * 2 * np.pi * 0.5e9 / (2 * unit.k_B * T)
@@ -127,7 +128,7 @@ class Inductor:
 
         if Q == "default":
             self.Q = qInd
-        elif isinstance(Q, float):
+        elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega, T: Q
         else:
             self.Q = Q
@@ -159,10 +160,10 @@ class Inductor:
         by default).
         """
         if self.lUnit in unit.freqList:
-            return self.lValue * unit.freqList[self.lUnit]
+            return self.lValue * unit.freqList[self.lUnit]/unit.freq
         else:
             l = self.lValue * unit.henryList[self.lUnit]
-            return (unit.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * unit.hbar)
+            return (unit.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * unit.hbar)/unit.freq
 
 
 class Junction:
@@ -194,10 +195,8 @@ class Junction:
     """
 
     def __init__(self, value, jUnit, cap=Capacitor(Q=None), A=1e-7, x=3e-06, delta=3.4e-4,
-                 Y="default", error=0, loops=[]):
+                 Y="default", error=0, loops=None):
 
-        if loops is None:
-            loops = []
         if jUnit not in unit.freqList:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
                     "correct input format."
@@ -208,8 +207,11 @@ class Junction:
         self.cap = cap
         self.error = error
         self.type = type(self)
-        self.loops = loops
         self.A = A
+        if loops is None:
+            self.loops = []
+        else:
+            self.loops = loops
 
         def yQP(omega, T):
             alpha = unit.hbar * omega / (2 * unit.k_B * T)
@@ -310,6 +312,7 @@ class Loop:
         b[0, 0] = 1
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
+
 
 class Charge:
     """

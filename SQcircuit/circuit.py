@@ -7,8 +7,6 @@ import qutip as q
 import scipy.special
 import scipy.sparse
 from scipy.linalg import sqrtm, block_diag
-import copy
-import collections
 
 
 class Circuit:
@@ -72,7 +70,6 @@ class Circuit:
         self.loops = []
 
         self.circuitElements = circuitElements
-        # self.circuitElements = collections.defaultdict(lambda: [], copy.deepcopy(circuitElements))
 
         self.random = random
 

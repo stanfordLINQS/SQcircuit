@@ -14,4 +14,19 @@ class TestZeroPi(QubitTest):
         cls.fileName = "zeroPi_1"
 
 
+class TestInductivelyShunted(QubitTest):
+    """
+    class for testing the zero-pi qubit
+    """
+    @classmethod
+    def setup_class(cls):
+        cls.fileName = "inductivelyShunted_1"
 
+
+class TestFluxonium(QubitTest):
+    """
+    class for testing the zero-pi qubit
+    """
+    @classmethod
+    def setup_class(cls):
+        cls.fileName = "Fluxonium_1"

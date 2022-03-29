@@ -23,7 +23,6 @@ class QubitTest:
 
     def test_eigFreq(self):
         # load the test circuit
-        print(self.fileName)
         data = SQdata.load(DATADIR + "/" + self.fileName)
         testCr = data.cr
 
