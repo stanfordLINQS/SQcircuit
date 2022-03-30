@@ -30,3 +30,12 @@ class TestFluxonium(QubitTest):
     @classmethod
     def setup_class(cls):
         cls.fileName = "Fluxonium_1"
+
+
+class TestFluxonium2(QubitTest):
+    """
+    class for testing the zero-pi qubit
+    """
+    @classmethod
+    def setup_class(cls):
+        cls.fileName = "Fluxonium_2"

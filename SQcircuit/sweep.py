@@ -19,20 +19,36 @@ class Sweep(SQdata):
         Number of eigenvalues.
     """
 
-    def __init__(self, cr: Circuit, numEig: int):
+    def __init__(self, cr: Circuit, numEig: int, properties=None):
 
         self.numEig = numEig
 
+        if properties is None:
+            properties = ["efreq"]
+
+        self.properties = properties
         # type of the data
         self.type = None
         # circuit of the data
         self.cr = cr
-        # eigenfrequencies of the circuit
-        self.efreq = None
         # parameters related to data
         self.params = None
         # grid related to data
         self.grid = None
+        # eigenfrequencies of the circuit
+        self.efreq = None
+        # the decayRates
+        if "loss" in properties:
+            self.dec = {
+                "capacitive": None,
+                "inductive": None,
+                "quasiparticle": None,
+                "charge": None,
+                "cc": None,
+                "flux": None
+            }
+        else:
+            self.dec = None
 
     @staticmethod
     def _gridDims(grid):
@@ -57,6 +73,10 @@ class Sweep(SQdata):
         # table of eigenfrequencies that we want to calculate
         self.efreq = np.zeros((self.numEig, *self._gridDims(grid)))
 
+        if "loss" in self.properties:
+            # dictionary that contains the decoherence rate for each loss mechanism
+            self.dec = {key: np.zeros(self._gridDims(grid)) for key in self.dec.keys()}
+
         for indices in product(*self._gridIndex(grid)):
 
             # set flux for each loop
@@ -65,6 +85,9 @@ class Sweep(SQdata):
 
             evec, _ = self.cr.diag(self.numEig)
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
+            if "loss" in self.properties:
+                for decType in self.dec.keys():
+                    self.dec[decType][indices] = self.cr.decRate(decType=decType, states=(1, 0))
 
         print("Sweeping process is finished!")
 
@@ -75,8 +98,7 @@ class Sweep(SQdata):
             self.save(toFile)
             pass
         else:
-            return self.efreq
+            return self.efreq, self.dec
 
-    def sweepChargeOffset(self, modes: list, ranges: list, toFile: str = None):
+    def sweepChargeOffset(self, modes: list, grid: list, toFile: str = None):
         pass
-

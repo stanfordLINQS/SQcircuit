@@ -21,26 +21,87 @@ class QubitTest:
     def setup_class(cls):
         cls.fileName = None
 
-    def test_eigFreq(self):
-        # load the test circuit
+    def test_transformProcess(self):
+        # load the data
         data = SQdata.load(DATADIR + "/" + self.fileName)
-        testCr = data.cr
 
-        # build the new circuit based on test circuit parameters
-        newCr = Circuit(testCr.circuitElements)
-        newCr.truncationNumbers(testCr.m)
+        # build the new circuit based on data circuit parameters
+        newCr = Circuit(data.cr.circuitElements)
 
-        # diagonalize and calculate the spectrum of the circuit based on the data type
-        efreq = np.zeros(data.efreq.shape)
+        # check the first transformation
+        assert np.allclose(newCr.R1, data.cr.R1)
+        assert np.allclose(newCr.S1, data.cr.S1)
+        assert np.allclose(newCr.omega, data.cr.omega)
+        # check the second transformation
+        assert np.allclose(newCr.R2, data.cr.R2)
+        assert np.allclose(newCr.S2, data.cr.S2)
+        # check the third transformation
+        assert np.allclose(newCr.R3, data.cr.R3)
+        assert np.allclose(newCr.S3, data.cr.S3)
+
+    def test_data(self):
+        # load the data
+        data = SQdata.load(DATADIR + "/" + self.fileName)
+
+        efreq = None
+        dec = None
+
+        # build the new circuit based on data circuit parameters
+        newCr = Circuit(data.cr.circuitElements)
+        newCr.truncationNumbers(data.cr.m)
+
+        if data.dec:
+            properties = ["efreq", "loss"]
+        else:
+            properties = None
+
+        numEig = data.efreq.shape[0]
+
+        sweep1 = Sweep(newCr, numEig, properties)
+
         if data.type == "sweepFlux":
-
-            for indices in product(*Sweep._gridIndex(data.grid)):
-
-                # set flux for each loop
-                for i, ind in enumerate(indices):
-                    data.params[i].setFlux(data.grid[i][ind])
-
-                evec, _ = newCr.diag(data.numEig)
-                efreq[:, indices] = evec.reshape(efreq[:, indices].shape)
+            efreq, dec = sweep1.sweepFlux(data.params, data.grid)
 
         assert np.allclose(efreq, data.efreq)
+
+        if data.dec:
+            for decType in data.dec.keys():
+                assert np.allclose(dec[decType], data.dec[decType]), "The \"{}\" loss has issue".format(decType)
+
+    # def test_eigFreq(self):
+    #     # load the data
+    #     data = SQdata.load(DATADIR + "/" + self.fileName)
+    #     # print(self.fileName, data.dec)
+    #
+    #     # build the new circuit based on data circuit parameters
+    #     newCr = Circuit(data.cr.circuitElements)
+    #     newCr.truncationNumbers(data.cr.m)
+    #
+    #     # table of eigenfrequencies that we want to calculate
+    #     efreq = np.zeros(data.efreq.shape)
+    #
+    #     # dictionary that contains the decoherence rate for each loss mechanism
+    #     dec = None
+    #     if data.dec:
+    #         dec = {key: np.zeros(Sweep._gridDims(data.grid)) for key in data.dec.keys()}
+    #
+    #     if data.type == "sweepFlux":
+    #
+    #         for indices in product(*Sweep._gridIndex(data.grid)):
+    #
+    #             # set flux for each loop
+    #             for i, ind in enumerate(indices):
+    #                 data.params[i].setFlux(data.grid[i][ind])
+    #
+    #             evec, _ = newCr.diag(data.numEig)
+    #             efreq[:, indices] = evec.reshape(efreq[:, indices].shape)
+    #
+    #             if data.dec:
+    #                 for decType in data.dec.keys():
+    #                     dec[decType][indices] = newCr.decRate(decType=decType, states=(1, 0))
+    #
+    #     assert np.allclose(efreq, data.efreq)
+    #
+    #     if data.dec:
+    #         for decType in data.dec.keys():
+    #             assert np.allclose(dec[decType], data.dec[decType]), "The \"{}\" loss has issue".format(decType)

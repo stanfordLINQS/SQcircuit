@@ -14,12 +14,14 @@ class SQdata:
     type = None
     # circuit of the data
     cr = None
-    # eigenfrequencies of the circuit
-    efreq = None
     # parameters related to data
     params = None
     # grid related to data
     grid = None
+    # eigenfrequencies of the circuit
+    efreq = None
+    # the decayRates
+    dec = None
 
     def save(self, toFile: str):
         with open(toFile, 'wb') as outp:

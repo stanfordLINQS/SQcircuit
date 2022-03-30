@@ -69,6 +69,9 @@ class Circuit:
         # circuit inductive loops
         self.loops = []
 
+        # loop distribution over inductive elements.
+        self.K2 = None
+
         self.circuitElements = circuitElements
 
         self.random = random
@@ -85,6 +88,25 @@ class Circuit:
         # the inverse of transformation of coordinates for flux operators
         self.S = np.zeros((self.n, self.n))
 
+        # S and R matrix of first, second, and third transformation
+        self.R1 = np.zeros((self.n, self.n))
+        self.S1 = np.zeros((self.n, self.n))
+        self.R2 = np.zeros((self.n, self.n))
+        self.S2 = np.zeros((self.n, self.n))
+        self.R3 = np.zeros((self.n, self.n))
+        self.S3 = np.zeros((self.n, self.n))
+
+        # diagonalized sudo-inductance matrix
+        self.lDiag = np.zeros((self.n, self.n))
+        # transformed inverse capacitance matrix
+        self.cInvDiag = np.zeros((self.n, self.n))
+
+        # natural angular frequencies of the circuit(zero for modes in charge basis)
+        self.omega = np.zeros(self.n)
+
+        # transformed w matrix
+        self.wTrans = np.zeros_like(self.W)
+
         # transform the Hamiltonian of the circuit
         self.transformHamil()
 
@@ -96,8 +118,8 @@ class Circuit:
     def __getstate__(self):
         attrs = self.__dict__
         typeAttrs = type(self).__dict__
-        self_dict = {k: attrs[k] for k in attrs if k not in typeAttrs}
-        return self_dict
+        selfDict = {k: attrs[k] for k in attrs if k not in typeAttrs}
+        return selfDict
 
     def __setstate__(self, state):
         self.__dict__ = state
@@ -243,8 +265,10 @@ class Circuit:
             X = np.concatenate((X, p), axis=0)
         # number of inductive loops of the circuit
         numLoop = len(self.loops)
-        Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
-        self.K2 = np.linalg.inv(X) @ Y
+
+        if numLoop != 0:
+            Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
+            self.K2 = np.linalg.inv(X) @ Y
 
         return cMat, lMat, wMat
 
@@ -254,7 +278,7 @@ class Circuit:
         the capacitance and inductance matrices.
 
         output:
-            --  lDiag: diagonalized inductance matrix (self.n,self.n)
+            --  lDiag: diagonalized sudo-inductance matrix (self.n,self.n)
             --  cInvDiag: diagonalized inverse of capacitance matrix (self.n,self.n)
             --  R1: transformation of charge operators (self.n,self.n)
             --  S1: transformation of flux operators (self.n,self.n)
@@ -473,20 +497,6 @@ class Circuit:
         self.HLC = self.getLCHamil(self.cInvDiag, self.omega, self.chargeByChargeList, self.numOpList)
 
         self.HJJExpList, self.HJJExpRootList = self.getHJJExp(self.cInvDiag, self.lDiag, self.omega, self.wTrans)
-
-    # def linkFluxes(self, extFluxes: dict):
-    #     """set the external fluxes for each Josephson Junction
-    #     input:
-    #         -- extFluxes: a dictionary that contains the external flux
-    #         at each edge
-    #     """
-    #     assert isinstance(extFluxes, dict), "The input must be be a python dictionary"
-    #
-    #     if len(self.m) == 0:
-    #         self.extFlux = extFluxes
-    #     else:
-    #         self.extFlux = extFluxes
-    #         self.HLC = self.getLCHamil(self.cInvDiag, self.omega, self.chargeByChargeList, self.numOpList)
 
     def linkCharges(self, extCharges: dict):
         """set the external charges for each charge mode.
@@ -962,7 +972,6 @@ class Circuit:
 
         # transposing the first two modes
         if len(state.shape) > 1:
-
             indModes = list(range(len(state.shape)))
             indModes[0] = 1
             indModes[1] = 0
@@ -1083,17 +1092,11 @@ class Circuit:
 
         # prevent the exponential overflow(exp(709) is the biggest number that numpy can calculate)
         if unit.hbar * omega / (unit.k_B * self.T) > 709:
-            nbar = 0
-        else:
-            nbar = 1 / (np.exp(unit.hbar * omega / (unit.k_B * self.T)) - 1)
-
-        # prevent the exponential overflow(exp(709) is the biggest number that numpy can calculate)
-        if unit.hbar * omega / (unit.k_B * self.T) > 709:
             down = 2
             up = 0
         else:
             alpha = unit.hbar * omega / (unit.k_B * self.T)
-            down = (1+1/np.tanh(alpha/2))
+            down = (1 + 1 / np.tanh(alpha / 2))
             up = down * np.exp(-alpha)
 
         # for temperature dependent loss
@@ -1103,7 +1106,7 @@ class Circuit:
             else:
                 tempS = up
         else:
-            tempS = down+up
+            tempS = down + up
 
         if decType == "capacitive":
 

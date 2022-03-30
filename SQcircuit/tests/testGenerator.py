@@ -8,17 +8,18 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 import SQcircuit as sq
 
-tests ={"zeroPi": False,
-        "inductivelyShunted": False,
-        "Fluxonium": False
-        }
+tests = {"zeroPi": False,
+         "inductivelyShunted": False,
+         "Fluxonium": False,
+         "Transmon": True,
+         "tunableTransmon": True,
+         }
 
 #######################################
 # zero-pi qubit
 #######################################
 
 if tests["zeroPi"]:
-
     loop1 = sq.Loop()
 
     C = sq.Capacitor(0.15, "GHz")
@@ -44,13 +45,11 @@ if tests["zeroPi"]:
 
     sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/zeroPi_1')
 
-
 #######################################
 # inductively shunted qubit
 #######################################
 
 if tests["inductivelyShunted"]:
-
     loop1 = sq.Loop()
 
     # define the circuit’s elements
@@ -83,6 +82,7 @@ if tests["inductivelyShunted"]:
 #######################################
 
 if tests["Fluxonium"]:
+    # fluxonium with charge island( added by Yudan)
 
     loop1 = sq.Loop()
     C = sq.Capacitor(11, 'fF', Q=1e6)
@@ -105,3 +105,54 @@ if tests["Fluxonium"]:
     phi = np.linspace(0.0, 1.0, 50) * 2 * np.pi
 
     sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/Fluxonium_1')
+
+    # standard fluxonium with loss calculation
+
+    loop1 = sq.Loop(A=1e-6)
+
+    C = sq.Capacitor(3.6, 'GHz', Q=1e6)
+    L = sq.Inductor(0.46, 'GHz', Q=500e6, loops=[loop1])
+    JJ = sq.Junction(10.2, 'GHz', cap=C, A=1e-7, x=3e-06, loops=[loop1])
+
+    circuitElements = {
+        (0, 1): [L, JJ],
+    }
+
+    cr = sq.Circuit(circuitElements)
+
+    cr.truncationNumbers([200])
+
+    sweep1 = sq.Sweep(cr, numEig=10, properties=["efreq", "loss"])
+
+    phi = np.linspace(0.1, 0.9, 50) * 2 * np.pi
+
+    sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/Fluxonium_2')
+
+
+if tests["Transmon"]:
+
+    C = sq.Capacitor(20, 'GHz', Q=1e6)
+    JJ = sq.Junction(15.0, 'GHz', A=1e-7)
+
+    circuitElements = {
+        (0, 1): [C, JJ]
+    }
+
+    cr1 = sq.Circuit(circuitElements)
+
+    cr1.truncationNumbers([30])
+
+    numEig = 6
+    ng = np.linspace(-2, 2, 200)
+    eigenValues = np.zeros((numEig, len(ng)))
+
+    decay = {'capacitive': np.zeros_like(ng),
+             "cc_noise": np.zeros_like(ng),
+             "charge_noise": np.zeros_like(ng)}
+
+    for i in range(len(ng)):
+        cr1.linkCharges({0: sq.Charge(ng[i], noise=1e-4)})
+        eigenValues[:, i], _ = cr1.diag(numEig)
+
+        for decType in decay:
+            decay[decType][i] = cr1.decRate(decType=decType, states=(1, 0))
