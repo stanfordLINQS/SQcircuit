@@ -39,6 +39,15 @@ class QubitTest:
         assert np.allclose(newCr.R3, data.cr.R3)
         assert np.allclose(newCr.S3, data.cr.S3)
 
+    def test_Wand(self):
+        # load the data
+        data = SQdata.load(DATADIR + "/" + self.fileName)
+
+        # build the new circuit based on data circuit parameters
+        newCr = Circuit(data.cr.circuitElements)
+        assert np.allclose(newCr.omega, data.cr.omega)
+        assert np.allclose(newCr.wTrans, data.cr.wTrans)
+
     def test_data(self):
         # load the data
         data = SQdata.load(DATADIR + "/" + self.fileName)
