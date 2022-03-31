@@ -51,6 +51,13 @@ class QubitTest:
         assert np.allclose(newCr.omega, data.cr.omega)
         assert np.allclose(newCr.wTrans, data.cr.wTrans)
 
+        print("test")
+        print("omega:",newCr.omega)
+        print("wTrans:", newCr.wTrans)
+        print("data")
+        print("omega:", data.cr.omega)
+        print("wTrans:", data.cr.wTrans)
+
     def test_data(self):
         # load the data
         data = SQdata.load(DATADIR + "/" + self.fileName)
