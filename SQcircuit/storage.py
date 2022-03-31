@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-
 class SQdata:
     """
     Class for processing and representing the data related to a circuit.
