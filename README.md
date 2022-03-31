@@ -11,6 +11,7 @@
 |[**Contribution**](#Contribution)
 
 [![license](https://img.shields.io/badge/license-New%20BSD-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![codecov](https://codecov.io/gh/stanfordLINQS/SQcircuit/branch/main/graph/badge.svg?token=6FT6L9ZPHP)](https://codecov.io/gh/stanfordLINQS/SQcircuit)
 ## What is SQcircuit?
 
 SQcircuit is an open-source Python library that is capable of analyzing an arbitrary superconducting quantum circuit.
