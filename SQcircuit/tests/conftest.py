@@ -28,7 +28,7 @@ class QubitTest:
         # build the new circuit based on data circuit parameters
         newCr = Circuit(data.cr.circuitElements)
 
-        # check the first transformation
+        #check the first transformation
         # assert np.allclose(newCr.R1, data.cr.R1)
         # assert np.allclose(newCr.S1, data.cr.S1)
         # assert np.allclose(newCr.omega, data.cr.omega)
@@ -41,6 +41,7 @@ class QubitTest:
 
         assert np.allclose(newCr.S, data.cr.S)
         assert np.allclose(newCr.R, data.cr.R)
+        # pass
 
     def test_Wand(self):
         # load the data
@@ -52,7 +53,7 @@ class QubitTest:
         assert np.allclose(newCr.wTrans, data.cr.wTrans)
 
         print("test")
-        print("omega:",newCr.omega)
+        print("omega:", newCr.omega)
         print("wTrans:", newCr.wTrans)
         print("data")
         print("omega:", data.cr.omega)
@@ -86,41 +87,3 @@ class QubitTest:
         if data.dec:
             for decType in data.dec.keys():
                 assert np.allclose(dec[decType], data.dec[decType]), "The \"{}\" loss has issue".format(decType)
-
-    # def test_eigFreq(self):
-    #     # load the data
-    #     data = SQdata.load(DATADIR + "/" + self.fileName)
-    #     # print(self.fileName, data.dec)
-    #
-    #     # build the new circuit based on data circuit parameters
-    #     newCr = Circuit(data.cr.circuitElements)
-    #     newCr.truncationNumbers(data.cr.m)
-    #
-    #     # table of eigenfrequencies that we want to calculate
-    #     efreq = np.zeros(data.efreq.shape)
-    #
-    #     # dictionary that contains the decoherence rate for each loss mechanism
-    #     dec = None
-    #     if data.dec:
-    #         dec = {key: np.zeros(Sweep._gridDims(data.grid)) for key in data.dec.keys()}
-    #
-    #     if data.type == "sweepFlux":
-    #
-    #         for indices in product(*Sweep._gridIndex(data.grid)):
-    #
-    #             # set flux for each loop
-    #             for i, ind in enumerate(indices):
-    #                 data.params[i].setFlux(data.grid[i][ind])
-    #
-    #             evec, _ = newCr.diag(data.numEig)
-    #             efreq[:, indices] = evec.reshape(efreq[:, indices].shape)
-    #
-    #             if data.dec:
-    #                 for decType in data.dec.keys():
-    #                     dec[decType][indices] = newCr.decRate(decType=decType, states=(1, 0))
-    #
-    #     assert np.allclose(efreq, data.efreq)
-    #
-    #     if data.dec:
-    #         for decType in data.dec.keys():
-    #             assert np.allclose(dec[decType], data.dec[decType]), "The \"{}\" loss has issue".format(decType)

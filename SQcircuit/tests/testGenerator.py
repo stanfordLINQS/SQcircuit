@@ -11,8 +11,8 @@ import SQcircuit as sq
 tests = {"zeroPi": False,
          "inductivelyShunted": False,
          "Fluxonium": False,
-         "Transmon": True,
-         "tunableTransmon": True,
+         "Transmon": False,
+         "tunableTransmon": False,
          }
 
 #######################################

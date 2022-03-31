@@ -31,7 +31,7 @@ setup(
     install_requires=INSTALL_REQUIRES,
     zip_safe=False,
     include_package_data=True,
-    package_dir={"SQcircuit": "src"},
+    package_dir={"SQcircuit": "SQcircuit"},
     packages=["SQcircuit"],
     python_requires=">=3.6",
     classifiers=[

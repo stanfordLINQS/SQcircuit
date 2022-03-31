@@ -405,12 +405,27 @@ class Circuit:
                 # alpha for j-th mode
                 alpha = np.abs(2 * np.pi / unit.Phi0 * np.sqrt(unit.hbar / 2 * np.sqrt(
                     self.cInvDiag[j, j] / self.lDiag[j, j])) * self.wTrans[:, j])
+
                 self.wTrans[:, j][alpha < 1e-11] = 0
                 if np.max(alpha) > 1e-11:
                     # find the coefficient in wTrans for j-th mode that has maximum alpha
                     s = np.abs(self.wTrans[np.argmax(alpha), j])
                     # scale that mode with s
                     self.wTrans[:, j] = self.wTrans[:, j] / s
+                    S3[j, j] = 1 / s
+                    for i in range(self.n):
+                        if i == j:
+                            self.cInvDiag[i, j] *= s ** 2
+                            self.lDiag[i, j] /= s ** 2
+                        else:
+                            self.cInvDiag[i, j] *= s
+                            self.lDiag[i, j] /= s
+                else:
+                    # scale the uncoupled mode
+                    S = np.abs(self.S1@self.S2)
+
+                    s = np.max(S[:, j])
+
                     S3[j, j] = 1 / s
                     for i in range(self.n):
                         if i == j:
