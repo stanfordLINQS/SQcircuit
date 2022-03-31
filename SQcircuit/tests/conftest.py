@@ -29,15 +29,18 @@ class QubitTest:
         newCr = Circuit(data.cr.circuitElements)
 
         # check the first transformation
-        assert np.allclose(newCr.R1, data.cr.R1)
-        assert np.allclose(newCr.S1, data.cr.S1)
-        assert np.allclose(newCr.omega, data.cr.omega)
-        # check the second transformation
-        assert np.allclose(newCr.R2, data.cr.R2)
-        assert np.allclose(newCr.S2, data.cr.S2)
-        # check the third transformation
-        assert np.allclose(newCr.R3, data.cr.R3)
-        assert np.allclose(newCr.S3, data.cr.S3)
+        # assert np.allclose(newCr.R1, data.cr.R1)
+        # assert np.allclose(newCr.S1, data.cr.S1)
+        # assert np.allclose(newCr.omega, data.cr.omega)
+        # # check the second transformation
+        # assert np.allclose(newCr.R2, data.cr.R2)
+        # assert np.allclose(newCr.S2, data.cr.S2)
+        # # check the third transformation
+        # assert np.allclose(newCr.R3, data.cr.R3)
+        # assert np.allclose(newCr.S3, data.cr.S3)
+
+        assert np.allclose(newCr.S, data.cr.S)
+        assert np.allclose(newCr.R, data.cr.R)
 
     def test_Wand(self):
         # load the data
