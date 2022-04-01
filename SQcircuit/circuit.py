@@ -883,12 +883,7 @@ class Circuit:
         assert len(self.m) != 0, "Please specify the truncation number for each mode."
         assert isinstance(numEig, int), "The numEig( number of eigenvalues) should be an integer."
 
-        # HJJ, self.qpSinList = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
-
-        Hind = self.indHamil(self.HJJExpList, self.HJJExpRootList)
-
-        # H = -HJJ + self.HLC
-        H = Hind + self.HLC
+        H = self.hamiltonian()
 
         # get the data out of qutip variable and use sparse scipy eigen solver which is faster than
         # non-sparse eigen solver
@@ -925,28 +920,17 @@ class Circuit:
         else:
             raise ValueError(" The input must be either \"charge\" or \"flux\".")
 
-    def hamiltonian(self, part="all"):
+    def hamiltonian(self):
         """
-        Returns the transformed hamiltonian of the circuit for specified part that can be LC, JJ, or both parts
-        of the Hamiltonian.
-
-        Parameters
-        ----------
-            part: str
-                The specific part of the Hamiltonian that can be either "LC", "JJ", or "all".
+        Returns the transformed hamiltonian of the circuit as QuTiP object.
         """
         assert len(self.m) != 0, "Please specify the truncation number for each mode."
 
-        if part == "LC" or part == "lc":
-            return self.HLC
-        elif part == "JJ" or part == "jj":
-            HJJ, _ = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
-            return HJJ
-        elif part == "all":
-            HJJ, _ = self.getJJHamil(self.HJJExpList, self.HJJExpRootList, self.extFlux)
-            return -HJJ + self.HLC
-        else:
-            raise ValueError("The input must be either, \"LC\". \"JJ\", or \"all\".")
+        Hind = self.indHamil(self.HJJExpList, self.HJJExpRootList)
+
+        H = Hind + self.HLC
+
+        return H
 
     def tensorToModes(self, tensorIndex: int):
         """
