@@ -79,6 +79,9 @@ class Circuit:
         # number of nodes
         self.n = max(max(self.circuitElements))
 
+        # number of branches that contain JJ without parallel inductor.
+        self.countJJnoInd = 0
+
         # get the capacitance matrix, inductance matrix, and w matrix
         self.C, self.L, self.W = self.loopLCW()
 
@@ -136,6 +139,24 @@ class Circuit:
         """
         return [el for el in elementList if isinstance(el, model)]
 
+    @staticmethod
+    def _independentRows(A):
+        """use Gram–Schmidt to find the linear independent rows of matrix A
+        """
+        # normalize the row of matrix A
+        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
+
+        basis = []
+        indList = []
+
+        for i, a in enumerate(A_norm):
+            aPrime = a - sum([np.dot(a, e) * e for e in basis])
+            if (np.abs(aPrime) > 1e-7).any():
+                indList.append(i)
+                basis.append(aPrime / np.linalg.norm(aPrime))
+
+        return indList, basis
+
     def addLoop(self, loop):
         """
         Add loop to the circuit loops.
@@ -160,6 +181,9 @@ class Circuit:
 
         # count of inductive elements
         count = 0
+
+        # number of branches that contain JJ without parallel inductor.
+        countJJnoInd = 0
 
         # K1 is a matrix that transfer node coordinates to edge phase drop for inductive elements
         K1 = []
@@ -223,6 +247,9 @@ class Circuit:
 
                     count += 1
 
+            if len(indList) == 0 and len(JJList) != 0:
+                countJJnoInd += 1
+
             # summation of the capacitor values.
             cap = sum(list(map(lambda c: c.value(self.random), capList)))
 
@@ -269,6 +296,8 @@ class Circuit:
         if numLoop != 0:
             Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
             self.K2 = np.linalg.inv(X) @ Y
+
+        self.countJJnoInd = countJJnoInd
 
         return cMat, lMat, wMat
 
@@ -333,34 +362,47 @@ class Circuit:
         wTrans1 = self.W @ S1
         wQ = wTrans1[:, omega == 0]
 
-        wQ[np.abs(wQ) < 1e-2] = 0
-        a = np.zeros_like(wQ)
-        select = np.sum(wQ != a, axis=0) != 0
-        # eliminate the zero columns
-        wQ = wQ[:, select]
+        # wQ[np.abs(wQ) < 1e-2] = 0
+        # a = np.zeros_like(wQ)
+        # select = np.sum(wQ != a, axis=0) != 0
+        # # eliminate the zero columns
+        # wQ = wQ[:, select]
 
         # number of operators represented in charge bases
         nq = wQ.shape[1]
 
         # if we need to represent an operator in charge basis
-        if nq != 0:
+        if nq != 0 and self.countJJnoInd != 0:
 
             # normalizing the wQ vectors(each row is a vector)
-            wQ_norm = wQ / np.linalg.norm(wQ, axis=1).reshape(wQ.shape[0], 1)
+            # wQ_norm = wQ / np.linalg.norm(wQ, axis=1).reshape(wQ.shape[0], 1)
 
             # list of indices of w vectors that are independent
             indList = []
 
+            X = []
             # use Gram–Schmidt to find the linear independent rows of normalized wQ (wQ_norm)
             basis = []
-            for i, w in enumerate(wQ_norm):
-                wPrime = w - sum([np.dot(w, e) * e for e in basis])
-                if (np.abs(wPrime) > 1e-7).any():
-                    indList.append(i)
-                    basis.append(wPrime / np.linalg.norm(wPrime))
+            while len(basis) != nq:
+                if len(basis) == 0:
+                    indList, basis = self._independentRows(wQ)
+                else:
+                    # to complete the basis
+                    X = list(np.random.randn(nq - len(basis), nq))
+                    basisComplete = np.array(basis + X)
+                    _, basis = self._independentRows(basisComplete)
+
+                # for i, w in enumerate(wQ_norm):
+                #     wPrime = w - sum([np.dot(w, e) * e for e in basis])
+                #     if (np.abs(wPrime) > 1e-7).any():
+                #         indList.append(i)
+                #         basis.append(wPrime / np.linalg.norm(wPrime))
 
             # the second S and R matrix are:
-            S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(wQ[indList, :]))
+            F = np.array(list(wQ[indList, :]) + X)
+            S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(F))
+
+            # S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(wQ[indList, :]))
             R2 = np.linalg.inv(S2.T)
 
         else:
@@ -422,7 +464,7 @@ class Circuit:
                             self.lDiag[i, j] /= s
                 else:
                     # scale the uncoupled mode
-                    S = np.abs(self.S1@self.S2)
+                    S = np.abs(self.S1 @ self.S2)
 
                     s = np.max(S[:, j])
 
@@ -459,11 +501,12 @@ class Circuit:
         self.cInvDiag = self.R2.T @ self.cInvDiag @ self.R2
 
         # get the transformed W matrix
-        # self.wTrans = self.getMatW() @ self.S1 @ self.S2
         self.wTrans = self.W @ self.S1 @ self.S2
-        wQ = self.wTrans[:, self.omega == 0]
-        wQ[np.abs(wQ) < 0.98] = 0
-        self.wTrans[:, self.omega == 0] = wQ
+        if self.countJJnoInd == 0:
+            self.wTrans[:, self.omega == 0] = 0
+        # wQ = self.wTrans[:, self.omega == 0]
+        # wQ[np.abs(wQ) < 0.98] = 0
+        # self.wTrans[:, self.omega == 0] = wQ
 
         # scaling the modes
         self.S3, self.R3 = self.transform3()

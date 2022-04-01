@@ -8,11 +8,12 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 import SQcircuit as sq
 
-tests = {"zeroPi": False,
-         "inductivelyShunted": False,
-         "Fluxonium": False,
+tests = {"zeroPi": True,
+         "inductivelyShunted": True,
+         "Fluxonium": True,
          "Transmon": False,
          "tunableTransmon": False,
+         "isolatedIsland": False
          }
 
 #######################################
@@ -32,7 +33,8 @@ if tests["zeroPi"]:
                 (3, 0): [C],
                 (1, 2): [C],
                 (1, 3): [L],
-                (2, 3): [CJ, JJ]}
+                (2, 3): [CJ, JJ],
+                }
 
     # cr is an object of Qcircuit
     cr = sq.Circuit(elements)
@@ -44,6 +46,7 @@ if tests["zeroPi"]:
     phi = np.linspace(0, 1, 50) * 2 * np.pi
 
     sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/zeroPi_1')
+    # sweep1.sweepFlux([loop1], [phi], plotF=True)
 
 #######################################
 # inductively shunted qubit
@@ -76,6 +79,7 @@ if tests["inductivelyShunted"]:
     phi = np.linspace(-0.1, 0.6, 50) * 2 * np.pi
 
     sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/inductivelyShunted_1')
+    # sweep1.sweepFlux([loop1], [phi], plotF=True)
 
 #######################################
 # Fluxonium
@@ -105,6 +109,7 @@ if tests["Fluxonium"]:
     phi = np.linspace(0.0, 1.0, 50) * 2 * np.pi
 
     sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/Fluxonium_1')
+    # sweep1.sweepFlux([loop1], [phi], plotF=True)
 
     # standard fluxonium with loss calculation
 
@@ -156,3 +161,37 @@ if tests["Transmon"]:
 
         for decType in decay:
             decay[decType][i] = cr1.decRate(decType=decType, states=(1, 0))
+
+#######################################
+# isolatedIsland
+#######################################
+
+if tests["isolatedIsland"]:
+
+    # fluxonium with charge island( added by Yudan)
+
+    loop1 = sq.Loop()
+    C = sq.Capacitor(11, 'fF', Q=1e6)
+    Cg = sq.Capacitor(0.5, 'fF', Q=1e6)
+    L = sq.Inductor(1, 'GHz', Q=500e6, loops=[loop1])
+    JJ = sq.Junction(3, 'GHz', cap=C, A=5e-7, loops=[loop1])
+
+    circuitElements = {
+        (1, 2): [Cg],
+        (0, 1): [JJ, L],
+        (2, 3): [Cg],
+        (0, 2): [Cg],
+    }
+
+    cr = sq.Circuit(circuitElements)
+
+    print(cr.W)
+
+    cr.truncationNumbers([30, 1, 1])
+
+    sweep1 = sq.Sweep(cr, numEig=10)
+
+    phi = np.linspace(0.0, 1.0, 50) * 2 * np.pi
+
+    # sweep1.sweepFlux([loop1], [phi], plotF=True, toFile='data/Fluxonium_1')
+    # sweep1.sweepFlux([loop1], [phi], plotF=True)

@@ -28,36 +28,13 @@ class QubitTest:
         # build the new circuit based on data circuit parameters
         newCr = Circuit(data.cr.circuitElements)
 
-        #check the first transformation
-        # assert np.allclose(newCr.R1, data.cr.R1)
-        # assert np.allclose(newCr.S1, data.cr.S1)
-        # assert np.allclose(newCr.omega, data.cr.omega)
-        # # check the second transformation
-        # assert np.allclose(newCr.R2, data.cr.R2)
-        # assert np.allclose(newCr.S2, data.cr.S2)
-        # # check the third transformation
-        # assert np.allclose(newCr.R3, data.cr.R3)
-        # assert np.allclose(newCr.S3, data.cr.S3)
-
+        # check the modes
+        assert np.allclose(newCr.omega, data.cr.omega)
+        # check the transformed w matrix
+        assert np.allclose(newCr.wTrans, data.cr.wTrans)
+        # check the S and R matrix
         assert np.allclose(newCr.S, data.cr.S)
         assert np.allclose(newCr.R, data.cr.R)
-        # pass
-
-    def test_Wand(self):
-        # load the data
-        data = SQdata.load(DATADIR + "/" + self.fileName)
-
-        # build the new circuit based on data circuit parameters
-        newCr = Circuit(data.cr.circuitElements)
-        assert np.allclose(newCr.omega, data.cr.omega)
-        assert np.allclose(newCr.wTrans, data.cr.wTrans)
-
-        print("test")
-        print("omega:", newCr.omega)
-        print("wTrans:", newCr.wTrans)
-        print("data")
-        print("omega:", data.cr.omega)
-        print("wTrans:", data.cr.wTrans)
 
     def test_data(self):
         # load the data
