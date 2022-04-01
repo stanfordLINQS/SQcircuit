@@ -56,9 +56,9 @@ class QubitTest:
         if data.type == "sweepFlux":
             efreq, dec = sweep1.sweepFlux(data.params, data.grid)
 
-        assert np.allclose(efreq, data.efreq)
+        assert np.allclose(efreq, data.efreq, rtol=1e-4)
 
         if data.dec:
             for decType in data.dec.keys():
-                assert np.allclose(dec[decType], data.dec[decType], rtol=1e-4, atol=1e-5),\
+                assert np.allclose(dec[decType], data.dec[decType]),\
                     "The \"{}\" loss has issue".format(decType)
