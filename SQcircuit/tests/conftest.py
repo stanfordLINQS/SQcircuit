@@ -55,6 +55,8 @@ class QubitTest:
 
         if data.type == "sweepFlux":
             efreq, dec = sweep1.sweepFlux(data.params, data.grid)
+        elif data.type == "sweepCharge":
+            efreq, dec = sweep1.sweepCharge(data.params, data.grid)
 
         for i in range(efreq.shape[0]):
             assert np.allclose(efreq[i, :], data.efreq[i, :], rtol=1e-4, atol=1e-3)

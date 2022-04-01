@@ -32,7 +32,7 @@ class SQdata:
         with open(fromFile, 'rb') as inp:
             return pickle.load(inp)
 
-    def plot(self):
+    def plot(self, typeP):
         assert len(self.efreq.shape) <= 2, "SQcircuit can only plot 1D grid data for now"
 
         plt.figure(figsize=(6.5, 5), linewidth=1)
@@ -41,6 +41,9 @@ class SQdata:
         for i in range(self.numEig):
             plt.plot(self.grid[0] / 2 / np.pi, self.efreq[i, :] - self.efreq[0, :],
                      linewidth=2.2)
-        plt.xlabel(r"$\Phi_{ext}/\Phi_0$", fontsize=18)
+        if typeP == "flux":
+            plt.xlabel(r"$\Phi_{ext}/\Phi_0$", fontsize=18)
+        elif typeP == "charge":
+            plt.xlabel(r"$n_g$", fontsize=18)
         plt.ylabel(r"$f_i-f_0$[GHz]", fontsize=18)
         plt.show()

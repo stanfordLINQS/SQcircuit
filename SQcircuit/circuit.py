@@ -30,11 +30,8 @@ class Circuit:
             is necessary for robustness analysis.
     """
 
-    # external fluxes of the circuit
-    extFlux = {}
     # external charges of the circuit
     extCharge = {}
-
     # list of charge operators( transformed operators) (self.n)
     chargeOpList = []
     # list of flux operators(transformed operators) (self.n)
@@ -68,6 +65,9 @@ class Circuit:
 
         # circuit inductive loops
         self.loops = []
+
+        # external charges of the circuit
+        self.extCharge = {}
 
         # loop distribution over inductive elements.
         self.K2 = None
@@ -494,6 +494,9 @@ class Circuit:
         # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvDiag) * np.diag(self.lDiag))
 
+        # set the external charge for each charge mode.
+        self.extCharge = {i: Charge() for i in range(self.n) if self.omega[i] == 0}
+
         # get the second transformation:
         self.S2, self.R2 = self.transform2(self.omega, self.S1)
 
@@ -556,21 +559,44 @@ class Circuit:
 
         self.HJJExpList, self.HJJExpRootList = self.getHJJExp(self.cInvDiag, self.lDiag, self.omega, self.wTrans)
 
-    def linkCharges(self, extCharges: dict):
-        """set the external charges for each charge mode.
-        input:
-            -- extCharges: a dictionary that contains the external flux
-            at each charge mode.
+    def chargeOffset(self, mode: int, ng: float):
+        """set the charge offset for each charge mode.
+
+        Parameters
+        ----------
+            mode: int
+                An integer that specifies the charge mode. To see, which mode is a charge mode, one
+                can use `description()` method.
+            ng: float
+                The charge offset.
         """
-        assert isinstance(extCharges, dict), "The input must be be a python dictionary"
+        assert isinstance(mode, int), "Mode number should be an integer"
+        assert mode-1 in self.extCharge, "The specified mode is not a charge mode."
         if len(self.m) == 0:
-            self.extCharge = extCharges
+            self.extCharge[mode-1].setOffset(ng)
         else:
-            self.extCharge = extCharges
+            self.extCharge[mode-1].setOffset(ng)
             self.chargeOpList, self.numOpList, self.chargeByChargeList, self.fluxOpList = self.buildOpMemory(
                 self.lDiag, self.cInvDiag, self.omega)
 
             self.HLC = self.getLCHamil(self.cInvDiag, self.omega, self.chargeByChargeList, self.numOpList)
+
+    def chargeNoise(self, mode: int, A: float):
+        """set the charge noise for each charge mode.
+
+        Parameters
+        ----------
+            mode: int
+                An integer that specifies the charge mode. To see, which mode is a charge mode, one
+                can use `description()` method.
+            A: float
+                The charge noise.
+        """
+        assert isinstance(mode, int), "Mode number should be an integer"
+        assert mode-1 in self.extCharge, "The specified mode is not a charge mode."
+
+        self.extCharge[mode-1].setNoise(A)
+        pass
 
     def buildOpMemory(self, lDiag: np.array, cInvDiag: np.array, omega: np.array):
         """
@@ -598,7 +624,7 @@ class Circuit:
         for i in range(self.n):
             if omega[i] == 0:
                 Q0 = (2 * unit.e / np.sqrt(unit.hbar)) * q.charge((self.m[i] - 1) / 2) - \
-                     (2 * unit.e / np.sqrt(unit.hbar)) * self.extCharge.get(i, Charge()).value()
+                     (2 * unit.e / np.sqrt(unit.hbar)) * self.extCharge[i].value()
             else:
                 coef = -1j * np.sqrt(1 / 2 * np.sqrt(lDiag[i, i] / cInvDiag[i, i]))
                 Q0 = coef * (q.destroy(self.m[i]) - q.create(self.m[i]))
@@ -1193,7 +1219,7 @@ class Circuit:
                         op += self.cInvDiag[i, j] * self.chargeOpList[j] / np.sqrt(unit.hbar)
                     op.dims = [self.ms, self.ms]
                     partialOmega = np.abs((state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])
-                    decay += partialOmega * (self.extCharge.get(i, Charge()).noise * 2 * unit.e) \
+                    decay += partialOmega * (self.extCharge[i].A * 2 * unit.e) \
                              * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
 
         elif decType == "cc":

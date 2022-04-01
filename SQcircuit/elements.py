@@ -319,14 +319,14 @@ class Charge:
     class that contains the charge offset properties.
     """
 
-    def __init__(self, value=0, noise=0):
+    def __init__(self, value=0, A=1e-4):
         """
        inputs:
             -- value: The value of the offset.
             -- noise: The amplitude of the charge noise.
         """
         self.chValue = value
-        self.noise = noise
+        self.A = A
 
     def value(self, random: bool = False):
         """
@@ -338,3 +338,10 @@ class Charge:
             return self.chValue
         else:
             return np.random.normal(self.chValue, self.noise, 1)[0]
+
+    def setOffset(self, value):
+        self.chValue = value
+
+    def setNoise(self, A):
+        self.A = A
+

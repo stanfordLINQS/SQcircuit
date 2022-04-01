@@ -92,7 +92,7 @@ class Sweep(SQdata):
         print("Sweeping process is finished!")
 
         if plotF:
-            self.plot()
+            self.plot("flux")
 
         if toFile:
             self.save(toFile)
@@ -100,5 +100,38 @@ class Sweep(SQdata):
         else:
             return self.efreq, self.dec
 
-    def sweepChargeOffset(self, modes: list, grid: list, toFile: str = None):
-        pass
+    def sweepCharge(self, modes: list, grid: list, toFile: str = None, plotF: bool = False):
+
+        self.type = "sweepCharge"
+        self.params = modes
+        self.grid = grid
+
+        # table of eigenfrequencies that we want to calculate
+        self.efreq = np.zeros((self.numEig, *self._gridDims(grid)))
+
+        if "loss" in self.properties:
+            # dictionary that contains the decoherence rate for each loss mechanism
+            self.dec = {key: np.zeros(self._gridDims(grid)) for key in self.dec.keys()}
+
+        for indices in product(*self._gridIndex(grid)):
+
+            # set flux for each loop
+            for i, ind in enumerate(indices):
+                self.cr.chargeOffset(mode=modes[i], ng=grid[i][ind])
+
+            evec, _ = self.cr.diag(self.numEig)
+            self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
+            if "loss" in self.properties:
+                for decType in self.dec.keys():
+                    self.dec[decType][indices] = self.cr.decRate(decType=decType, states=(1, 0))
+
+        print("Sweeping process is finished!")
+
+        if plotF:
+            self.plot("charge")
+
+        if toFile:
+            self.save(toFile)
+            pass
+        else:
+            return self.efreq, self.dec
