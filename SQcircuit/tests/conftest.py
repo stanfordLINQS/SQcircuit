@@ -60,5 +60,5 @@ class QubitTest:
 
         if data.dec:
             for decType in data.dec.keys():
-                assert np.allclose(dec[decType], data.dec[decType], rtol=1e-4),\
+                assert np.allclose(dec[decType], data.dec[decType], rtol=1e-4, atol=1e-5),\
                     "The \"{}\" loss has issue".format(decType)
