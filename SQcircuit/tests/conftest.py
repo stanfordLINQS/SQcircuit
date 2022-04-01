@@ -28,13 +28,10 @@ class QubitTest:
         # build the new circuit based on data circuit parameters
         newCr = Circuit(data.cr.circuitElements)
 
-        # check the modes
+        # check the modes and natural frequencies
         assert np.allclose(newCr.omega, data.cr.omega)
         # check the transformed w matrix
         assert np.allclose(newCr.wTrans, data.cr.wTrans)
-        # check the S and R matrix
-        assert np.allclose(newCr.S, data.cr.S)
-        assert np.allclose(newCr.R, data.cr.R)
 
     def test_data(self):
         # load the data
@@ -63,4 +60,5 @@ class QubitTest:
 
         if data.dec:
             for decType in data.dec.keys():
-                assert np.allclose(dec[decType], data.dec[decType]), "The \"{}\" loss has issue".format(decType)
+                assert np.allclose(dec[decType], data.dec[decType], rtol=1e-4),\
+                    "The \"{}\" loss has issue".format(decType)

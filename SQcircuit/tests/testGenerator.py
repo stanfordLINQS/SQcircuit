@@ -8,9 +8,9 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 import SQcircuit as sq
 
-tests = {"zeroPi": True,
-         "inductivelyShunted": True,
-         "Fluxonium": True,
+tests = {"zeroPi": False,
+         "inductivelyShunted": False,
+         "Fluxonium": False,
          "Transmon": False,
          "tunableTransmon": False,
          "isolatedIsland": False
