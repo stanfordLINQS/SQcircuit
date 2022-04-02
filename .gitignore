@@ -1,4 +1,14 @@
 .DS_Store
 .idea/
+.coverage
+
+/build/
+/dist/
+
+/SQcircuit/__pycache__
+/SQcircuit/tests/__pycache__
+
+/SQcircuit/examples/.ipynb_checkpoints/
+
 
 /SQcircuit/tests/dataSetGen.py

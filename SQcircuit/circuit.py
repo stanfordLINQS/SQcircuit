@@ -596,7 +596,6 @@ class Circuit:
         assert mode-1 in self.extCharge, "The specified mode is not a charge mode."
 
         self.extCharge[mode-1].setNoise(A)
-        pass
 
     def buildOpMemory(self, lDiag: np.array, cInvDiag: np.array, omega: np.array):
         """
