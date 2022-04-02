@@ -5,6 +5,9 @@
 /build/
 /dist/
 
+*.egg
+*.egg-info
+
 /SQcircuit/__pycache__
 /SQcircuit/tests/__pycache__
 

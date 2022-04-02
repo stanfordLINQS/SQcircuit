@@ -8,16 +8,15 @@ DESCRIPTION = "superconducting quantum circuit analyzer"
 # version of the SQcircuit
 MAJOR = 0
 MINOR = 0
-PATCH = 3
+PATCH = 4
 ISRELEASED = True
 
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, PATCH)
 
 CURRENT_DIR = os.path.abspath('.')
+
 with open(os.path.join(CURRENT_DIR, "requirements.txt")) as requirements:
     INSTALL_REQUIRES = requirements.read().splitlines()
-
-print(find_packages(where="src"))
 
 setup(
     name="SQcircuit",
@@ -31,8 +30,7 @@ setup(
     install_requires=INSTALL_REQUIRES,
     zip_safe=False,
     include_package_data=True,
-    package_dir={"SQcircuit": "SQcircuit"},
-    packages=["SQcircuit"],
+    packages=["SQcircuit", "SQcircuit/tests"],
     python_requires=">=3.6",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
