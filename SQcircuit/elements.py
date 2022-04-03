@@ -257,8 +257,8 @@ class Loop:
 
     def __init__(self, value=0, A=1e-6):
 
-        self.lpValue = value
-        self.A = A
+        self.lpValue = value * 2 * np.pi
+        self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
         # k1 matrix related to this specific loop
@@ -292,7 +292,7 @@ class Loop:
             value: float
                 The external flux value
         """
-        self.lpValue = value
+        self.lpValue = value * 2 * np.pi
 
     def addIndex(self, index):
         self.indices.append(index)

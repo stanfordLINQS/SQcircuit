@@ -39,7 +39,7 @@ class SQdata:
         plt.tight_layout()
         # plt.title("Energy Spectrum", fontsize=18)
         for i in range(self.numEig):
-            plt.plot(self.grid[0] / 2 / np.pi, self.efreq[i, :] - self.efreq[0, :],
+            plt.plot(self.grid[0], self.efreq[i, :] - self.efreq[0, :],
                      linewidth=2.2)
         if typeP == "flux":
             plt.xlabel(r"$\Phi_{ext}/\Phi_0$", fontsize=18)
