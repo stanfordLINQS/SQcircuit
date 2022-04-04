@@ -1154,7 +1154,7 @@ class Circuit:
         """
         self.omegaHigh = 2 * np.pi * value * phPar.freqList[unit]
 
-    def setTExp(self, value: float, unit: str):
+    def setTexp(self, value: float, unit: str):
         """
         Set the measurement time.
 
