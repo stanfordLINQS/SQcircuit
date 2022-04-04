@@ -10,8 +10,8 @@
 
 /SQcircuit/__pycache__
 /SQcircuit/tests/__pycache__
-
-/SQcircuit/examples/.ipynb_checkpoints/
-
-
 /SQcircuit/tests/dataSetGen.py
+
+/examples/.ipynb_checkpoints/
+
+
