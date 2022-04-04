@@ -9,6 +9,8 @@ faradList = {'F': 1, 'mF': 1.0e-3, 'uF': 1.0e-6, 'nF': 1.0e-9, 'pF': 1.0e-12, 'f
 # frequency unit list
 freqList = {'Hz': 1.0, 'kHz': 1.0e3, 'MHz': 1.0e6, 'GHz': 1.0e9, 'THz': 1.0e12}
 
+timeList = {'s': 1.0, 'ms': 1.0e-3, 'us': 1.0e-6, 'ns': 1.0e-9, 'ps': 1.0e-12, 'fs': 1.0e-15}
+
 # reduced Planck constant
 hbar = 1.0545718e-34
 

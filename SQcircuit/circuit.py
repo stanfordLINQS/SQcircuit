@@ -59,6 +59,8 @@ class Circuit:
     T = 0.015
     # low-frequency cut off
     omegaLow = 2 * np.pi
+    # high-frequency cut off
+    omegaHigh = 2 * np.pi * 3 * 1e9
     # experiment time
     tExp = 10e-6
 
@@ -1119,9 +1121,9 @@ class Circuit:
 
         return (state1.dag() * op * state2).data[0, 0]
 
-    def setTemperature(self, T):
+    def setTemperature(self, T: float):
         """
-        Set temperature of the circuit.
+        Set the temperature of the circuit.
 
         Parameters
         ----------
@@ -1129,6 +1131,39 @@ class Circuit:
                 The temperature in Kelvin
         """
         self.T = T
+
+    def setLowFreq(self, value: float, unit: str):
+        """
+        Set the low-frequency cut-off.
+
+        Parameters
+        ----------
+            value: The value of the frequency.
+            unit: The unit of the input value in hertz unit that can be "THz", "GHz", "MHz",and ,etc.
+        """
+        self.omegaLow = 2 * np.pi * value * phPar.freqList[unit]
+
+    def setHighFreq(self, value: float, unit: str):
+        """
+        Set the high-frequency cut-off.
+
+        Parameters
+        ----------
+            value: The value of the frequency.
+            unit: The unit of the input value in hertz unit that can be "THz", "GHz", "MHz",and ,etc.
+        """
+        self.omegaHigh = 2 * np.pi * value * phPar.freqList[unit]
+
+    def setTExp(self, value: float, unit: str):
+        """
+        Set the measurement time.
+
+        Parameters
+        ----------
+            value: The value of the measurement time.
+            unit: The unit of the input value in time unit that can be "s", "ms", "us",and ,etc.
+        """
+        self.tExp = value * phPar.timeList[unit]
 
     def decRate(self, decType: str, states: tuple, total: bool = True):
         """ Return the decoherence rate in [1/s] between each two eigenstates for different types of
