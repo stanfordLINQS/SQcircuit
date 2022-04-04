@@ -21,11 +21,11 @@ def test_capacitorEnergy():
     cap = Capacitor(10, "GHz")
     assert cap.energy() == 10
     # change the default frequency of the SQcirucit
-    sq.unit.setFreq("MHz")
+    sq.units.setFreq("MHz")
     # check back the energy
     assert cap.energy() == 10 * 1000
     # set back the default frequency back to GHz
-    sq.unit.setFreq("GHz")
+    sq.units.setFreq("GHz")
     # check the energy functionality from setting the value
     val = cap.value()
     cap2 = Capacitor(val, "F")
@@ -63,11 +63,11 @@ def test_inductorEnergy():
     ind = Inductor(10, "GHz")
     assert ind.energy() == 10
     # change the default frequency of the SQcirucit
-    sq.unit.setFreq("MHz")
+    sq.units.setFreq("MHz")
     # check back the energy
     assert ind.energy() == 10 * 1000
     # set back the default frequency back to GHz
-    sq.unit.setFreq("GHz")
+    sq.units.setFreq("GHz")
     # check the energy functionality from setting the value
     val = ind.value()
     ind2 = Inductor(val, "H")

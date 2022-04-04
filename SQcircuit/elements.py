@@ -3,7 +3,7 @@ elements.py contains the classes for the circuit elements:
 capacitors, inductors, and josephson junctions.
 """
 
-from SQcircuit.units import *
+import SQcircuit.physParam as phPar
 import numpy as np
 from scipy.special import kn
 
@@ -29,7 +29,7 @@ class Capacitor:
 
     def __init__(self, value=1e-20, cUnit="F", Q="default", error=0):
 
-        if cUnit not in unit.freqList and cUnit not in unit.faradList:
+        if cUnit not in phPar.freqList and cUnit not in phPar.faradList:
             error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
@@ -56,11 +56,11 @@ class Capacitor:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        if self.cUnit in unit.faradList:
-            cMean = self.cValue * unit.faradList[self.cUnit]
+        if self.cUnit in phPar.faradList:
+            cMean = self.cValue * phPar.faradList[self.cUnit]
         else:
-            E_c = self.cValue * unit.freqList[self.cUnit] * (2 * np.pi * unit.hbar)
-            cMean = unit.e ** 2 / 2 / E_c
+            E_c = self.cValue * phPar.freqList[self.cUnit] * (2 * np.pi * phPar.hbar)
+            cMean = phPar.e ** 2 / 2 / E_c
 
         if not random:
             return cMean
@@ -72,11 +72,11 @@ class Capacitor:
         Return the charging energy of the capacitor in frequency unit of SQcircuit (gigahertz
         by default).
         """
-        if self.cUnit in unit.freqList:
-            return self.cValue * unit.freqList[self.cUnit]/unit.freq
+        if self.cUnit in phPar.freqList:
+            return self.cValue * phPar.freqList[self.cUnit]/phPar.freq
         else:
-            c = self.cValue * unit.faradList[self.cUnit]
-            return unit.e ** 2 / 2 / c / (2 * np.pi * unit.hbar)/unit.freq
+            c = self.cValue * phPar.faradList[self.cUnit]
+            return phPar.e ** 2 / 2 / c / (2 * np.pi * phPar.hbar)/phPar.freq
 
 
 class Inductor:
@@ -105,7 +105,7 @@ class Inductor:
 
     def __init__(self, value, lUnit, cap=Capacitor(Q=None), Q="default", error=0, loops=None):
 
-        if lUnit not in unit.freqList and lUnit not in unit.henryList:
+        if lUnit not in phPar.freqList and lUnit not in phPar.henryList:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
@@ -121,8 +121,8 @@ class Inductor:
             self.loops = loops
 
         def qInd(omega, T):
-            alpha = unit.hbar * 2 * np.pi * 0.5e9 / (2 * unit.k_B * T)
-            beta = unit.hbar * omega / (2 * unit.k_B * T)
+            alpha = phPar.hbar * 2 * np.pi * 0.5e9 / (2 * phPar.k_B * T)
+            beta = phPar.hbar * omega / (2 * phPar.k_B * T)
 
             return 500e6 * (kn(0, alpha) * np.sinh(alpha)) / (kn(0, beta) * np.sinh(beta))
 
@@ -143,11 +143,11 @@ class Inductor:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        if self.lUnit in unit.henryList:
-            lMean = self.lValue * unit.henryList[self.lUnit]
+        if self.lUnit in phPar.henryList:
+            lMean = self.lValue * phPar.henryList[self.lUnit]
         else:
-            E_l = self.lValue * unit.freqList[self.lUnit] * (2 * np.pi * unit.hbar)
-            lMean = (unit.Phi0 / 2 / np.pi) ** 2 / E_l
+            E_l = self.lValue * phPar.freqList[self.lUnit] * (2 * np.pi * phPar.hbar)
+            lMean = (phPar.Phi0 / 2 / np.pi) ** 2 / E_l
 
         if not random:
             return lMean
@@ -159,11 +159,11 @@ class Inductor:
         Return the inductive energy of the capacitor in frequency unit of SQcircuit (gigahertz
         by default).
         """
-        if self.lUnit in unit.freqList:
-            return self.lValue * unit.freqList[self.lUnit]/unit.freq
+        if self.lUnit in phPar.freqList:
+            return self.lValue * phPar.freqList[self.lUnit]/phPar.freq
         else:
-            l = self.lValue * unit.henryList[self.lUnit]
-            return (unit.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * unit.hbar)/unit.freq
+            l = self.lValue * phPar.henryList[self.lUnit]
+            return (phPar.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * phPar.hbar)/phPar.freq
 
 
 class Junction:
@@ -197,7 +197,7 @@ class Junction:
     def __init__(self, value, jUnit, cap=Capacitor(Q=None), A=1e-7, x=3e-06, delta=3.4e-4,
                  Y="default", error=0, loops=None):
 
-        if jUnit not in unit.freqList:
+        if jUnit not in phPar.freqList:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
                     "correct input format."
             raise ValueError(error)
@@ -214,9 +214,9 @@ class Junction:
             self.loops = loops
 
         def yQP(omega, T):
-            alpha = unit.hbar * omega / (2 * unit.k_B * T)
-            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (unit.hbar * 2 * np.pi / unit.e ** 2)) \
-                * (2 * (delta * 1.6e-19) / unit.hbar / omega) ** 1.5 \
+            alpha = phPar.hbar * omega / (2 * phPar.k_B * T)
+            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (phPar.hbar * 2 * np.pi / phPar.e ** 2)) \
+                * (2 * (delta * 1.6e-19) / phPar.hbar / omega) ** 1.5 \
                 * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
             return y
 
@@ -235,7 +235,7 @@ class Junction:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        jMean = self.jValue * unit.freqList[self.jUnit] * 2 * np.pi
+        jMean = self.jValue * phPar.freqList[self.jUnit] * 2 * np.pi
 
         if not random:
             return jMean

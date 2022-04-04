@@ -1,6 +1,7 @@
 # Libraries:
 from SQcircuit.elements import *
-from SQcircuit.units import *
+
+import SQcircuit.physParam as phPar
 import numpy as np
 import qutip as q
 
@@ -445,7 +446,7 @@ class Circuit:
             else:
                 # note: alpha here is absolute value of alpha( alpha is pure imaginary)
                 # alpha for j-th mode
-                alpha = np.abs(2 * np.pi / unit.Phi0 * np.sqrt(unit.hbar / 2 * np.sqrt(
+                alpha = np.abs(2 * np.pi / phPar.Phi0 * np.sqrt(phPar.hbar / 2 * np.sqrt(
                     self.cInvDiag[j, j] / self.lDiag[j, j])) * self.wTrans[:, j])
 
                 self.wTrans[:, j][alpha < 1e-11] = 0
@@ -527,7 +528,7 @@ class Circuit:
 
         for i in range(self.n):
             if self.omega[i] != 0:
-                print("mode_{}: \tharmonic\tfreq={}".format(i + 1, self.omega[i] / (2 * np.pi * unit.freq)))
+                print("mode_{}: \tharmonic\tfreq={}".format(i + 1, self.omega[i] / (2 * np.pi * phPar.freq)))
             else:
                 print("mode_{}: \tcharge".format(i + 1))
 
@@ -622,8 +623,8 @@ class Circuit:
         QList = []
         for i in range(self.n):
             if omega[i] == 0:
-                Q0 = (2 * unit.e / np.sqrt(unit.hbar)) * q.charge((self.m[i] - 1) / 2) - \
-                     (2 * unit.e / np.sqrt(unit.hbar)) * self.extCharge[i].value()
+                Q0 = (2 * phPar.e / np.sqrt(phPar.hbar)) * q.charge((self.m[i] - 1) / 2) - \
+                     (2 * phPar.e / np.sqrt(phPar.hbar)) * self.extCharge[i].value()
             else:
                 coef = -1j * np.sqrt(1 / 2 * np.sqrt(lDiag[i, i] / cInvDiag[i, i]))
                 Q0 = coef * (q.destroy(self.m[i]) - q.create(self.m[i]))
@@ -808,8 +809,8 @@ class Circuit:
                         H2 = I
 
                 elif j == 0 and omega[j] != 0:
-                    alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
-                        unit.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
+                    alpha = 2 * np.pi / phPar.Phi0 * 1j * np.sqrt(
+                        phPar.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
                     H = q.displace(self.m[j], alpha)
                     H2 = q.displace(self.m[j], alpha / 2)
 
@@ -830,8 +831,8 @@ class Circuit:
                         H2 = q.tensor(H2, I)
 
                 elif j != 0 and omega[j] != 0:
-                    alpha = 2 * np.pi / unit.Phi0 * 1j * np.sqrt(
-                        unit.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
+                    alpha = 2 * np.pi / phPar.Phi0 * 1j * np.sqrt(
+                        phPar.hbar / 2 * np.sqrt(cInvDiag[j, j] / lDiag[j, j])) * wTrans[i, j]
                     H = q.tensor(H, q.displace(self.m[j], alpha))
                     H2 = q.tensor(H2, q.displace(self.m[j], alpha / 2))
 
@@ -865,7 +866,7 @@ class Circuit:
                     x = 1 / el.value(self.random)
                     O = self.couplingOperator("inductive", edge)
                     O.dims = [self.m, self.m]
-                    H += x * phi * (unit.Phi0 / 2 / np.pi) * O / np.sqrt(unit.hbar)
+                    H += x * phi * (phPar.Phi0 / 2 / np.pi) * O / np.sqrt(phPar.hbar)
 
                     # save the operators for loss calculation
                     self.inductorHamil[(countInd, el)] = np.sqrt(x) * O
@@ -923,7 +924,7 @@ class Circuit:
         self.hamilEigVal = eigenValuesSorted
         self.hamilEigVec = eigenVectorsSorted
 
-        return eigenValuesSorted.real / (2 * np.pi * unit.freq), eigenVectorsSorted
+        return eigenValuesSorted.real / (2 * np.pi * phPar.freq), eigenVectorsSorted
 
     ###############################################
     # Methods that calculate circuit properties
@@ -1026,12 +1027,12 @@ class Circuit:
                     term *= 1 / np.sqrt(2 * np.pi) * np.exp(1j * phiList[mode] * n)
                 # For harmonic basis
                 else:
-                    x0 = np.sqrt(unit.hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
+                    x0 = np.sqrt(phPar.hbar * np.sqrt(self.cInvDiag[mode, mode] / self.lDiag[mode, mode]))
 
-                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0 / unit.Phi0)
+                    coef = 1 / np.sqrt(np.sqrt(np.pi) * 2 ** n * scipy.special.factorial(n) * x0 / phPar.Phi0)
 
-                    term *= coef * np.exp(-(phiList[mode] * unit.Phi0 / x0) ** 2 / 2) * \
-                            scipy.special.eval_hermite(n, phiList[mode] * unit.Phi0 / x0)
+                    term *= coef * np.exp(-(phiList[mode] * phPar.Phi0 / x0) ** 2 / 2) * \
+                            scipy.special.eval_hermite(n, phiList[mode] * phPar.Phi0 / x0)
 
             state += term
 
@@ -1158,11 +1159,11 @@ class Circuit:
         decay = 0
 
         # prevent the exponential overflow(exp(709) is the biggest number that numpy can calculate)
-        if unit.hbar * omega / (unit.k_B * self.T) > 709:
+        if phPar.hbar * omega / (phPar.k_B * self.T) > 709:
             down = 2
             up = 0
         else:
-            alpha = unit.hbar * omega / (unit.k_B * self.T)
+            alpha = phPar.hbar * omega / (phPar.k_B * self.T)
             down = (1 + 1 / np.tanh(alpha / 2))
             up = down * np.exp(-alpha)
 
@@ -1204,10 +1205,10 @@ class Circuit:
                 op.dims = [self.ms, self.ms]
 
                 # Delta = 0.00025 * 1.6e-19
-                # Y = el.x_qp * 8 * unit.hbar / np.pi / unit.hbar * np.sqrt(2 * Delta / unit.hbar / omega)
+                # Y = el.x_qp * 8 * phPar.hbar / np.pi / phPar.hbar * np.sqrt(2 * Delta / phPar.hbar / omega)
 
                 decay += tempS * el.Y(omega, self.T) * omega \
-                         * unit.hbar * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
+                         * phPar.hbar * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
         elif decType == "charge":
 
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1215,10 +1216,10 @@ class Circuit:
             for i in range(self.n):
                 if self.omega[i] == 0:
                     for j in range(self.n):
-                        op += self.cInvDiag[i, j] * self.chargeOpList[j] / np.sqrt(unit.hbar)
+                        op += self.cInvDiag[i, j] * self.chargeOpList[j] / np.sqrt(phPar.hbar)
                     op.dims = [self.ms, self.ms]
                     partialOmega = np.abs((state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])
-                    decay += partialOmega * (self.extCharge[i].A * 2 * unit.e) \
+                    decay += partialOmega * (self.extCharge[i].A * 2 * phPar.e) \
                              * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
 
         elif decType == "cc":
@@ -1238,8 +1239,8 @@ class Circuit:
 
                 A = 0
                 for i, loop in enumerate(self.loops):
-                    A += loop.A * self.K2[indx, i] * unit.Phi0
+                    A += loop.A * self.K2[indx, i] * phPar.Phi0
 
-                decay += partialOmega * A * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp))) / np.sqrt(unit.hbar)
+                decay += partialOmega * A * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp))) / np.sqrt(phPar.hbar)
 
         return decay
