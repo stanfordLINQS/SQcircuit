@@ -27,15 +27,15 @@ class Capacitor:
         The error in fabrication as a percentage.
     """
 
-    def __init__(self, value=1e-20, cUnit="F", Q="default", error=0):
+    def __init__(self, value=1e-20, unit="F", Q="default", error=0):
 
-        if cUnit not in phPar.freqList and cUnit not in phPar.faradList:
+        if unit not in phPar.freqList and unit not in phPar.faradList:
             error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
 
         self.cValue = value
-        self.cUnit = cUnit
+        self.unit = unit
         self.error = error
         self.type = type(self)
 
@@ -56,10 +56,10 @@ class Capacitor:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        if self.cUnit in phPar.faradList:
-            cMean = self.cValue * phPar.faradList[self.cUnit]
+        if self.unit in phPar.faradList:
+            cMean = self.cValue * phPar.faradList[self.unit]
         else:
-            E_c = self.cValue * phPar.freqList[self.cUnit] * (2 * np.pi * phPar.hbar)
+            E_c = self.cValue * phPar.freqList[self.unit] * (2 * np.pi * phPar.hbar)
             cMean = phPar.e ** 2 / 2 / E_c
 
         if not random:
@@ -72,10 +72,10 @@ class Capacitor:
         Return the charging energy of the capacitor in frequency unit of SQcircuit (gigahertz
         by default).
         """
-        if self.cUnit in phPar.freqList:
-            return self.cValue * phPar.freqList[self.cUnit]/phPar.freq
+        if self.unit in phPar.freqList:
+            return self.cValue * phPar.freqList[self.unit]/phPar.freq
         else:
-            c = self.cValue * phPar.faradList[self.cUnit]
+            c = self.cValue * phPar.faradList[self.unit]
             return phPar.e ** 2 / 2 / c / (2 * np.pi * phPar.hbar)/phPar.freq
 
 
@@ -103,15 +103,15 @@ class Inductor:
         The error in fabrication as a percentage.
     """
 
-    def __init__(self, value, lUnit, cap=Capacitor(Q=None), Q="default", error=0, loops=None):
+    def __init__(self, value, unit, cap=Capacitor(Q=None), Q="default", error=0, loops=None):
 
-        if lUnit not in phPar.freqList and lUnit not in phPar.henryList:
+        if unit not in phPar.freqList and unit not in phPar.henryList:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
 
         self.lValue = value
-        self.lUnit = lUnit
+        self.unit = unit
         self.cap = cap
         self.error = error
         self.type = type(self)
@@ -143,10 +143,10 @@ class Inductor:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        if self.lUnit in phPar.henryList:
-            lMean = self.lValue * phPar.henryList[self.lUnit]
+        if self.unit in phPar.henryList:
+            lMean = self.lValue * phPar.henryList[self.unit]
         else:
-            E_l = self.lValue * phPar.freqList[self.lUnit] * (2 * np.pi * phPar.hbar)
+            E_l = self.lValue * phPar.freqList[self.unit] * (2 * np.pi * phPar.hbar)
             lMean = (phPar.Phi0 / 2 / np.pi) ** 2 / E_l
 
         if not random:
@@ -159,10 +159,10 @@ class Inductor:
         Return the inductive energy of the capacitor in frequency unit of SQcircuit (gigahertz
         by default).
         """
-        if self.lUnit in phPar.freqList:
-            return self.lValue * phPar.freqList[self.lUnit]/phPar.freq
+        if self.unit in phPar.freqList:
+            return self.lValue * phPar.freqList[self.unit]/phPar.freq
         else:
-            l = self.lValue * phPar.henryList[self.lUnit]
+            l = self.lValue * phPar.henryList[self.unit]
             return (phPar.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * phPar.hbar)/phPar.freq
 
 
@@ -194,16 +194,16 @@ class Junction:
         The error in fabrication as a percentage.
     """
 
-    def __init__(self, value, jUnit, cap=Capacitor(Q=None), A=1e-7, x=3e-06, delta=3.4e-4,
+    def __init__(self, value, unit, cap=Capacitor(Q=None), A=1e-7, x=3e-06, delta=3.4e-4,
                  Y="default", error=0, loops=None):
 
-        if jUnit not in phPar.freqList:
+        if unit not in phPar.freqList:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
                     "correct input format."
             raise ValueError(error)
 
         self.jValue = value
-        self.jUnit = jUnit
+        self.unit = unit
         self.cap = cap
         self.error = error
         self.type = type(self)
@@ -235,7 +235,7 @@ class Junction:
             random: bool
                 A boolean flag which specifies whether the output is deterministic or random.
         """
-        jMean = self.jValue * phPar.freqList[self.jUnit] * 2 * np.pi
+        jMean = self.jValue * phPar.freqList[self.unit] * 2 * np.pi
 
         if not random:
             return jMean
