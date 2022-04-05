@@ -25,10 +25,16 @@ class Circuit:
     Parameters
     ----------
         circuitElements: dict
-            a dictionary that contains the circuit's elements at each branch of the circuit.
+            A dictionary that contains the circuit's elements at each branch of the circuit.
         random: bool
-            If `True`, each circuit's element is a random number due to fabrication error. This
+            If `True`, each element of the circuit is a random number due to fabrication error. This
             is necessary for robustness analysis.
+        fluxDist: str
+            Provide the method of distributing the external fluxes. If `fluxDist` is `None`( the default value)
+            , the SQcircuit assign the external fluxes based on the capacitor of each inductive element.
+            If `fluxDist` is `"inductor"` SQcircuit finds the external flux distribution by assuming the
+            capacitor of the inductors are much smaller than the junction capacitors, If `fluxDist` is `"junction"`
+            it is the other way around.
     """
 
     # external charges of the circuit
@@ -64,7 +70,7 @@ class Circuit:
     # experiment time
     tExp = 10e-6
 
-    def __init__(self, circuitElements: dict, random: bool = False):
+    def __init__(self, circuitElements: dict, random: bool = False, fluxDist: str = None):
 
         # circuit inductive loops
         self.loops = []
@@ -78,6 +84,8 @@ class Circuit:
         self.circuitElements = circuitElements
 
         self.random = random
+
+        self.fluxDist = fluxDist
 
         # number of nodes
         self.n = max(max(self.circuitElements))
@@ -231,7 +239,12 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    cEd.append(el.cap.value())
+                    if self.fluxDist is None:
+                        cEd.append(el.cap.value())
+                    elif self.fluxDist == "junction" or self.fluxDist == "Junction":
+                        cEd.append(Capacitor(1e20).value())
+                    elif self.fluxDist == "inductor" or self.fluxDist == "Inductor":
+                        cEd.append(Capacitor().value())
 
                     count += 1
 
@@ -246,7 +259,12 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    cEd.append(el.cap.value())
+                    if self.fluxDist is None:
+                        cEd.append(el.cap.value())
+                    elif self.fluxDist == "junction" or self.fluxDist == "Junction":
+                        cEd.append(Capacitor().value())
+                    elif self.fluxDist == "inductor" or self.fluxDist == "Inductor":
+                        cEd.append(Capacitor(1e20).value())
 
                     count += 1
 
@@ -299,6 +317,7 @@ class Circuit:
         if numLoop != 0:
             Y = np.concatenate((np.zeros((count - numLoop, numLoop)), np.eye(numLoop)), axis=0)
             self.K2 = np.linalg.inv(X) @ Y
+            self.K2 = np.around(self.K2, 5)
 
         self.countJJnoInd = countJJnoInd
 
