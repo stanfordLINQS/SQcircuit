@@ -2,7 +2,7 @@
 <img src = pics/README_logo.png width= 250px" />
 </p>
 
-# SQcircuit: superconducting quantum circuit analyzer
+# SQcircuit: Superconducting Quantum Circuit Analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
 |[**Installation**](#Installation)
 |[**Documentation**](#Documentation)
