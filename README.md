@@ -104,9 +104,11 @@ The frequency unit in SQcircuit is GHz by default. However, one can simply chang
 ## Examples
 To show the potential of SQcircuit for analyzing the arbitrary superconducting quantum circuits, we have provided
 variety of examples from state-of-the-art circuits in the literature at:
+
 https://examples.sqcircuit.org
 
 The source of Jupyter notebooks can be found at:
+
 https://github.com/stanfordLINQS/SQcircuit-examples
 ## Contribution
 You are very welcome to contribute to SQcircuit development by forking this repository and sending pull requests,
