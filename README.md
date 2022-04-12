@@ -29,7 +29,9 @@ pip install SQcircuit
 ```
 
 ## Documentation
-The documentation of the SQcircuit is provided at: to be published soon
+The documentation of the SQcircuit is provided at:
+[sqcircuit.org](https://sqcircuit.org)
+
 
 ## Quick Tutorial
 
@@ -105,9 +107,9 @@ The frequency unit in SQcircuit is GHz by default. However, one can simply chang
 To show the potential of SQcircuit for analyzing the arbitrary superconducting quantum circuits, we have provided
 variety of examples from state-of-the-art circuits in the literature at:
 
-https://examples.sqcircuit.org
+[examples.sqcircuit.org](https://examples.sqcircuit.org)
 
-The source of Jupyter notebooks can be found at:
+The source of Jupyter notebook examples can be found at:
 
 https://github.com/stanfordLINQS/SQcircuit-examples
 ## Contribution
