@@ -23,7 +23,12 @@ dephasing rate, decay rates, etc.
 [1] To be published soon
 
 ## Installation
-SQcirucit can be simply installed via pip:
+For Python above 3.6, SQcirucit can be simply installed via Conda:
+```
+conda install -c conda-forge sqcircuit
+```
+Alternatively, installation via pip is also provided. (Note that installing pip under Conda environment
+is not recommended.)
 ```
 pip install SQcircuit
 ```
@@ -107,7 +112,7 @@ The frequency unit in SQcircuit is GHz by default. However, one can simply chang
 To show the potential of SQcircuit for analyzing the arbitrary superconducting quantum circuits, we have provided
 variety of examples from state-of-the-art circuits in the literature at:
 
-[examples.sqcircuit.org](https://examples.sqcircuit.org)
+[examples.sqcircuit.org](https://docs.sqcircuit.org/examples.html)
 
 The source of Jupyter notebook examples can be found at:
 
