@@ -866,6 +866,7 @@ class Circuit:
 
         countInd = 0
         countJJ = 0
+        JJFlag = False
         H = q.Qobj()
         self.junctionHamil = {'cos': {}, 'sin': {}, 'sinHalf': {}}
         self.inductorHamil = {}
@@ -912,7 +913,11 @@ class Circuit:
                     self.junctionHamil['sinHalf'][el] = (HJ_expRoot - HJ_expRoot.dag()) / 1j
 
                     countInd += 1
-                    countJJ += 1
+                    JJFlag = True
+
+            if JJFlag:
+                countJJ += 1
+                JJFlag = False
 
         return H
 
