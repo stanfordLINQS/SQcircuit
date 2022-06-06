@@ -16,28 +16,34 @@ class Capacitor:
     ----------
     value: float
         The value of the capacitor.
-    unit: string
-        The unit of input value. If `unit` is "THz", "GHz", and ,etc., the value specifies the
-        charging energy of the capacitor. If `unit` is "fF", "pF", and ,etc., the value specifies
-        the capacitance in farad.
+    unit: str
+        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc., the value specifies the
+        charging energy of the capacitor. If ``unit`` is "fF", "pF", and ,etc., the value specifies
+        the capacitance in farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
     Q:
         Quality factor of the dielectric of the capacitor which is one over tangent loss. It can be either
         a float number or a Python function of angular frequency.
     error: float
         The error in fabrication as a percentage.
+    idStr: str
+        ID string for the capacitor.
     """
 
-    def __init__(self, value=1e-20, unit="F", Q="default", error=0):
+    def __init__(self, value, unit=None, Q="default", error=0, idStr=None):
 
-        if unit not in phPar.freqList and unit not in phPar.faradList:
+        if unit not in phPar.freqList and unit not in phPar.faradList and unit is not None:
             error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
 
         self.cValue = value
-        self.unit = unit
         self.error = error
         self.type = type(self)
+
+        if unit is None:
+            self.unit = phPar.capU
+        else:
+            self.unit = unit
 
         if Q == "default":
             self.Q = lambda omega: 1e6 * (2 * np.pi * 6e9 / np.abs(omega)) ** 0.7
@@ -45,6 +51,11 @@ class Capacitor:
             self.Q = lambda omega: Q
         else:
             self.Q = Q
+
+        if idStr is None:
+            self.idStr = "C_{}_{}".format(value, self.unit)
+        else:
+            self.idStr = idStr
 
     def value(self, random: bool = False):
         """
@@ -87,10 +98,10 @@ class Inductor:
     ----------
     value: float
         The value of the inductor.
-    unit: string
-        The unit of input value. If `unit` is "THz", "GHz", and ,etc., the value specifies the
-        inductive energy of the inductor. If `unit` is "fH", "pH", and ,etc., the value specifies
-        the inductance in henry.
+    unit: str
+        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc., the value specifies the
+        inductive energy of the inductor. If ``unit`` is "fH", "pH", and ,etc., the value specifies
+        the inductance in henry. If ``unit`` is ``None``, the default unit of inductor is "GHz".
     loops: list
         List of loops in which the inductor resides.
     cap: SQcircuit.Capacitor
@@ -101,20 +112,32 @@ class Inductor:
         a float number or a Python function of angular frequency and temperature.
     error: float
         The error in fabrication as a percentage.
+    idStr: str
+        ID string for the inductor.
     """
 
-    def __init__(self, value, unit, cap=Capacitor(Q=None), Q="default", error=0, loops=None):
+    def __init__(self, value, unit=None, cap=None, Q="default", error=0, loops=None, idStr=None):
 
-        if unit not in phPar.freqList and unit not in phPar.henryList:
+        if unit not in phPar.freqList and unit not in phPar.henryList and unit is not None:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
                     "format."
             raise ValueError(error)
 
         self.lValue = value
-        self.unit = unit
-        self.cap = cap
         self.error = error
         self.type = type(self)
+        self.idStr = idStr
+
+        if unit is None:
+            self.unit = phPar.indU
+        else:
+            self.unit = unit
+
+        if cap is None:
+            self.cap = Capacitor(1e-20, "F", Q=None)
+        else:
+            self.cap = cap
+
         if loops is None:
             self.loops = []
         else:
@@ -132,6 +155,11 @@ class Inductor:
             self.Q = lambda omega, T: Q
         else:
             self.Q = Q
+
+        if idStr is None:
+            self.idStr = "L_{}_{}".format(value, self.unit)
+        else:
+            self.idStr = idStr
 
     def value(self, random: bool = False):
         """
@@ -171,12 +199,12 @@ class Junction:
     Class that contains the Josephson junction properties.
 
     Parameters
-    ----------
+    -----------
     value: float
         The value of the Josephson junction.
-    unit: string
-        The unit of input value. The `unit` can be "THz", "GHz", and ,etc., that specifies the
-        junction energy of the inductor.
+    unit: str
+        The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc., that specifies the
+        junction energy of the inductor. If ``unit`` is ``None``, the default unit of junction is "GHz".
     loops: list
         List of loops in which the Josephson junction reside.
     cap: SQcircuit.Capacitor
@@ -192,22 +220,34 @@ class Junction:
         Real part of admittance.
     error: float
         The error in fabrication as a percentage.
+    idStr: str
+        ID string for the junction.
     """
 
-    def __init__(self, value, unit, cap=Capacitor(Q=None), A=1e-7, x=3e-06, delta=3.4e-4,
-                 Y="default", error=0, loops=None):
+    def __init__(self, value, unit=None, cap=None, A=1e-7, x=3e-06, delta=3.4e-4,
+                 Y="default", error=0, loops=None, idStr=None):
 
-        if unit not in phPar.freqList:
+        if unit not in phPar.freqList and unit is not None:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
                     "correct input format."
             raise ValueError(error)
 
         self.jValue = value
-        self.unit = unit
-        self.cap = cap
         self.error = error
         self.type = type(self)
         self.A = A
+        self.idStr = idStr
+
+        if unit is None:
+            self.unit = phPar.junU
+        else:
+            self.unit = unit
+
+        if cap is None:
+            self.cap = Capacitor(1e-20, "F", Q=None)
+        else:
+            self.cap = cap
+
         if loops is None:
             self.loops = []
         else:
@@ -224,6 +264,11 @@ class Junction:
             self.Y = yQP
         else:
             self.Y = Y
+
+        if idStr is None:
+            self.idStr = "JJ_{}_{}".format(value, self.unit)
+        else:
+            self.idStr = idStr
 
     def value(self, random: bool = False):
         """
@@ -253,9 +298,11 @@ class Loop:
             Value of the external flux at the loop.
         A: float
             Normalized noise amplitude related to flux noise.
+        idStr: str
+            ID string for the loop.
     """
 
-    def __init__(self, value=0, A=1e-6):
+    def __init__(self, value=0, A=1e-6, idStr=None):
 
         self.lpValue = value * 2 * np.pi
         self.A = A * 2 * np.pi
@@ -263,6 +310,11 @@ class Loop:
         self.indices = []
         # k1 matrix related to this specific loop
         self.K1 = []
+
+        if idStr is None:
+            self.idStr = "loop"
+        else:
+            self.idStr = idStr
 
     def reset(self):
         self.K1 = []
@@ -316,7 +368,7 @@ class Loop:
 
 class Charge:
     """
-    class that contains the charge offset properties.
+    class that contains the charge island properties.
     """
 
     def __init__(self, value=0, A=1e-4):

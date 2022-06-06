@@ -1,8 +1,6 @@
 """
 test_elements contains the test cases for the SQcircuit elements functionalities.
 """
-import pytest
-from SQcircuit.elements import *
 import SQcircuit as sq
 
 

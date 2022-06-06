@@ -25,16 +25,79 @@ k_B = 1.38e-23
 # main frequency unit of the SQcircuit
 freq = freqList["GHz"]
 
+# default unit of capacitors
+capU = "GHz"
 
-def setFreq(fUnit):
+# default unit of inductors
+indU = "GHz"
+
+# default unit of JJs
+junU = "GHz"
+
+
+def setFreq(unit: str):
     """
-    changes the main frequency unit of the SQcircuit
-    inputs:
-        -- fUnit: the desired frequency unit
+    Change the main frequency unit of the SQcircuit.
+
+    Parameters
+    ----------
+        -- unit: str
+        The desired frequency unit, which can be "THz", "GHz", and ,etc.
     """
-    assert fUnit in freqList, "The input format is not correct."
+    assert unit in freqList, "The input format is not correct."
 
     global freq
 
-    freq = freqList[fUnit]
+    freq = freqList[unit]
 
+
+def setCap(unit: str):
+    """
+    Change the default unit for capacitors
+
+    Parameters
+    ----------
+        -- unit: str
+        The desired capacitor default unit, which can be "THz", "GHz", and, etc., or "fF", "pF", and ,etc.
+    """
+    if unit not in freqList and unit not in faradList:
+        error = "The input unit is not correct. Look at the documentation for the correct input format."
+        raise ValueError(error)
+
+    global capU
+
+    capU = unit
+
+
+def setInd(unit: str):
+    """
+    Change the default unit for inductors
+
+    Parameters
+    ----------
+        -- unit: str
+         The desired inductor default unit, which can be "THz", "GHz", and, etc., or "fH", "pH", and ,etc.
+    """
+    if unit not in freqList and unit not in henryList:
+        error = "The input unit is not correct. Look at the documentation for the correct input format."
+        raise ValueError(error)
+
+    global indU
+
+    indU = unit
+
+
+def setJJ(unit: str):
+    """
+    Change the default unit for Josephson junctions.
+
+    Parameters
+    ----------
+        -- unit: str
+        The desired Josephson junction default unit, which can be "THz", "GHz", and ,etc.
+    """
+    assert unit in freqList, "The input format is not correct."
+
+    global junU
+
+    junU = unit

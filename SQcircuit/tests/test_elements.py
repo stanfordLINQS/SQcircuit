@@ -47,6 +47,19 @@ def test_capacitorQ():
     cap = Capacitor(10, "GHz", Q=Q)
     assert cap.Q(2) == 4
 
+
+def test_capacitorUnit():
+    cap = Capacitor(10)
+    val = cap.value()
+    assert cap.energy() == 10
+    assert cap.unit == "GHz"
+
+    sq.units.setCap("F")
+    cap = Capacitor(val)
+    assert cap.energy() == 10
+    assert cap.unit == "F"
+
+
 #######################################
 # Inductor Tests
 #######################################
@@ -94,6 +107,18 @@ def test_inductorQ():
     assert ind.Q(2, 10) == 4
 
 
+def test_inductorUnit():
+    ind = Inductor(10)
+    val = ind.value()
+    assert ind.energy() == 10
+    assert ind.unit == "GHz"
+
+    sq.units.setInd("H")
+    ind = Inductor(val)
+    assert ind.energy() == 10
+    assert ind.unit == "H"
+
+
 #######################################
 # Josephson Junction Tests
 #######################################
@@ -110,3 +135,11 @@ def test_junctionY():
     JJ = Junction(10, "GHz", Y=yFunc)
     assert JJ.Y(10, 2) == 20
 
+
+def test_junctionUnit():
+    JJ = Junction(10)
+    assert JJ.unit == "GHz"
+
+    sq.units.setJJ("MHz")
+    JJ = Junction(10)
+    assert JJ.unit == "MHz"
