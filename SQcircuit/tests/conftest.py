@@ -41,7 +41,7 @@ class QubitTest:
         dec = None
 
         # build the new circuit based on data circuit parameters
-        newCr = Circuit(data.cr.circuitElements)
+        newCr = Circuit(data.cr.circuitElements, fluxDist='all')
         newCr.truncationNumbers(data.cr.m)
 
         if data.dec:

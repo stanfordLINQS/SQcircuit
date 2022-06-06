@@ -83,7 +83,7 @@ class Sweep(SQdata):
             for i, ind in enumerate(indices):
                 loops[i].setFlux(grid[i][ind])
 
-            evec, _ = self.cr.diag(self.numEig)
+            evec, _ = self.cr.eig(self.numEig)
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
                 for decType in self.dec.keys():
@@ -119,7 +119,7 @@ class Sweep(SQdata):
             for i, ind in enumerate(indices):
                 self.cr.chargeOffset(mode=modes[i], ng=grid[i][ind])
 
-            evec, _ = self.cr.diag(self.numEig)
+            evec, _ = self.cr.eig(self.numEig)
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
                 for decType in self.dec.keys():

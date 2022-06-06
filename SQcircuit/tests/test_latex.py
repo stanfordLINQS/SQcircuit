@@ -21,7 +21,7 @@ def test_zeroPiDescription():
                 }
 
     # cr is an object of Qcircuit
-    cr = sq.Circuit(elements, fluxDist='junction')
+    cr = sq.Circuit(elements, fluxDist='junctions')
 
     txt = cr.description(tp='txt', _test=True)
 

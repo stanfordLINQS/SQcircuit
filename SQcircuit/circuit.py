@@ -26,14 +26,15 @@ class Circuit:
 
     Parameters
     ----------
-        circuitElements: dict
+        elements: dict
             A dictionary that contains the circuit's elements at each branch of the circuit.
         random: bool
             If `True`, each element of the circuit is a random number due to fabrication error. This
             is necessary for robustness analysis.
         fluxDist: str
-            Provide the method of distributing the external fluxes. If `fluxDist` is `None`( the default value)
-            , the SQcircuit assign the external fluxes based on the capacitor of each inductive element.
+            Provide the method of distributing the external fluxes. If ``fluxDist`` is ``"all"``,
+            SQcircuit assign the external fluxes based on the capacitor of each inductive element
+            (This option is necessary for time-dependent external fluxes).
             If `fluxDist` is `"inductor"` SQcircuit finds the external flux distribution by assuming the
             capacitor of the inductors are much smaller than the junction capacitors, If `fluxDist` is `"junction"`
             it is the other way around.
@@ -72,7 +73,7 @@ class Circuit:
     # experiment time
     tExp = 10e-6
 
-    def __init__(self, circuitElements: dict, random: bool = False, fluxDist: str = None):
+    def __init__(self, elements: dict, random: bool = False, fluxDist: str = 'junctions'):
 
         # circuit inductive loops
         self.loops = []
@@ -83,14 +84,14 @@ class Circuit:
         # loop distribution over inductive elements.
         self.K2 = None
 
-        self.circuitElements = circuitElements
+        self.elements = elements
 
         self.random = random
 
         self.fluxDist = fluxDist
 
         # number of nodes
-        self.n = max(max(self.circuitElements))
+        self.n = max(max(self.elements))
 
         # number of branches that contain JJ without parallel inductor.
         self.countJJnoInd = 0
@@ -207,7 +208,7 @@ class Circuit:
         # capacitor at each inductive elements
         cEd = []
 
-        for edge in self.circuitElements.keys():
+        for edge in self.elements.keys():
             # i1 and i2 are the nodes of the edge
             i1, i2 = edge
 
@@ -220,7 +221,7 @@ class Circuit:
                 w[i2] -= 1
 
             # elements of the edge
-            edgeElements = self.circuitElements[edge]
+            edgeElements = self.elements[edge]
 
             # list of capacitors of the edge.
             capList = []
@@ -246,11 +247,11 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    if self.fluxDist is None:
+                    if self.fluxDist == 'all' or self.fluxDist == 'All':
                         cEd.append(el.cap.value())
-                    elif self.fluxDist == "junction" or self.fluxDist == "Junction":
+                    elif self.fluxDist == "junctions" or self.fluxDist == "Junctions":
                         cEd.append(Capacitor(1e20, "F").value())
-                    elif self.fluxDist == "inductor" or self.fluxDist == "Inductor":
+                    elif self.fluxDist == "inductors" or self.fluxDist == "Inductors":
                         cEd.append(Capacitor(1e-20, "F").value())
 
                     count += 1
@@ -267,11 +268,11 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    if self.fluxDist is None:
+                    if self.fluxDist == 'all' or self.fluxDist == 'All':
                         cEd.append(el.cap.value())
-                    elif self.fluxDist == "junction" or self.fluxDist == "Junction":
+                    elif self.fluxDist == "junctions" or self.fluxDist == "Junctions":
                         cEd.append(Capacitor(1e-20, "F").value())
-                    elif self.fluxDist == "inductor" or self.fluxDist == "Inductor":
+                    elif self.fluxDist == "inductors" or self.fluxDist == "Inductors":
                         cEd.append(Capacitor(1e20, "F").value())
 
                     count += 1
@@ -1028,10 +1029,10 @@ class Circuit:
         self.junctionHamil = {'cos': {}, 'sin': {}, 'sinHalf': {}}
         self.inductorHamil = {}
 
-        for edge in self.circuitElements.keys():
+        for edge in self.elements.keys():
 
             # elements of the edge
-            edgeElements = self.circuitElements[edge]
+            edgeElements = self.elements[edge]
 
             for el in edgeElements:
 
@@ -1078,7 +1079,7 @@ class Circuit:
 
         return H
 
-    def diag(self, numEig: int):
+    def eig(self, numEig: int):
         """
         Diagonalize the Hamiltonian of the circuit and return the eigenrfequencies and eigenvectors of the circuit up
         to specified number of eigenvalues.
@@ -1394,9 +1395,9 @@ class Circuit:
 
         if decType == "capacitive":
 
-            for edge in self.circuitElements.keys():
+            for edge in self.elements.keys():
 
-                for el in self.circuitElements[edge]:
+                for el in self.elements[edge]:
                     if isinstance(el, Capacitor):
                         cap = el
                     else:
