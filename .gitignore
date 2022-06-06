@@ -11,6 +11,10 @@
 /SQcircuit/__pycache__
 /SQcircuit/tests/__pycache__
 /SQcircuit/tests/dataSetGen.py
+/SQcircuit/tests/.ipynb_checkpoints/
+/SQcircuit/tests/jupyter_Test.ipynb
 
 /examples/.ipynb_checkpoints/
+
+
 
