@@ -1079,9 +1079,9 @@ class Circuit:
 
         return H
 
-    def eig(self, numEig: int):
+    def diag(self, numEig: int):
         """
-        Diagonalize the Hamiltonian of the circuit and return the eigenrfequencies and eigenvectors of the circuit up
+        Diagonalize the Hamiltonian of the circuit and return the eigenfrequencies and eigenvectors of the circuit up
         to specified number of eigenvalues.
 
         Parameters
