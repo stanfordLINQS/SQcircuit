@@ -88,6 +88,8 @@ class Circuit:
 
         self.random = random
 
+        error = "fluxDist option must be either \"junctions\", \"inductors\", or \"all\""
+        assert fluxDist in ["junctions", "Junctions", "inductors", "Inductors", "all", "All"], error
         self.fluxDist = fluxDist
 
         # number of nodes
@@ -528,28 +530,36 @@ class Circuit:
         # set the external charge for each charge mode.
         self.extCharge = {i: Charge() for i in range(self.n) if self.omega[i] == 0}
 
-        # get the second transformation:
-        self.S2, self.R2 = self.transform2(self.omega, self.S1)
+        # the case that circuit has no JJ
+        if len(self.W) == 0:
 
-        # apply the second transformation on self.cInvTrans
-        self.cInvTrans = self.R2.T @ self.cInvTrans @ self.R2
+            self.S = self.S1
+            self.R = self.R1
 
-        # get the transformed W matrix
-        self.wTrans = self.W @ self.S1 @ self.S2
-        if self.countJJnoInd == 0:
-            self.wTrans[:, self.omega == 0] = 0
-        # wQ = self.wTrans[:, self.omega == 0]
-        # wQ[np.abs(wQ) < 0.98] = 0
-        # self.wTrans[:, self.omega == 0] = wQ
+        else:
 
-        # scaling the modes
-        self.S3, self.R3 = self.transform3()
+            # get the second transformation:
+            self.S2, self.R2 = self.transform2(self.omega, self.S1)
 
-        # The final transformations are:
-        self.S = self.S1 @ self.S2 @ self.S3
-        self.R = self.R1 @ self.R2 @ self.R3
+            # apply the second transformation on self.cInvTrans
+            self.cInvTrans = self.R2.T @ self.cInvTrans @ self.R2
 
-        # self.cTrans = np.linalg.inv(self.cInvTrans)
+            # get the transformed W matrix
+            self.wTrans = self.W @ self.S1 @ self.S2
+            if self.countJJnoInd == 0:
+                self.wTrans[:, self.omega == 0] = 0
+            # wQ = self.wTrans[:, self.omega == 0]
+            # wQ[np.abs(wQ) < 0.98] = 0
+            # self.wTrans[:, self.omega == 0] = wQ
+
+            # scaling the modes
+            self.S3, self.R3 = self.transform3()
+
+            # The final transformations are:
+            self.S = self.S1 @ self.S2 @ self.S3
+            self.R = self.R1 @ self.R2 @ self.R3
+
+            # self.cTrans = np.linalg.inv(self.cInvTrans)
 
     def description(self, tp=None, _test=False):
         """
@@ -562,7 +572,7 @@ class Circuit:
                 If ``None`` prints out the output as Latex if SQcircuit is running in a Jupyter notebook and as text
                 if SQcircuit is running in Python terminal. If ``tp`` is ``"ltx"``, the output is in Latex format
                 if ``tp`` is ``"txt"`` the output is in text format.
-            -test: bool
+            _test: bool
                 if True, return the entire description as string text. (use only for testing the function)
         """
         if tp is None:
@@ -581,7 +591,7 @@ class Circuit:
         if self.K2 is not None:
             B = np.round(self.K2, 2)
         else:
-            B = np.zeros((1, 1))
+            B = np.zeros((len(self.indElemLst), 1))
         EJLst = []
         ELLst = []
 
@@ -593,17 +603,22 @@ class Circuit:
                 if j >= i:
                     hamilTxt += txt.Ec(harDim + i + 1, harDim + j + 1) + txt.n(harDim + i + 1, harDim + j + 1) + txt.p()
 
+        countWJJ = -1
         countJJ = 0
         countInd = 0
+        edgeVisited = []
         JJHamilTxt = ""
         indHamilTxt = ""
 
         for i, (edge, el) in enumerate(self.indElemLst):
 
             if isinstance(el, Junction):
+                if edge not in edgeVisited:
+                    countWJJ += 1
+                    edgeVisited.append(edge)
                 EJLst.append(el.value()/2/np.pi/phPar.freq)
                 junTxt = txt.Ej(countJJ + 1) + txt.cos() + "("
-                junTxt += txt.linear(txt.phi, W[countJJ, :]) + txt.linear(txt.phiExt, B[i, :], st=False)
+                junTxt += txt.linear(txt.phi, W[countWJJ, :]) + txt.linear(txt.phiExt, B[i, :], st=False)
                 JJHamilTxt += junTxt + ")" + txt.p()
                 countJJ += 1
 
@@ -660,11 +675,11 @@ class Circuit:
                         Ec = (2 * phPar.e) ** 2 / (phPar.hbar * 2 * np.pi * phPar.freq) * self.cInvTrans[
                             harDim + i, harDim + j]
 
-                    paramTxt += str(np.round(Ec, 6)) + txt.tab()
+                    paramTxt += str(np.round(Ec, 3)) + txt.tab()
         for i in range(len(ELLst)):
-            paramTxt += txt.El(i + 1) + txt.eq() + str(np.round(ELLst[i], 6)) + txt.tab()
+            paramTxt += txt.El(i + 1) + txt.eq() + str(np.round(ELLst[i], 3)) + txt.tab()
         for i in range(len(EJLst)):
-            paramTxt += txt.Ej(i+1) + txt.eq() + str(np.round(EJLst[i], 6)) + txt.tab()
+            paramTxt += txt.Ej(i+1) + txt.eq() + str(np.round(EJLst[i], 3)) + txt.tab()
         paramTxt += '\n'
 
         loopTxt = txt.loops() + txt.tab()
