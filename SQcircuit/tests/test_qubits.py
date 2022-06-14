@@ -3,6 +3,8 @@ test_qubits contains the test cases for well-known qubits.
 """
 
 from SQcircuit.tests.conftest import QubitTest
+import SQcircuit as sq
+import numpy as np
 
 
 class TestZeroPi(QubitTest):
@@ -48,4 +50,20 @@ class TestTransmon(QubitTest):
     @classmethod
     def setup_class(cls):
         cls.fileName = "Transmon_1"
+
+
+def test_resonator():
+    """
+    function for testing simple resonator.
+    """
+    C = sq.Capacitor(1 / 2 / np.pi, 'pF', Q=1e6)
+    L = sq.Inductor(1 / 2 / np.pi, 'uH', Q=500e6)
+
+    circuitElements = {
+        (0, 1): [L, C],
+    }
+
+    cr = sq.Circuit(circuitElements)
+
+    assert np.isclose(cr.omega/2/np.pi/1e9, 1)[0]
 
