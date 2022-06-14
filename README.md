@@ -1,3 +1,4 @@
+<br />
 <p align="center">
 <img src = pics/README_logo.png width= 500px" />
 </p>
