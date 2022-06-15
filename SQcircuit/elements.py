@@ -25,11 +25,11 @@ class Capacitor:
         a float number or a Python function of angular frequency.
     error: float
         The error in fabrication as a percentage.
-    idStr: str
+    id_str: str
         ID string for the capacitor.
     """
 
-    def __init__(self, value, unit=None, Q="default", error=0, idStr=None):
+    def __init__(self, value, unit=None, Q="default", error=0, id_str=None):
 
         if unit not in phPar.freqList and unit not in phPar.faradList and unit is not None:
             error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
@@ -52,10 +52,10 @@ class Capacitor:
         else:
             self.Q = Q
 
-        if idStr is None:
-            self.idStr = "C_{}_{}".format(value, self.unit)
+        if id_str is None:
+            self.id_str = "C_{}_{}".format(value, self.unit)
         else:
-            self.idStr = idStr
+            self.id_str = id_str
 
     def value(self, random: bool = False):
         """
@@ -112,11 +112,11 @@ class Inductor:
         a float number or a Python function of angular frequency and temperature.
     error: float
         The error in fabrication as a percentage.
-    idStr: str
+    id_str: str
         ID string for the inductor.
     """
 
-    def __init__(self, value, unit=None, cap=None, Q="default", error=0, loops=None, idStr=None):
+    def __init__(self, value, unit=None, cap=None, Q="default", error=0, loops=None, id_str=None):
 
         if unit not in phPar.freqList and unit not in phPar.henryList and unit is not None:
             error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
@@ -126,7 +126,7 @@ class Inductor:
         self.lValue = value
         self.error = error
         self.type = type(self)
-        self.idStr = idStr
+        self.id_str = id_str
 
         if unit is None:
             self.unit = phPar.indU
@@ -156,10 +156,10 @@ class Inductor:
         else:
             self.Q = Q
 
-        if idStr is None:
-            self.idStr = "L_{}_{}".format(value, self.unit)
+        if id_str is None:
+            self.id_str = "L_{}_{}".format(value, self.unit)
         else:
-            self.idStr = idStr
+            self.id_str = id_str
 
     def value(self, random: bool = False):
         """
@@ -220,12 +220,12 @@ class Junction:
         Real part of admittance.
     error: float
         The error in fabrication as a percentage.
-    idStr: str
+    id_str: str
         ID string for the junction.
     """
 
     def __init__(self, value, unit=None, cap=None, A=1e-7, x=3e-06, delta=3.4e-4,
-                 Y="default", error=0, loops=None, idStr=None):
+                 Y="default", error=0, loops=None, id_str=None):
 
         if unit not in phPar.freqList and unit is not None:
             error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
@@ -236,7 +236,7 @@ class Junction:
         self.error = error
         self.type = type(self)
         self.A = A
-        self.idStr = idStr
+        self.id_str = id_str
 
         if unit is None:
             self.unit = phPar.junU
@@ -265,10 +265,10 @@ class Junction:
         else:
             self.Y = Y
 
-        if idStr is None:
-            self.idStr = "JJ_{}_{}".format(value, self.unit)
+        if id_str is None:
+            self.id_str = "JJ_{}_{}".format(value, self.unit)
         else:
-            self.idStr = idStr
+            self.id_str = id_str
 
     def value(self, random: bool = False):
         """
@@ -298,11 +298,11 @@ class Loop:
             Value of the external flux at the loop.
         A: float
             Normalized noise amplitude related to flux noise.
-        idStr: str
+        id_str: str
             ID string for the loop.
     """
 
-    def __init__(self, value=0, A=1e-6, idStr=None):
+    def __init__(self, value=0, A=1e-6, id_str=None):
 
         self.lpValue = value * 2 * np.pi
         self.A = A * 2 * np.pi
@@ -311,10 +311,10 @@ class Loop:
         # k1 matrix related to this specific loop
         self.K1 = []
 
-        if idStr is None:
-            self.idStr = "loop"
+        if id_str is None:
+            self.id_str = "loop"
         else:
-            self.idStr = idStr
+            self.id_str = id_str
 
     def reset(self):
         self.K1 = []

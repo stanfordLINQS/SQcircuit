@@ -1117,18 +1117,18 @@ class Circuit:
     # Methods that calculate circuit properties
     ###############################################
 
-    def coordinateTransformation(self, opType: str):
+    def coord_transform(self, var_type: str):
         """
-        Return the transformation of the coordinates for each type of operators, either charge or flux.
+        Return the transformation of the coordinates for each type of variables, either charge or flux.
 
         Parameters
         ----------
-            opType: str
+            var_type: str
                 The type of the operators that can be either `"charge"` or `"flux"`.
         """
-        if opType == "charge" or opType == "Charge":
+        if var_type == "charge" or var_type == "Charge":
             return np.linalg.inv(self.R)
-        elif opType == "flux" or opType == "Flux":
+        elif var_type == "flux" or var_type == "Flux":
             return np.linalg.inv(self.S)
         else:
             raise ValueError(" The input must be either \"charge\" or \"flux\".")
