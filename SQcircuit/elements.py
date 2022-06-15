@@ -335,7 +335,7 @@ class Loop:
         else:
             return np.random.normal(self.lpValue, self.A, 1)[0]
 
-    def setFlux(self, value):
+    def set_flux(self, value):
         """
         Set the external flux associated to the loop.
 

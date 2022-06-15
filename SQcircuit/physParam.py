@@ -35,7 +35,7 @@ indU = "GHz"
 junU = "GHz"
 
 
-def setFreq(unit: str):
+def set_unit_freq(unit: str):
     """
     Change the main frequency unit of the SQcircuit.
 
@@ -51,7 +51,7 @@ def setFreq(unit: str):
     freq = freqList[unit]
 
 
-def setCap(unit: str):
+def set_unit_cap(unit: str):
     """
     Change the default unit for capacitors
 
@@ -69,7 +69,7 @@ def setCap(unit: str):
     capU = unit
 
 
-def setInd(unit: str):
+def set_unit_ind(unit: str):
     """
     Change the default unit for inductors
 
@@ -87,7 +87,7 @@ def setInd(unit: str):
     indU = unit
 
 
-def setJJ(unit: str):
+def set_unit_JJ(unit: str):
     """
     Change the default unit for Josephson junctions.
 

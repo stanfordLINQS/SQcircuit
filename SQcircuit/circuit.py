@@ -31,12 +31,12 @@ class Circuit:
         random: bool
             If `True`, each element of the circuit is a random number due to fabrication error. This
             is necessary for robustness analysis.
-        fluxDist: str
-            Provide the method of distributing the external fluxes. If ``fluxDist`` is ``"all"``,
+        flux_dist: str
+            Provide the method of distributing the external fluxes. If ``flux_dist`` is ``"all"``,
             SQcircuit assign the external fluxes based on the capacitor of each inductive element
             (This option is necessary for time-dependent external fluxes).
-            If `fluxDist` is `"inductor"` SQcircuit finds the external flux distribution by assuming the
-            capacitor of the inductors are much smaller than the junction capacitors, If `fluxDist` is `"junction"`
+            If `flux_dist` is `"inductor"` SQcircuit finds the external flux distribution by assuming the
+            capacitor of the inductors are much smaller than the junction capacitors, If `flux_dist` is `"junction"`
             it is the other way around.
     """
 
@@ -73,7 +73,7 @@ class Circuit:
     # experiment time
     tExp = 10e-6
 
-    def __init__(self, elements: dict, random: bool = False, fluxDist: str = 'junctions'):
+    def __init__(self, elements: dict, random: bool = False, flux_dist: str = 'junctions'):
 
         # circuit inductive loops
         self.loops = []
@@ -88,9 +88,9 @@ class Circuit:
 
         self.random = random
 
-        error = "fluxDist option must be either \"junctions\", \"inductors\", or \"all\""
-        assert fluxDist in ["junctions", "Junctions", "inductors", "Inductors", "all", "All"], error
-        self.fluxDist = fluxDist
+        error = "flux_dist option must be either \"junctions\", \"inductors\", or \"all\""
+        assert flux_dist in ["junctions", "Junctions", "inductors", "Inductors", "all", "All"], error
+        self.flux_dist = flux_dist
 
         # number of nodes
         self.n = max(max(self.elements))
@@ -131,7 +131,7 @@ class Circuit:
         self.omega = np.zeros(self.n)
 
         # transform the Hamiltonian of the circuit
-        self.transformHamil()
+        self.transform_hamil()
 
         # truncation numbers for each mode
         self.m = []
@@ -146,18 +146,6 @@ class Circuit:
 
     def __setstate__(self, state):
         self.__dict__ = state
-
-    @staticmethod
-    def elementModel(elementList: list, model):
-        """
-            get the list of element with specific model from the list of elements.
-            inputs:
-                -- elementList: a list of objects from Capacitor, Inductor, and JJ class.
-                -- model: model of the element( can be Capacitor, Inductor, or JJ)
-            outputs:
-                -- modelList: list of element with specified model.
-        """
-        return [el for el in elementList if isinstance(el, model)]
 
     @staticmethod
     def _independentRows(A):
@@ -249,11 +237,11 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    if self.fluxDist == 'all' or self.fluxDist == 'All':
+                    if self.flux_dist == 'all' or self.flux_dist == 'All':
                         cEd.append(el.cap.value())
-                    elif self.fluxDist == "junctions" or self.fluxDist == "Junctions":
+                    elif self.flux_dist == "junctions" or self.flux_dist == "Junctions":
                         cEd.append(Capacitor(1e20, "F").value())
-                    elif self.fluxDist == "inductors" or self.fluxDist == "Inductors":
+                    elif self.flux_dist == "inductors" or self.flux_dist == "Inductors":
                         cEd.append(Capacitor(1e-20, "F").value())
 
                     count += 1
@@ -270,11 +258,11 @@ class Circuit:
                         loop.addK1(w[1:])
 
                     K1.append(w[1:])
-                    if self.fluxDist == 'all' or self.fluxDist == 'All':
+                    if self.flux_dist == 'all' or self.flux_dist == 'All':
                         cEd.append(el.cap.value())
-                    elif self.fluxDist == "junctions" or self.fluxDist == "Junctions":
+                    elif self.flux_dist == "junctions" or self.flux_dist == "Junctions":
                         cEd.append(Capacitor(1e-20, "F").value())
-                    elif self.fluxDist == "inductors" or self.fluxDist == "Inductors":
+                    elif self.flux_dist == "inductors" or self.flux_dist == "Inductors":
                         cEd.append(Capacitor(1e20, "F").value())
 
                     count += 1
@@ -334,7 +322,7 @@ class Circuit:
 
         return cMat, lMat, wMat
 
-    def transform1(self):
+    def _transform1(self):
         """
         First transformation of the coordinates that simultaneously diagonalizes
         the capacitance and inductance matrices.
@@ -380,7 +368,7 @@ class Circuit:
 
         return lTrans, cInvTrans, S1, R1
 
-    def transform2(self, omega: np.array, S1: np.array):
+    def _transform2(self, omega: np.array, S1: np.array):
         """
         Second transformation of the coordinates that transforms the subspace of
         the charge operators which are defined in the charge basis in order
@@ -444,7 +432,7 @@ class Circuit:
 
         return S2, R2
 
-    def transform3(self):
+    def _transform3(self):
         """ Third transformation of the coordinates that scales the modes.
         output:
             --  R3: Third transformation of charge operators (self.n,self.n)
@@ -514,14 +502,14 @@ class Circuit:
 
         return S3, R3
 
-    def transformHamil(self):
+    def transform_hamil(self):
         """
         transform the Hamiltonian of the circuit that can be expressed
         in charge and Fock bases
         """
 
         # get the first transformation:
-        self.lTrans, self.cInvTrans, self.S1, self.R1 = self.transform1()
+        self.lTrans, self.cInvTrans, self.S1, self.R1 = self._transform1()
         # second transformation
 
         # natural frequencies of the circuit(zero for modes in charge basis)
@@ -539,7 +527,7 @@ class Circuit:
         else:
 
             # get the second transformation:
-            self.S2, self.R2 = self.transform2(self.omega, self.S1)
+            self.S2, self.R2 = self._transform2(self.omega, self.S1)
 
             # apply the second transformation on self.cInvTrans
             self.cInvTrans = self.R2.T @ self.cInvTrans @ self.R2
@@ -553,7 +541,7 @@ class Circuit:
             # self.wTrans[:, self.omega == 0] = wQ
 
             # scaling the modes
-            self.S3, self.R3 = self.transform3()
+            self.S3, self.R3 = self._transform3()
 
             # The final transformations are:
             self.S = self.S1 @ self.S2 @ self.S3
@@ -694,7 +682,7 @@ class Circuit:
         if _test:
             return finalTxt
 
-    def loopDescription(self):
+    def loop_description(self):
         """
         Print out the external flux distribution over inductive elements.
         """
@@ -729,20 +717,20 @@ class Circuit:
                 row += ("{}" + (nh + 10 - len(str(b))) * " ").format(b)
             print(row)
 
-    def truncationNumbers(self, truncNum: list):
+    def set_trunc_nums(self, nums: list):
         """Set the truncation numbers for each mode.
 
         Parameters
         ----------
-            truncNum: list
+            nums: list
                 A list that contains the truncation numbers for each mode.
         """
 
         error1 = "The input must be be a python list"
-        assert isinstance(truncNum, list), error1
+        assert isinstance(nums, list), error1
         error2 = "The number of modes(length of the input) must be equal to the number of nodes"
-        assert len(truncNum) == self.n, error2
-        self.m = truncNum
+        assert len(nums) == self.n, error2
+        self.m = nums
 
         # squeeze the mode with truncation number equal to 1.
         self.ms = list(filter(lambda x: x != 1, self.m))
@@ -754,7 +742,7 @@ class Circuit:
 
         self.HJJExpList, self.HJJExpRootList = self.getHJJExp(self.cInvTrans, self.lTrans, self.omega, self.wTrans)
 
-    def chargeOffset(self, mode: int, ng: float):
+    def set_charge_offset(self, mode: int, ng: float):
         """set the charge offset for each charge mode.
 
         Parameters
@@ -776,7 +764,7 @@ class Circuit:
 
             self.HLC = self.getLCHamil(self.cInvTrans, self.omega, self.chargeByChargeList, self.numOpList)
 
-    def chargeNoise(self, mode: int, A: float):
+    def set_charge_noise(self, mode: int, A: float):
         """set the charge noise for each charge mode.
 
         Parameters
@@ -1059,7 +1047,7 @@ class Circuit:
 
                     # summation of the 1 over inductor values.
                     x = 1 / el.value(self.random)
-                    O = self.couplingOperator("inductive", edge)
+                    O = self.coupling_op("inductive", edge)
                     O.dims = [self.m, self.m]
                     H += x * phi * (phPar.Phi0 / 2 / np.pi) * O / np.sqrt(phPar.hbar)
 
@@ -1094,25 +1082,25 @@ class Circuit:
 
         return H
 
-    def diag(self, numEig: int):
+    def diag(self, n_eig: int):
         """
         Diagonalize the Hamiltonian of the circuit and return the eigenfrequencies and eigenvectors of the circuit up
         to specified number of eigenvalues.
 
         Parameters
         ----------
-            numEig: int
-                The number of eigenvalues to output. The lower `numEig`, the faster `SQcircuit` finds
+            n_eig: int
+                Number of eigenvalues to output. The lower ``n_eig``, the faster ``SQcircuit`` finds
                 the eigenvalues.
         """
         assert len(self.m) != 0, "Please specify the truncation number for each mode."
-        assert isinstance(numEig, int), "The numEig( number of eigenvalues) should be an integer."
+        assert isinstance(n_eig, int), "n_eig (number of eigenvalues) should be an integer."
 
         H = self.hamiltonian()
 
         # get the data out of qutip variable and use sparse scipy eigen solver which is faster than
         # non-sparse eigen solver
-        eigenValues, eigenVectors = scipy.sparse.linalg.eigs(H.data, numEig, which='SR')
+        eigenValues, eigenVectors = scipy.sparse.linalg.eigs(H.data, n_eig, which='SR')
         # the output of eigen solver is not sorted
         eigenValuesSorted = np.sort(eigenValues.real)
         sortArg = np.argsort(eigenValues)
@@ -1186,13 +1174,13 @@ class Circuit:
 
         return indList
 
-    def eigPhaseCoordinate(self, eigInd: int, grid: list):
+    def eig_phase_coord(self, k: int, grid: list):
         """
         Return the phase coordinate representations of the eigenvectors.
 
         Parameters
         ----------
-            eigInd: int
+            k: int
                 The eigenvector index. For example, we set it to 0 for the ground state and 1
                 for the first excited state.
             grid: list
@@ -1200,7 +1188,7 @@ class Circuit:
                 wavefunction.
         """
 
-        assert isinstance(eigInd, int), "The eigInd( eigen index) should be an integer."
+        assert isinstance(k, int), "The k (index of eigenstate) should be an integer."
 
         phiList = [*np.meshgrid(*grid, indexing='ij')]
 
@@ -1214,7 +1202,7 @@ class Circuit:
             # decomposes the tensor product space index (i) to each mode indices as a list
             indList = self.tensorToModes(i)
 
-            term = self.hamilEigVec[eigInd][i][0, 0]
+            term = self.hamilEigVec[k][i][0, 0]
 
             for mode in range(self.n):
 
@@ -1246,20 +1234,20 @@ class Circuit:
 
         return state
 
-    def couplingOperator(self, copType: str, nodes: tuple):
+    def coupling_op(self, ctype: str, nodes: tuple):
         """
         Return the capacitive or inductive coupling operator related to the specified nodes. The output has the
         QuTip object format.
 
         Parameters
         ----------
-            copType: str
+            ctype: str
                 Coupling type which is either `"capacitive"` or `"inductive"`.
             nodes: tuple
                 A tuple of circuit nodes to which we want to couple.
         """
         error = "The coupling type must be either \"capacitive\" or \"inductive\""
-        assert copType in ["capacitive", "inductive"], error
+        assert ctype in ["capacitive", "inductive"], error
         assert isinstance(nodes, tuple) or isinstance(nodes, list), "Nodes must be either a list or a set."
 
         op = q.Qobj()
@@ -1270,23 +1258,23 @@ class Circuit:
         # for the case that we have ground in the edge
         if 0 in nodes:
             node = node1 + node2
-            if copType == "capacitive":
+            if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
                 K = np.linalg.inv(self.C) @ self.R
                 for i in range(self.n):
                     op += K[node - 1, i] * self.chargeOpList[i]
-            if copType == "inductive":
+            if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
                     op += K[node - 1, i] * self.fluxOpList[i]
 
         else:
-            if copType == "capacitive":
+            if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
                 K = np.linalg.inv(self.C) @ self.R
                 for i in range(self.n):
                     op += (K[node2 - 1, i] - K[node1 - 1, i]) * self.chargeOpList[i]
-            if copType == "inductive":
+            if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
                     op += (K[node1 - 1, i] - K[node2 - 1, i]) * self.fluxOpList[i]
@@ -1296,13 +1284,13 @@ class Circuit:
 
         return op
 
-    def matrixElements(self, copType: str, nodes: tuple, states: tuple):
+    def matrix_elements(self, ctype: str, nodes: tuple, states: tuple):
         """
         Return the matrix element of two eigenstates for either capacitive or inductive coupling.
 
         Parameters
         ----------
-            copType: str
+            ctype: str
                 Coupling type which is either `"capacitive"` or `"inductive"`.
             nodes: tuple
                 A tuple of circuit nodes to which we want to couple.
@@ -1314,11 +1302,11 @@ class Circuit:
         state2 = self.hamilEigVec[states[1]]
 
         # get the coupling operator
-        op = self.couplingOperator(copType, nodes)
+        op = self.coupling_op(ctype, nodes)
 
         return (state1.dag() * op * state2).data[0, 0]
 
-    def setTemperature(self, T: float):
+    def set_temp(self, T: float):
         """
         Set the temperature of the circuit.
 
@@ -1329,7 +1317,7 @@ class Circuit:
         """
         self.T = T
 
-    def setLowFreq(self, value: float, unit: str):
+    def set_low_freq(self, value: float, unit: str):
         """
         Set the low-frequency cut-off.
 
@@ -1340,7 +1328,7 @@ class Circuit:
         """
         self.omegaLow = 2 * np.pi * value * phPar.freqList[unit]
 
-    def setHighFreq(self, value: float, unit: str):
+    def set_high_freq(self, value: float, unit: str):
         """
         Set the high-frequency cut-off.
 
@@ -1351,7 +1339,7 @@ class Circuit:
         """
         self.omegaHigh = 2 * np.pi * value * phPar.freqList[unit]
 
-    def setTexp(self, value: float, unit: str):
+    def set_t_exp(self, value: float, unit: str):
         """
         Set the measurement time.
 
@@ -1362,13 +1350,13 @@ class Circuit:
         """
         self.tExp = value * phPar.timeList[unit]
 
-    def decRate(self, decType: str, states: tuple, total: bool = True):
+    def dec_rate(self, dec_type: str, states: tuple, total: bool = True):
         """ Return the decoherence rate in [1/s] between each two eigenstates for different types of
         depolarization and dephasing.
 
         Parameters
         ----------
-            decType: str
+            dec_type: str
                 decoherence type that can be: `"capacitive"` for capacitive loss; `"inductive"` for inductive loss;
                 `"quasiparticle"` for quasiparticle loss; `"charge"` for charge noise, `"flux"` for flux noise; and
                 `"cc"` for critical current noise.
@@ -1408,7 +1396,7 @@ class Circuit:
         else:
             tempS = down + up
 
-        if decType == "capacitive":
+        if dec_type == "capacitive":
 
             for edge in self.elements.keys():
 
@@ -1419,10 +1407,10 @@ class Circuit:
                         cap = el.cap
 
                     if cap.Q:
-                        decay += tempS * cap.value() / cap.Q(omega) * np.abs(self.matrixElements(
+                        decay += tempS * cap.value() / cap.Q(omega) * np.abs(self.matrix_elements(
                             "capacitive", edge, states)) ** 2
 
-        if decType == "inductive":
+        if dec_type == "inductive":
 
             for indx, el in self.inductorHamil:
                 op = self.inductorHamil[(indx, el)]
@@ -1430,7 +1418,7 @@ class Circuit:
                 if el.Q:
                     decay += tempS / el.Q(omega, self.T) * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
 
-        if decType == "quasiparticle":
+        if dec_type == "quasiparticle":
 
             for el in self.junctionHamil['sinHalf']:
                 op = self.junctionHamil['sinHalf'][el]
@@ -1441,7 +1429,7 @@ class Circuit:
 
                 decay += tempS * el.Y(omega, self.T) * omega \
                          * phPar.hbar * np.abs((state1.dag() * op * state2).data[0, 0]) ** 2
-        elif decType == "charge":
+        elif dec_type == "charge":
 
             # first derivative of the Hamiltonian with respect to charge noise
             op = q.Qobj()
@@ -1454,14 +1442,14 @@ class Circuit:
                     decay += partialOmega * (self.extCharge[i].A * 2 * phPar.e) \
                              * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
 
-        elif decType == "cc":
+        elif dec_type == "cc":
             for el in self.junctionHamil['cos']:
                 op = self.junctionHamil['cos'][el]
                 op.dims = [self.ms, self.ms]
                 partialOmega = np.abs((state2.dag() * op * state2 - state1.dag() * op * state1).data[0, 0])
                 decay += partialOmega * el.A * np.sqrt(2 * np.abs(np.log(self.omegaLow * self.tExp)))
 
-        elif decType == "flux":
+        elif dec_type == "flux":
 
             for indx, el in self.inductorHamil:
                 op = self.inductorHamil[(indx, el)]

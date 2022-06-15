@@ -81,13 +81,13 @@ class Sweep(SQdata):
 
             # set flux for each loop
             for i, ind in enumerate(indices):
-                loops[i].setFlux(grid[i][ind])
+                loops[i].set_flux(grid[i][ind])
 
             evec, _ = self.cr.diag(self.numEig)
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
-                for decType in self.dec.keys():
-                    self.dec[decType][indices] = self.cr.decRate(decType=decType, states=(1, 0))
+                for dec_type in self.dec.keys():
+                    self.dec[dec_type][indices] = self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
         print("Sweeping process is finished!")
 
@@ -117,13 +117,13 @@ class Sweep(SQdata):
 
             # set flux for each loop
             for i, ind in enumerate(indices):
-                self.cr.chargeOffset(mode=modes[i], ng=grid[i][ind])
+                self.cr.set_charge_offset(mode=modes[i], ng=grid[i][ind])
 
             evec, _ = self.cr.diag(self.numEig)
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
-                for decType in self.dec.keys():
-                    self.dec[decType][indices] = self.cr.decRate(decType=decType, states=(1, 0))
+                for dec_type in self.dec.keys():
+                    self.dec[dec_type][indices] = self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
         print("Sweeping process is finished!")
 

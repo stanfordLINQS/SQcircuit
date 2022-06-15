@@ -4,7 +4,7 @@ test_elements contains the test cases for the SQcircuit elements functionalities
 import SQcircuit as sq
 
 
-def test_zeroPiDescription():
+def test_zeropi_description():
     loop1 = sq.Loop(0.5)
 
     C = sq.Capacitor(0.15, "GHz")
@@ -21,7 +21,7 @@ def test_zeroPiDescription():
                 }
 
     # cr is an object of Qcircuit
-    cr = sq.Circuit(elements, fluxDist='junctions')
+    cr = sq.Circuit(elements, flux_dist='junctions')
 
     txt = cr.description(tp='txt', _test=True)
 

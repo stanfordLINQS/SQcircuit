@@ -21,7 +21,7 @@ class QubitTest:
     def setup_class(cls):
         cls.fileName = None
 
-    def test_transformProcess(self):
+    def test_transform_process(self):
         # load the data
         data = SQdata.load(DATADIR + "/" + self.fileName)
 
@@ -41,8 +41,8 @@ class QubitTest:
         dec = None
 
         # build the new circuit based on data circuit parameters
-        newCr = Circuit(data.cr.circuitElements, fluxDist='all')
-        newCr.truncationNumbers(data.cr.m)
+        newCr = Circuit(data.cr.circuitElements, flux_dist='all')
+        newCr.set_trunc_nums(data.cr.m)
 
         if data.dec:
             properties = ["efreq", "loss"]
