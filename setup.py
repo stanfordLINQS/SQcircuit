@@ -8,7 +8,7 @@ DESCRIPTION = "superconducting quantum circuit analyzer"
 # version of the SQcircuit
 MAJOR = 0
 MINOR = 0
-PATCH = 9
+PATCH = 10
 ISRELEASED = True
 
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, PATCH)
