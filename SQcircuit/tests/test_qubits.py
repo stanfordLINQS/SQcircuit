@@ -5,6 +5,7 @@ test_qubits contains the test cases for well-known qubits.
 import numpy as np
 
 import SQcircuit as sq
+
 from SQcircuit.tests.conftest import QubitTest
 
 

@@ -6,6 +6,7 @@ capacitors, inductors, and josephson junctions.
 from typing import List, Any, Optional, Union, Callable
 
 import numpy as np
+
 from scipy.special import kn
 
 import SQcircuit.units as unt

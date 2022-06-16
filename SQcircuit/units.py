@@ -39,13 +39,13 @@ _unit_ind = "GHz"
 _unit_JJ = "GHz"
 
 
-def set_unit_freq(unit: str):
+def set_unit_freq(unit: str) -> None:
     """
     Change the main frequency unit of the SQcircuit.
 
     Parameters
     ----------
-        unit: str
+        unit:
             The desired frequency unit, which can be "THz", "GHz", and ,etc.
     """
     assert unit in freq_list, "The input format is not correct."
@@ -61,20 +61,20 @@ def get_unit_freq() -> float:
 
     Returns
     ----------
-        unit: float
+        unit:
             frequency unit of the SQcircuit in hertz
     """
 
     return _unit_freq
 
 
-def set_unit_cap(unit: str):
+def set_unit_cap(unit: str) -> None:
     """
     Change the default unit for capacitors
 
     Parameters
     ----------
-        unit: str
+        unit:
             The desired capacitor default unit, which can be "THz", "GHz", and,
             etc., or "fF", "pF", and ,etc.
     """
@@ -94,20 +94,20 @@ def get_unit_cap() -> str:
 
     Returns
     ----------
-        unit: str
+        unit:
             capacitor unit
     """
 
     return _unit_cap
 
 
-def set_unit_ind(unit: str):
+def set_unit_ind(unit: str) -> None:
     """
     Change the default unit for inductors
 
     Parameters
     ----------
-        unit: str
+        unit:
              The desired inductor default unit, which can be "THz", "GHz", and,
              etc., or "fH", "pH", and ,etc.
     """
@@ -127,20 +127,20 @@ def get_unit_ind() -> str:
 
     Returns
     ----------
-        unit: str
+        unit:
             inductor unit
     """
 
     return _unit_ind
 
 
-def set_unit_JJ(unit: str):
+def set_unit_JJ(unit: str) -> None:
     """
     Change the default unit for Josephson junctions.
 
     Parameters
     ----------
-        unit: str
+        unit:
             The desired Josephson junction default unit, which can be "THz",
             "GHz", and ,etc.
     """
@@ -157,7 +157,7 @@ def get_unit_JJ() -> str:
 
     Returns
     ----------
-        str
+        str:
             Josephson junction unit
     """
 
