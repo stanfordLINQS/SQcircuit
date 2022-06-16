@@ -2,9 +2,10 @@
 test_qubits contains the test cases for well-known qubits.
 """
 
-from SQcircuit.tests.conftest import QubitTest
-import SQcircuit as sq
 import numpy as np
+
+import SQcircuit as sq
+from SQcircuit.tests.conftest import QubitTest
 
 
 class TestZeroPi(QubitTest):

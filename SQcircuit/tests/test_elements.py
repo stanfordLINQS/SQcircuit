@@ -11,8 +11,8 @@ import SQcircuit as sq
 
 
 def test_capacitor_error_massages():
-    error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
-            "format."
+    error = "The input unit for the capacitor is not correct. " \
+            "Look at the documentation for the correct input format."
     with pytest.raises(ValueError, match=error):
         Capacitor(10, "H")
 
@@ -66,8 +66,8 @@ def test_capacitor_unit():
 
 
 def test_inductor_error_massages():
-    error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
-            "format."
+    error = "The input unit for the inductor is not correct. " \
+            "Look at the documentation for the correct input format."
     with pytest.raises(ValueError, match=error):
         Inductor(10, "F")
 
@@ -124,15 +124,15 @@ def test_inductor_unit():
 #######################################
 
 def test_junction_error_massages():
-    error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
-                    "correct input format."
+    error = "The input unit for the Josephson Junction is not correct. " \
+            "Look at the documentation for the correct input format."
     with pytest.raises(ValueError, match=error):
         Junction(10, "F")
 
 
 def test_junction_Y():
-    yFunc = lambda omega, T: omega*T
-    JJ = Junction(10, "GHz", Y=yFunc)
+    y_func = lambda omega, T: omega*T
+    JJ = Junction(10, "GHz", Y=y_func)
     assert JJ.Y(10, 2) == 20
 
 

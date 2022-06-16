@@ -33,7 +33,8 @@ class SQdata:
             return pickle.load(inp)
 
     def plot(self, typeP):
-        assert len(self.efreq.shape) <= 2, "SQcircuit can only plot 1D grid data for now"
+        assert len(self.efreq.shape) <= 2, \
+            "SQcircuit can only plot 1D grid data for now"
 
         plt.figure(figsize=(6.5, 5), linewidth=1)
         plt.tight_layout()

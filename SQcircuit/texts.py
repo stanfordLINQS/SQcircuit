@@ -1,10 +1,13 @@
-from IPython.display import display, Latex
+""" Module for text and latex output of SQcircuit"""
+
 import numpy as np
+from IPython.display import display, Latex
 
 
-def isNotebook():
+def is_notebook():
     """
-    The function that checks whether we are working in notebook environment or Python terminal.
+    The function that checks whether we are working in notebook environment or
+    Python terminal.
     """
     try:
         shell = get_ipython().__class__.__name__
@@ -20,7 +23,8 @@ def isNotebook():
 
 class HamilTxt:
     """
-    Class that contains the methods for printing the Hamiltonian in text or latex format.
+    Class that contains the methods for printing the Hamiltonian in text or
+    latex format.
     """
 
     def __init__(self, tp='ltx'):
@@ -173,10 +177,12 @@ class HamilTxt:
         elif self.tp == 'txt':
             return " + "
 
-    def ltx(self, txt):
+    @staticmethod
+    def ltx(txt):
         return f"${txt}$"
 
-    def linear(self, method, w, st=True):
+    @staticmethod
+    def linear(method, w, st=True):
 
         txt = ''
 

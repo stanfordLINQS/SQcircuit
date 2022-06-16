@@ -3,9 +3,10 @@ elements.py contains the classes for the circuit elements:
 capacitors, inductors, and josephson junctions.
 """
 
-import SQcircuit.physParam as phPar
 import numpy as np
 from scipy.special import kn
+
+import SQcircuit.units as unt
 
 
 class Capacitor:
@@ -17,23 +18,28 @@ class Capacitor:
     value: float
         The value of the capacitor.
     unit: str
-        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc., the value specifies the
-        charging energy of the capacitor. If ``unit`` is "fF", "pF", and ,etc., the value specifies
-        the capacitance in farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
+        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
+        the value specifies the charging energy of the capacitor. If ``unit``
+        is "fF", "pF", and ,etc., the value specifies the capacitance in
+        farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
     Q:
-        Quality factor of the dielectric of the capacitor which is one over tangent loss. It can be either
-        a float number or a Python function of angular frequency.
+        Quality factor of the dielectric of the capacitor which is one over
+        tangent loss. It can be either a float number or a Python function of
+        angular frequency.
     error: float
         The error in fabrication as a percentage.
     id_str: str
         ID string for the capacitor.
     """
 
-    def __init__(self, value, unit=None, Q="default", error=0, id_str=None):
+    def __init__(self, value, unit=None,
+                 Q="default", error=0, id_str=None):
 
-        if unit not in phPar.freqList and unit not in phPar.faradList and unit is not None:
-            error = "The input unit for the capacitor is not correct. Look at the documentation for the correct input " \
-                    "format."
+        if (unit not in unt.freq_list and
+                unit not in unt.farad_list and
+                unit is not None):
+            error = "The input unit for the capacitor is not correct. " \
+                    "Look at the documentation for the correct input format."
             raise ValueError(error)
 
         self.cValue = value
@@ -41,12 +47,13 @@ class Capacitor:
         self.type = type(self)
 
         if unit is None:
-            self.unit = phPar.capU
+            self.unit = unt.get_unit_cap()
         else:
             self.unit = unit
 
         if Q == "default":
-            self.Q = lambda omega: 1e6 * (2 * np.pi * 6e9 / np.abs(omega)) ** 0.7
+            self.Q = lambda omega: 1e6 * (
+                    2 * np.pi * 6e9 / np.abs(omega)) ** 0.7
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega: Q
         else:
@@ -59,19 +66,22 @@ class Capacitor:
 
     def value(self, random: bool = False):
         """
-        Return the value of the capacitor in farad units. If `random` is `True`, it
-        samples from a normal distribution with variance defined by the fabrication error.
+        Return the value of the capacitor in farad units. If `random` is
+        `True`, it samples from a normal distribution with variance defined
+         by the fabrication error.
 
         Parameters
         ----------
             random: bool
-                A boolean flag which specifies whether the output is deterministic or random.
+                A boolean flag which specifies whether the output is
+                deterministic or random.
         """
-        if self.unit in phPar.faradList:
-            cMean = self.cValue * phPar.faradList[self.unit]
+        if self.unit in unt.farad_list:
+            cMean = self.cValue * unt.farad_list[self.unit]
         else:
-            E_c = self.cValue * phPar.freqList[self.unit] * (2 * np.pi * phPar.hbar)
-            cMean = phPar.e ** 2 / 2 / E_c
+            E_c = self.cValue * unt.freq_list[self.unit] * (
+                    2 * np.pi * unt.hbar)
+            cMean = unt.e ** 2 / 2 / E_c
 
         if not random:
             return cMean
@@ -80,14 +90,16 @@ class Capacitor:
 
     def energy(self):
         """
-        Return the charging energy of the capacitor in frequency unit of SQcircuit (gigahertz
-        by default).
+        Return the charging energy of the capacitor in frequency unit of
+        SQcircuit (gigahertz by default).
         """
-        if self.unit in phPar.freqList:
-            return self.cValue * phPar.freqList[self.unit]/phPar.freq
+        if self.unit in unt.freq_list:
+            return self.cValue * unt.freq_list[
+                self.unit] / unt.get_unit_freq()
         else:
-            c = self.cValue * phPar.faradList[self.unit]
-            return phPar.e ** 2 / 2 / c / (2 * np.pi * phPar.hbar)/phPar.freq
+            c = self.cValue * unt.farad_list[self.unit]
+            return unt.e ** 2 / 2 / c / (
+                    2 * np.pi * unt.hbar) / unt.get_unit_freq()
 
 
 class Inductor:
@@ -99,28 +111,33 @@ class Inductor:
     value: float
         The value of the inductor.
     unit: str
-        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc., the value specifies the
-        inductive energy of the inductor. If ``unit`` is "fH", "pH", and ,etc., the value specifies
-        the inductance in henry. If ``unit`` is ``None``, the default unit of inductor is "GHz".
+        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
+        the value specifies the inductive energy of the inductor. If ``unit``
+        is "fH", "pH", and ,etc., the value specifies the inductance in henry.
+        If ``unit`` is ``None``, the default unit of inductor is "GHz".
     loops: list
         List of loops in which the inductor resides.
     cap: SQcircuit.Capacitor
-        Capacitor associated to the inductor, necessary for correct time-dependent external fluxes
-        scheme.
+        Capacitor associated to the inductor, necessary for correct
+        time-dependent external fluxes scheme.
     Q:
-        Quality factor of the inductor needed for inductive loss calculation. It can be either
-        a float number or a Python function of angular frequency and temperature.
+        Quality factor of the inductor needed for inductive loss calculation.
+        It can be either a float number or a Python function of angular
+        frequency and temperature.
     error: float
         The error in fabrication as a percentage.
     id_str: str
         ID string for the inductor.
     """
 
-    def __init__(self, value, unit=None, cap=None, Q="default", error=0, loops=None, id_str=None):
+    def __init__(self, value, unit=None, cap=None, Q="default", error=0,
+                 loops=None, id_str=None):
 
-        if unit not in phPar.freqList and unit not in phPar.henryList and unit is not None:
-            error = "The input unit for the inductor is not correct. Look at the documentation for the correct input " \
-                    "format."
+        if (unit not in unt.freq_list and
+                unit not in unt.henry_list and
+                unit is not None):
+            error = "The input unit for the inductor is not correct. " \
+                    "Look at the documentation for the correct input format."
             raise ValueError(error)
 
         self.lValue = value
@@ -129,7 +146,7 @@ class Inductor:
         self.id_str = id_str
 
         if unit is None:
-            self.unit = phPar.indU
+            self.unit = unt.get_unit_ind()
         else:
             self.unit = unit
 
@@ -144,10 +161,11 @@ class Inductor:
             self.loops = loops
 
         def qInd(omega, T):
-            alpha = phPar.hbar * 2 * np.pi * 0.5e9 / (2 * phPar.k_B * T)
-            beta = phPar.hbar * omega / (2 * phPar.k_B * T)
+            alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
+            beta = unt.hbar * omega / (2 * unt.k_B * T)
 
-            return 500e6 * (kn(0, alpha) * np.sinh(alpha)) / (kn(0, beta) * np.sinh(beta))
+            return 500e6 * (kn(0, alpha) * np.sinh(alpha)) / (
+                    kn(0, beta) * np.sinh(beta))
 
         if Q == "default":
             self.Q = qInd
@@ -163,19 +181,22 @@ class Inductor:
 
     def value(self, random: bool = False):
         """
-        Return the value of the inductor in henry units. If `random` is `True`, it
-        samples from a normal distribution with variance defined by the fabrication error.
+        Return the value of the inductor in henry units. If `random` is
+        `True`, it samples from a normal distribution with variance defined
+        by the fabrication error.
 
         Parameters
         ----------
             random: bool
-                A boolean flag which specifies whether the output is deterministic or random.
+                A boolean flag which specifies whether the output is
+                deterministic or random.
         """
-        if self.unit in phPar.henryList:
-            lMean = self.lValue * phPar.henryList[self.unit]
+        if self.unit in unt.henry_list:
+            lMean = self.lValue * unt.henry_list[self.unit]
         else:
-            E_l = self.lValue * phPar.freqList[self.unit] * (2 * np.pi * phPar.hbar)
-            lMean = (phPar.Phi0 / 2 / np.pi) ** 2 / E_l
+            E_l = self.lValue * unt.freq_list[self.unit] * (
+                    2 * np.pi * unt.hbar)
+            lMean = (unt.Phi0 / 2 / np.pi) ** 2 / E_l
 
         if not random:
             return lMean
@@ -184,14 +205,16 @@ class Inductor:
 
     def energy(self):
         """
-        Return the inductive energy of the capacitor in frequency unit of SQcircuit (gigahertz
-        by default).
+        Return the inductive energy of the capacitor in frequency unit of
+        SQcircuit (gigahertz by default).
         """
-        if self.unit in phPar.freqList:
-            return self.lValue * phPar.freqList[self.unit]/phPar.freq
+        if self.unit in unt.freq_list:
+            return self.lValue * unt.freq_list[
+                self.unit] / unt.get_unit_freq()
         else:
-            l = self.lValue * phPar.henryList[self.unit]
-            return (phPar.Phi0 / 2 / np.pi) ** 2 / l / (2 * np.pi * phPar.hbar)/phPar.freq
+            l = self.lValue * unt.henry_list[self.unit]
+            return (unt.Phi0 / 2 / np.pi) ** 2 / l / (
+                    2 * np.pi * unt.hbar) / unt.get_unit_freq()
 
 
 class Junction:
@@ -203,13 +226,14 @@ class Junction:
     value: float
         The value of the Josephson junction.
     unit: str
-        The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc., that specifies the
-        junction energy of the inductor. If ``unit`` is ``None``, the default unit of junction is "GHz".
+        The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc.,
+        that specifies the junction energy of the inductor. If ``unit`` is
+        ``None``, the default unit of junction is "GHz".
     loops: list
         List of loops in which the Josephson junction reside.
     cap: SQcircuit.Capacitor
-        Capacitor associated to the josephson junction, necessary for the correct time-dependent
-        external fluxes scheme.
+        Capacitor associated to the josephson junction, necessary for the
+        correct time-dependent external fluxes scheme.
     A: float
         Normalized noise amplitude related to critical current noise.
     x: float
@@ -224,12 +248,15 @@ class Junction:
         ID string for the junction.
     """
 
-    def __init__(self, value, unit=None, cap=None, A=1e-7, x=3e-06, delta=3.4e-4,
+    def __init__(self, value, unit=None, cap=None, A=1e-7, x=3e-06,
+                 delta=3.4e-4,
                  Y="default", error=0, loops=None, id_str=None):
 
-        if unit not in phPar.freqList and unit is not None:
-            error = "The input unit for the Josephson Junction is not correct. Look at the documentation for the" \
-                    "correct input format."
+        if (unit not in unt.freq_list and
+                unit is not None):
+            error = "The input unit for the Josephson Junction is not " \
+                    "correct. Look at the documentation for the correct " \
+                    "input format."
             raise ValueError(error)
 
         self.jValue = value
@@ -239,7 +266,7 @@ class Junction:
         self.id_str = id_str
 
         if unit is None:
-            self.unit = phPar.junU
+            self.unit = unt.get_unit_JJ()
         else:
             self.unit = unit
 
@@ -254,9 +281,10 @@ class Junction:
             self.loops = loops
 
         def yQP(omega, T):
-            alpha = phPar.hbar * omega / (2 * phPar.k_B * T)
-            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (phPar.hbar * 2 * np.pi / phPar.e ** 2)) \
-                * (2 * (delta * 1.6e-19) / phPar.hbar / omega) ** 1.5 \
+            alpha = unt.hbar * omega / (2 * unt.k_B * T)
+            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
+                    unt.hbar * 2 * np.pi / unt.e ** 2)) \
+                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
                 * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
             return y
 
@@ -272,15 +300,17 @@ class Junction:
 
     def value(self, random: bool = False):
         """
-        Return the value of the Josephson Junction in angular frequency. If `random` is `True`, it samples
-        from a normal distribution with variance defined by the fabrication error.
+        Return the value of the Josephson Junction in angular frequency.
+        If `random` is `True`, it samples from a normal distribution with
+        variance defined by the fabrication error.
 
         Parameters
         ----------
             random: bool
-                A boolean flag which specifies whether the output is deterministic or random.
+                A boolean flag which specifies whether the output
+                is deterministic or random.
         """
-        jMean = self.jValue * phPar.freqList[self.unit] * 2 * np.pi
+        jMean = self.jValue * unt.freq_list[self.unit] * 2 * np.pi
 
         if not random:
             return jMean
@@ -290,7 +320,8 @@ class Junction:
 
 class Loop:
     """
-    Class that contains the inductive loop properties, closed path of inductive elements.
+    Class that contains the inductive loop properties, closed path of
+    inductive elements.
 
     Parameters
     ----------
@@ -322,13 +353,15 @@ class Loop:
 
     def value(self, random: bool = False):
         """
-        Return the value of the external flux. If `random` is `True`, it samples from a normal distribution
-        with variance defined by the flux noise amplitude.
+        Return the value of the external flux. If `random` is `True`, it
+        samples from a normal distribution with variance defined by the flux
+        noise amplitude.
 
         Parameters
         ----------
             random: bool
-                A boolean flag which specifies whether the output is deterministic or random.
+                A boolean flag which specifies whether the output is
+                deterministic or random.
         """
         if not random:
             return self.lpValue
@@ -382,9 +415,11 @@ class Charge:
 
     def value(self, random: bool = False):
         """
-        returns the value of charge bias. If random flag is true, it samples from a normal distribution.
+        returns the value of charge bias. If random flag is true, it samples
+        from a normal distribution.
         inputs:
-            -- random: A flag which specifies whether the output is picked deterministically or randomly.
+            -- random: A flag which specifies whether the output is picked
+                deterministically or randomly.
         """
         if not random:
             return self.chValue
@@ -396,4 +431,3 @@ class Charge:
 
     def setNoise(self, A):
         self.A = A
-

@@ -4,6 +4,7 @@ conftest.py contains the general test classes.
 import os
 
 import numpy as np
+
 from SQcircuit.sweep import *
 from SQcircuit.storage import SQdata
 from SQcircuit.circuit import Circuit
@@ -26,7 +27,7 @@ class QubitTest:
         data = SQdata.load(DATADIR + "/" + self.fileName)
 
         # build the new circuit based on data circuit parameters
-        newCr = Circuit(data.cr.circuitElements)
+        newCr = Circuit(data.cr.elements)
 
         # check the modes and natural frequencies
         assert np.allclose(newCr.omega, data.cr.omega)
@@ -41,7 +42,7 @@ class QubitTest:
         dec = None
 
         # build the new circuit based on data circuit parameters
-        newCr = Circuit(data.cr.circuitElements, flux_dist='all')
+        newCr = Circuit(data.cr.elements)
         newCr.set_trunc_nums(data.cr.m)
 
         if data.dec:
@@ -59,7 +60,8 @@ class QubitTest:
             efreq, dec = sweep1.sweepCharge(data.params, data.grid)
 
         for i in range(efreq.shape[0]):
-            assert np.allclose(efreq[i, :], data.efreq[i, :], rtol=1e-4, atol=1e-3)
+            assert np.allclose(efreq[i, :], data.efreq[i, :],
+                               rtol=1e-4, atol=1e-3)
 
         if data.dec:
             for decType in data.dec.keys():

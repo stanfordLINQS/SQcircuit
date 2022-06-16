@@ -5,4 +5,4 @@ from SQcircuit.elements import *
 from SQcircuit.circuit import *
 from SQcircuit.sweep import *
 from SQcircuit.storage import *
-from SQcircuit.physParam import *
+from SQcircuit.units import *

@@ -2,9 +2,10 @@
 sweep.py contains the classes for sweeping
 """
 
+from itertools import product
+
 from SQcircuit.circuit import *
 from SQcircuit.storage import *
-from itertools import product
 
 
 class Sweep(SQdata):
@@ -64,7 +65,8 @@ class Sweep(SQdata):
         """
         return tuple(map(range, map(len, grid)))
 
-    def sweepFlux(self, loops: list, grid: list, toFile: str = None, plotF: bool = False):
+    def sweepFlux(self, loops: list, grid: list,
+                  toFile: str = None, plotF: bool = False):
 
         self.type = "sweepFlux"
         self.params = loops
@@ -100,7 +102,8 @@ class Sweep(SQdata):
         else:
             return self.efreq, self.dec
 
-    def sweepCharge(self, modes: list, grid: list, toFile: str = None, plotF: bool = False):
+    def sweepCharge(self, modes: list, grid: list,
+                    toFile: str = None, plotF: bool = False):
 
         self.type = "sweepCharge"
         self.params = modes
