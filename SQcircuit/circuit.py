@@ -43,10 +43,10 @@ class Circuit:
             Provide the method of distributing the external fluxes. If
             ``flux_dist`` is ``"all"``, SQcircuit assign the external fluxes
             based on the capacitor of each inductive element (This option is
-            necessary for time-dependent external fluxes). If `flux_dist` is
-            `"inductor"` SQcircuit finds the external flux distribution by
+            necessary for time-dependent external fluxes). If ``flux_dist`` is
+            ``"inductor"`` SQcircuit finds the external flux distribution by
             assuming the capacitor of the inductors are much smaller than the
-            junction capacitors, If `flux_dist` is `"junction"` it is the
+            junction capacitors, If `flux_dist` is ``"junction"`` it is the
             other way around.
     """
 
