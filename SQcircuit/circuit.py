@@ -1,6 +1,7 @@
 """
 circuit.py contains the classes for the circuit and their properties
 """
+from typing import Dict, Tuple, List, Any, Optional, Union, Callable
 
 import numpy as np
 import qutip as q
@@ -27,13 +28,13 @@ class Circuit:
 
     Parameters
     ----------
-        elements: dict
+        elements:
             A dictionary that contains the circuit's elements at each branch
             of the circuit.
-        random: bool
+        random:
             If `True`, each element of the circuit is a random number due to
             fabrication error. This is necessary for robustness analysis.
-        flux_dist: str
+        flux_dist:
             Provide the method of distributing the external fluxes. If
             ``flux_dist`` is ``"all"``, SQcircuit assign the external fluxes
             based on the capacitor of each inductive element (This option is
@@ -77,10 +78,13 @@ class Circuit:
     # experiment time
     tExp = 10e-6
 
-    def __init__(self, elements: dict,
-                 flux_dist: str = 'junctions',
-                 random: bool = False
-                 ):
+    def __init__(
+        self,
+        elements: Dict[Tuple[int, int],
+                       List[Union["Capacitor", "Inductor", "Junction"]]],
+        flux_dist: str = 'junctions',
+        random: bool = False
+    ) -> None:
 
         # circuit inductive loops
         self.loops = []
@@ -140,7 +144,7 @@ class Circuit:
         self.omega = np.zeros(self.n)
 
         # transform the Hamiltonian of the circuit
-        self.transform_hamil()
+        self._transform_hamil()
 
         # truncation numbers for each mode
         self.m = []
@@ -175,7 +179,7 @@ class Circuit:
 
         return indList, basis
 
-    def _add_loop(self, loop):
+    def _add_loop(self, loop: "Loop") -> None:
         """
         Add loop to the circuit loops.
         """
@@ -507,7 +511,7 @@ class Circuit:
 
         return S3, R3
 
-    def transform_hamil(self):
+    def _transform_hamil(self):
         """
         transform the Hamiltonian of the circuit that can be expressed
         in charge and Fock bases
@@ -554,18 +558,22 @@ class Circuit:
 
             # self.cTrans = np.linalg.inv(self.cInvTrans)
 
-    def description(self, tp=None, _test=False):
+    def description(
+        self,
+        tp: Optional[str] = None,
+        _test: bool = False,
+    ) -> Optional[str]:
         """
         Print out Hamiltonian and a listing of the modes (whether they are harmonic or
         charge modes with the frequency for each harmonic mode), Hamiltonian parameters, and external flux values.
 
         Parameters
         ----------
-            tp: str
+            tp:
                 If ``None`` prints out the output as Latex if SQcircuit is running in a Jupyter notebook and as text
                 if SQcircuit is running in Python terminal. If ``tp`` is ``"ltx"``, the output is in Latex format
                 if ``tp`` is ``"txt"`` the output is in text format.
-            _test: bool
+            _test:
                 if True, return the entire description as string text. (use only for testing the function)
         """
         if tp is None:
@@ -687,7 +695,7 @@ class Circuit:
         if _test:
             return finalTxt
 
-    def loop_description(self):
+    def loop_description(self) -> None:
         """
         Print out the external flux distribution over inductive elements.
         """
@@ -722,12 +730,12 @@ class Circuit:
                 row += ("{}" + (nh + 10 - len(str(b))) * " ").format(b)
             print(row)
 
-    def set_trunc_nums(self, nums: list):
+    def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
 
         Parameters
         ----------
-            nums: list
+            nums:
                 A list that contains the truncation numbers for each mode.
         """
 
@@ -748,15 +756,15 @@ class Circuit:
 
         self.HJJExpList, self.HJJExpRootList = self._get_exp_ops(self.cInvTrans, self.lTrans, self.omega, self.wTrans)
 
-    def set_charge_offset(self, mode: int, ng: float):
+    def set_charge_offset(self, mode: int, ng: float) -> None:
         """set the charge offset for each charge mode.
 
         Parameters
         ----------
-            mode: int
+            mode:
                 An integer that specifies the charge mode. To see, which mode is a charge mode, one
                 can use `description()` method.
-            ng: float
+            ng:
                 The charge offset.
         """
         assert isinstance(mode, int), "Mode number should be an integer"
@@ -772,15 +780,15 @@ class Circuit:
 
             self.HLC = self._get_LC_hamil(self.cInvTrans, self.omega, self.chargeByChargeList, self.numOpList)
 
-    def set_charge_noise(self, mode: int, A: float):
+    def set_charge_noise(self, mode: int, A: float) -> None:
         """set the charge noise for each charge mode.
 
         Parameters
         ----------
-            mode: int
+            mode:
                 An integer that specifies the charge mode. To see which mode
                 is a charge mode, we can use `description()` method.
-            A: float
+            A:
                 The charge noise.
         """
         assert isinstance(mode, int), "Mode number should be an integer"
@@ -934,7 +942,7 @@ class Circuit:
         return HLC
 
     @staticmethod
-    def d_op(N: int):
+    def _d_op(N: int):
         """
         return charge displacement operator with size N.
         input:
@@ -988,13 +996,13 @@ class Circuit:
                         H = I
                         H2 = I
                     elif wTrans[i, j] > 0:
-                        d = self.d_op(self.m[j])
+                        d = self._d_op(self.m[j])
                         I = q.qeye(self.m[j])
                         H = d
                         # not correct just to avoid error:
                         H2 = I
                     else:
-                        d = self.d_op(self.m[j])
+                        d = self._d_op(self.m[j])
                         I = q.qeye(self.m[j])
                         H = d.dag()
                         # not correct just to avoid error:
@@ -1013,12 +1021,12 @@ class Circuit:
                         H2 = q.tensor(H2, I)
                     elif wTrans[i, j] > 0:
                         I = q.qeye(self.m[j])
-                        d = self.d_op(self.m[j])
+                        d = self._d_op(self.m[j])
                         H = q.tensor(H, d)
                         H2 = q.tensor(H2, I)
                     else:
                         I = q.qeye(self.m[j])
-                        d = self.d_op(self.m[j])
+                        d = self._d_op(self.m[j])
                         H = q.tensor(H, d.dag())
                         H2 = q.tensor(H2, I)
 
@@ -1099,7 +1107,7 @@ class Circuit:
 
         Parameters
         ----------
-            n_eig: int
+            n_eig:
                 Number of eigenvalues to output. The lower ``n_eig``, the faster ``SQcircuit`` finds
                 the eigenvalues.
         """
@@ -1133,8 +1141,9 @@ class Circuit:
 
         Parameters
         ----------
-            var_type: str
-                The type of the operators that can be either `"charge"` or `"flux"`.
+            var_type:
+                The type of the variables that can be either `"charge"` or
+                `"flux"`.
         """
         if var_type == "charge" or var_type == "Charge":
             return np.linalg.inv(self.R)
@@ -1190,10 +1199,10 @@ class Circuit:
 
         Parameters
         ----------
-            k: int
+            k:
                 The eigenvector index. For example, we set it to 0 for the ground state and 1
                 for the first excited state.
-            grid: list
+            grid:
                 A list that contains the range of values of phase φ for which we want to evaluate the
                 wavefunction.
         """
@@ -1244,16 +1253,20 @@ class Circuit:
 
         return state
 
-    def coupling_op(self, ctype: str, nodes: tuple):
+    def coupling_op(
+        self,
+        ctype: str,
+        nodes: Tuple[int, int]
+    ):
         """
         Return the capacitive or inductive coupling operator related to the specified nodes. The output has the
         QuTip object format.
 
         Parameters
         ----------
-            ctype: str
+            ctype:
                 Coupling type which is either `"capacitive"` or `"inductive"`.
-            nodes: tuple
+            nodes:
                 A tuple of circuit nodes to which we want to couple.
         """
         error = "The coupling type must be either \"capacitive\" or \"inductive\""
@@ -1294,18 +1307,25 @@ class Circuit:
 
         return op
 
-    def matrix_elements(self, ctype: str, nodes: tuple, states: tuple):
+    def matrix_elements(
+        self,
+        ctype: str,
+        nodes: Tuple[int, int],
+        states: Tuple[int, int],
+    ) -> float:
         """
-        Return the matrix element of two eigenstates for either capacitive or inductive coupling.
+        Return the matrix element of two eigenstates for either capacitive
+        or inductive coupling.
 
         Parameters
         ----------
-            ctype: str
+            ctype:
                 Coupling type which is either `"capacitive"` or `"inductive"`.
-            nodes: tuple
+            nodes:
                 A tuple of circuit nodes to which we want to couple.
-            states: tuple
-                A tuple of indices of eigenstates for which we want to calculate the matrix element.
+            states:
+                A tuple of indices of eigenstates for which we want to
+                calculate the matrix element.
         """
 
         state1 = self.hamilEigVec[states[0]]
@@ -1316,7 +1336,7 @@ class Circuit:
 
         return (state1.dag() * op * state2).data[0, 0]
 
-    def set_temp(self, T: float):
+    def set_temp(self, T: float) -> None:
         """
         Set the temperature of the circuit.
 
@@ -1327,53 +1347,69 @@ class Circuit:
         """
         self.T = T
 
-    def set_low_freq(self, value: float, unit: str):
+    def set_low_freq(self, value: float, unit: str) -> None:
         """
         Set the low-frequency cut-off.
 
         Parameters
         ----------
-            value: The value of the frequency.
-            unit: The unit of the input value in hertz unit that can be "THz", "GHz", "MHz",and ,etc.
+            value:
+                The value of the frequency.
+            unit:
+                The unit of the input value in hertz unit that can be
+                "THz", "GHz", "MHz",and ,etc.
         """
         self.omegaLow = 2 * np.pi * value * unt.freq_list[unit]
 
-    def set_high_freq(self, value: float, unit: str):
+    def set_high_freq(self, value: float, unit: str) -> None:
         """
         Set the high-frequency cut-off.
 
         Parameters
         ----------
-            value: The value of the frequency.
-            unit: The unit of the input value in hertz unit that can be "THz", "GHz", "MHz",and ,etc.
+            value:
+                The value of the frequency.
+            unit:
+                The unit of the input value in hertz unit that can be
+                "THz", "GHz", "MHz",and ,etc.
         """
         self.omegaHigh = 2 * np.pi * value * unt.freq_list[unit]
 
-    def set_t_exp(self, value: float, unit: str):
+    def set_t_exp(self, value: float, unit: str) -> None:
         """
         Set the measurement time.
 
         Parameters
         ----------
-            value: The value of the measurement time.
-            unit: The unit of the input value in time unit that can be "s", "ms", "us",and ,etc.
+            value:
+                The value of the measurement time.
+            unit:
+                The unit of the input value in time unit that can be
+                "s", "ms", "us",and ,etc.
         """
         self.tExp = value * unt.time_list[unit]
 
-    def dec_rate(self, dec_type: str, states: tuple, total: bool = True):
-        """ Return the decoherence rate in [1/s] between each two eigenstates for different types of
-        depolarization and dephasing.
+    def dec_rate(
+        self,
+        dec_type: str,
+        states: Tuple[int, int],
+        total: bool = True
+    ) -> float:
+        """ Return the decoherence rate in [1/s] between each two eigenstates
+        for different types of depolarization and dephasing.
 
         Parameters
         ----------
-            dec_type: str
-                decoherence type that can be: `"capacitive"` for capacitive loss; `"inductive"` for inductive loss;
-                `"quasiparticle"` for quasiparticle loss; `"charge"` for charge noise, `"flux"` for flux noise; and
-                `"cc"` for critical current noise.
-            states: tuple
-                A tuple of indices of eigenstates for which we want to calculate the decoherence rate. For example,
-                for `states=(0,1)`, we calculate the decoherence rate between the ground state and the first excited
-                state.
+            dec_type:
+                decoherence type that can be: `"capacitive"` for capacitive
+                loss; `"inductive"` for inductive loss; `"quasiparticle"` for
+                quasiparticle loss; `"charge"` for charge noise, `"flux"` for
+                flux noise; and `"cc"` for critical current noise.
+            states:
+                A tuple of indices of eigenstates for which we want to
+                calculate the decoherence rate. For example, for `states=(0,
+                1)`, we calculate the decoherence rate between the ground
+                state and the first excited state.
             total:
 
         """
@@ -1388,7 +1424,8 @@ class Circuit:
 
         decay = 0
 
-        # prevent the exponential overflow(exp(709) is the biggest number that numpy can calculate)
+        # prevent the exponential overflow(exp(709) is the biggest number
+        # that numpy can calculate
         if unt.hbar * omega / (unt.k_B * self.T) > 709:
             down = 2
             up = 0

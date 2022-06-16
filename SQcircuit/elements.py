@@ -3,6 +3,8 @@ elements.py contains the classes for the circuit elements:
 capacitors, inductors, and josephson junctions.
 """
 
+from typing import List, Any, Optional, Union, Callable
+
 import numpy as np
 from scipy.special import kn
 
@@ -15,9 +17,9 @@ class Capacitor:
 
     Parameters
     ----------
-    value: float
+    value:
         The value of the capacitor.
-    unit: str
+    unit:
         The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
         the value specifies the charging energy of the capacitor. If ``unit``
         is "fF", "pF", and ,etc., the value specifies the capacitance in
@@ -26,14 +28,20 @@ class Capacitor:
         Quality factor of the dielectric of the capacitor which is one over
         tangent loss. It can be either a float number or a Python function of
         angular frequency.
-    error: float
+    error:
         The error in fabrication as a percentage.
-    id_str: str
+    id_str:
         ID string for the capacitor.
     """
 
-    def __init__(self, value, unit=None,
-                 Q="default", error=0, id_str=None):
+    def __init__(
+        self,
+        value: float,
+        unit: Optional[str] = None,
+        Q: Union[Any, Callable[[float], float]] = "default",
+        error: float = 0,
+        id_str: Optional[str] = None,
+    ) -> None:
 
         if (unit not in unt.freq_list and
                 unit not in unt.farad_list and
@@ -64,15 +72,15 @@ class Capacitor:
         else:
             self.id_str = id_str
 
-    def value(self, random: bool = False):
+    def value(self, random: bool = False) -> float:
         """
         Return the value of the capacitor in farad units. If `random` is
         `True`, it samples from a normal distribution with variance defined
-         by the fabrication error.
+        by the fabrication error.
 
         Parameters
         ----------
-            random: bool
+            random:
                 A boolean flag which specifies whether the output is
                 deterministic or random.
         """
@@ -88,7 +96,7 @@ class Capacitor:
         else:
             return np.random.normal(cMean, cMean * self.error / 100, 1)[0]
 
-    def energy(self):
+    def energy(self) -> float:
         """
         Return the charging energy of the capacitor in frequency unit of
         SQcircuit (gigahertz by default).
@@ -108,30 +116,38 @@ class Inductor:
 
     Parameters
     ----------
-    value: float
+    value:
         The value of the inductor.
-    unit: str
+    unit:
         The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
         the value specifies the inductive energy of the inductor. If ``unit``
         is "fH", "pH", and ,etc., the value specifies the inductance in henry.
         If ``unit`` is ``None``, the default unit of inductor is "GHz".
-    loops: list
+    loops:
         List of loops in which the inductor resides.
-    cap: SQcircuit.Capacitor
+    cap:
         Capacitor associated to the inductor, necessary for correct
         time-dependent external fluxes scheme.
     Q:
         Quality factor of the inductor needed for inductive loss calculation.
         It can be either a float number or a Python function of angular
         frequency and temperature.
-    error: float
+    error:
         The error in fabrication as a percentage.
-    id_str: str
+    id_str:
         ID string for the inductor.
     """
 
-    def __init__(self, value, unit=None, cap=None, Q="default", error=0,
-                 loops=None, id_str=None):
+    def __init__(
+            self,
+            value: float,
+            unit: str = None,
+            cap: Optional["Capacitor"] = None,
+            Q: Union[Any, Callable[[float, float], float]] = "default",
+            error: float = 0,
+            loops: Optional[List["Loop"]] = None,
+            id_str: Optional[str] = None
+    ) -> None:
 
         if (unit not in unt.freq_list and
                 unit not in unt.henry_list and
@@ -179,7 +195,7 @@ class Inductor:
         else:
             self.id_str = id_str
 
-    def value(self, random: bool = False):
+    def value(self, random: bool = False) -> float:
         """
         Return the value of the inductor in henry units. If `random` is
         `True`, it samples from a normal distribution with variance defined
@@ -187,7 +203,7 @@ class Inductor:
 
         Parameters
         ----------
-            random: bool
+            random:
                 A boolean flag which specifies whether the output is
                 deterministic or random.
         """
@@ -203,7 +219,7 @@ class Inductor:
         else:
             return np.random.normal(lMean, lMean * self.error / 100, 1)[0]
 
-    def energy(self):
+    def energy(self) -> float:
         """
         Return the inductive energy of the capacitor in frequency unit of
         SQcircuit (gigahertz by default).
@@ -223,34 +239,44 @@ class Junction:
 
     Parameters
     -----------
-    value: float
+    value:
         The value of the Josephson junction.
     unit: str
         The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc.,
         that specifies the junction energy of the inductor. If ``unit`` is
         ``None``, the default unit of junction is "GHz".
-    loops: list
+    loops:
         List of loops in which the Josephson junction reside.
-    cap: SQcircuit.Capacitor
+    cap:
         Capacitor associated to the josephson junction, necessary for the
         correct time-dependent external fluxes scheme.
-    A: float
+    A:
         Normalized noise amplitude related to critical current noise.
-    x: float
+    x:
         Quasiparticle density
-    delta: float
+    delta:
         Superconducting gap
     Y:
         Real part of admittance.
-    error: float
+    error:
         The error in fabrication as a percentage.
-    id_str: str
+    id_str:
         ID string for the junction.
     """
 
-    def __init__(self, value, unit=None, cap=None, A=1e-7, x=3e-06,
-                 delta=3.4e-4,
-                 Y="default", error=0, loops=None, id_str=None):
+    def __init__(
+        self,
+        value: float,
+        unit: Optional[str] = None,
+        cap: Optional[str] = None,
+        A: float = 1e-7,
+        x: float = 3e-06,
+        delta: float = 3.4e-4,
+        Y: Union[Any, Callable[[float, float], float]] = "default",
+        error: float = 0,
+        loops: Optional[List["Loop"]] = None,
+        id_str: Optional[str] = None,
+    ) -> None:
 
         if (unit not in unt.freq_list and
                 unit is not None):
@@ -298,7 +324,7 @@ class Junction:
         else:
             self.id_str = id_str
 
-    def value(self, random: bool = False):
+    def value(self, random: bool = False) -> float:
         """
         Return the value of the Josephson Junction in angular frequency.
         If `random` is `True`, it samples from a normal distribution with
@@ -306,7 +332,7 @@ class Junction:
 
         Parameters
         ----------
-            random: bool
+            random:
                 A boolean flag which specifies whether the output
                 is deterministic or random.
         """
@@ -325,15 +351,20 @@ class Loop:
 
     Parameters
     ----------
-        value: float
+        value:
             Value of the external flux at the loop.
-        A: float
+        A:
             Normalized noise amplitude related to flux noise.
-        id_str: str
+        id_str:
             ID string for the loop.
     """
 
-    def __init__(self, value=0, A=1e-6, id_str=None):
+    def __init__(
+        self,
+        value: float = 0,
+        A: float = 1e-6,
+        id_str: Optional[str] = None
+    ) -> None:
 
         self.lpValue = value * 2 * np.pi
         self.A = A * 2 * np.pi
@@ -347,11 +378,11 @@ class Loop:
         else:
             self.id_str = id_str
 
-    def reset(self):
+    def reset(self) -> None:
         self.K1 = []
         self.indices = []
 
-    def value(self, random: bool = False):
+    def value(self, random: bool = False) -> float:
         """
         Return the value of the external flux. If `random` is `True`, it
         samples from a normal distribution with variance defined by the flux
@@ -359,7 +390,7 @@ class Loop:
 
         Parameters
         ----------
-            random: bool
+            random:
                 A boolean flag which specifies whether the output is
                 deterministic or random.
         """
@@ -368,13 +399,13 @@ class Loop:
         else:
             return np.random.normal(self.lpValue, self.A, 1)[0]
 
-    def set_flux(self, value):
+    def set_flux(self, value: float) -> None:
         """
         Set the external flux associated to the loop.
 
         Parameters
         ----------
-            value: float
+            value:
                 The external flux value
         """
         self.lpValue = value * 2 * np.pi
@@ -404,7 +435,7 @@ class Charge:
     class that contains the charge island properties.
     """
 
-    def __init__(self, value=0, A=1e-4):
+    def __init__(self, value: float = 0, A: float = 1e-4) -> None:
         """
        inputs:
             -- value: The value of the offset.
@@ -413,7 +444,7 @@ class Charge:
         self.chValue = value
         self.A = A
 
-    def value(self, random: bool = False):
+    def value(self, random: bool = False) -> float:
         """
         returns the value of charge bias. If random flag is true, it samples
         from a normal distribution.
@@ -426,8 +457,8 @@ class Charge:
         else:
             return np.random.normal(self.chValue, self.noise, 1)[0]
 
-    def setOffset(self, value):
+    def setOffset(self, value: float) -> None:
         self.chValue = value
 
-    def setNoise(self, A):
+    def setNoise(self, A: float) -> None:
         self.A = A
