@@ -798,7 +798,7 @@ class Circuit:
         ----------
             mode:
                 An integer that specifies the charge mode. To see, which mode
-                is a charge mode, one can use `description()` method.
+                is a charge mode, one can use ``description()`` method.
             ng:
                 The charge offset.
         """
@@ -829,7 +829,7 @@ class Circuit:
         ----------
             mode:
                 An integer that specifies the charge mode. To see which mode
-                is a charge mode, we can use `description()` method.
+                is a charge mode, we can use ``description()`` method.
             A:
                 The charge noise.
         """
@@ -1235,8 +1235,8 @@ class Circuit:
         Parameters
         ----------
             var_type:
-                The type of the variables that can be either `"charge"` or
-                `"flux"`.
+                The type of the variables that can be either ``"charge"`` or
+                ``"flux"``.
         """
         if var_type == "charge" or var_type == "Charge":
             return np.linalg.inv(self.R)
@@ -1366,12 +1366,13 @@ class Circuit:
     ) -> Qobj:
         """
         Return the capacitive or inductive coupling operator related to the
-        specified nodes. The output has the qutip.Qobj format.
+        specified nodes. The output has the `qutip.Qobj` format.
 
         Parameters
         ----------
             ctype:
-                Coupling type which is either `"capacitive"` or `"inductive"`.
+                Coupling type which is either ``"capacitive"`` or
+                ``"inductive"``.
             nodes:
                 A tuple of circuit nodes to which we want to couple.
         """
@@ -1428,7 +1429,8 @@ class Circuit:
         Parameters
         ----------
             ctype:
-                Coupling type which is either `"capacitive"` or `"inductive"`.
+                Coupling type which is either ``"capacitive"`` or
+                ``"inductive"``.
             nodes:
                 A tuple of circuit nodes to which we want to couple.
             states:
@@ -1465,7 +1467,7 @@ class Circuit:
                 The value of the frequency.
             unit:
                 The unit of the input value in hertz unit that can be
-                "THz", "GHz", "MHz",and ,etc.
+                ``"THz"``, ``"GHz"``, ``"MHz"``,and ,etc.
         """
         self.omegaLow = 2 * np.pi * value * unt.freq_list[unit]
 
@@ -1479,7 +1481,7 @@ class Circuit:
                 The value of the frequency.
             unit:
                 The unit of the input value in hertz unit that can be
-                "THz", "GHz", "MHz",and ,etc.
+                ``"THz"``, ``"GHz"``, ``"MHz"``,and ,etc.
         """
         self.omegaHigh = 2 * np.pi * value * unt.freq_list[unit]
 
@@ -1493,7 +1495,7 @@ class Circuit:
                 The value of the measurement time.
             unit:
                 The unit of the input value in time unit that can be
-                "s", "ms", "us",and ,etc.
+                ``"s"``, ``"ms"``, ``"us"``,and ,etc.
         """
         self.tExp = value * unt.time_list[unit]
 
@@ -1509,18 +1511,18 @@ class Circuit:
         Parameters
         ----------
             dec_type:
-                decoherence type that can be: `"capacitive"` for capacitive
-                loss; `"inductive"` for inductive loss; `"quasiparticle"` for
-                quasiparticle loss; `"charge"` for charge noise, `"flux"` for
-                flux noise; and `"cc"` for critical current noise.
+                decoherence type that can be: ``"capacitive"`` for capacitive
+                loss; ``"inductive"`` for inductive loss; `"quasiparticle"` for
+                quasiparticle loss; ``"charge"`` for charge noise, ``"flux"``
+                for flux noise; and ``"cc"`` for critical current noise.
             states:
                 A tuple of indices of eigenstates for which we want to
-                calculate the decoherence rate. For example, for `states=(0,
-                1)`, we calculate the decoherence rate between the ground
+                calculate the decoherence rate. For example, for ``states=(0,
+                1)``, we calculate the decoherence rate between the ground
                 state and the first excited state.
             total:
                 if False return a decoherence rate associated with a
-                transition from state m to state n for `states=(m, n)`. if
+                transition from state m to state n for ``states=(m, n)``. if
                 True return a decoherence rate associated with both m to n
                 and n to m transitions.
 
