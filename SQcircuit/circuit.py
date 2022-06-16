@@ -46,7 +46,7 @@ class Circuit:
             necessary for time-dependent external fluxes). If ``flux_dist`` is
             ``"inductor"`` SQcircuit finds the external flux distribution by
             assuming the capacitor of the inductors are much smaller than the
-            junction capacitors, If `flux_dist` is ``"junction"`` it is the
+            junction capacitors, If ``flux_dist`` is ``"junction"`` it is the
             other way around.
     """
 
