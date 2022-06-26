@@ -10,7 +10,7 @@ from SQcircuit.storage import SQdata
 from SQcircuit.circuit import Circuit
 
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
-DATADIR = os.path.join(TESTDIR, "data")
+DATADIR = os.path.join(TESTDIR, "data/qubits")
 
 
 class QubitTest:
