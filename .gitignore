@@ -10,7 +10,10 @@
 
 /SQcircuit/__pycache__
 /SQcircuit/tests/__pycache__
-/SQcircuit/tests/dataset_gen.py
+
+/SQcircuit/tests/data/coord_dataset_gen.py
+/SQcircuit/tests/data/qubit_dataset_gen.py
+
 /SQcircuit/tests/.ipynb_checkpoints/
 /SQcircuit/tests/jupyter_test.ipynb
 
