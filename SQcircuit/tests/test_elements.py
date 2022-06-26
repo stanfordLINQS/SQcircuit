@@ -1,13 +1,18 @@
 """
-test_elements contains the test cases for the SQcircuit elements functionalities.
+test_elements contains the test cases for the SQcircuit elements
+functionalities.
 """
 import pytest
-from SQcircuit.elements import *
+import numpy as np
+
 import SQcircuit as sq
 
-#######################################
+from SQcircuit.elements import Capacitor, Inductor, Junction
+
+
+###############################################################################
 # Capacitor Tests
-#######################################
+###############################################################################
 
 
 def test_capacitor_error_massages():
@@ -60,9 +65,9 @@ def test_capacitor_unit():
     assert cap.unit == "F"
 
 
-#######################################
+###############################################################################
 # Inductor Tests
-#######################################
+###############################################################################
 
 
 def test_inductor_error_massages():
@@ -119,9 +124,9 @@ def test_inductor_unit():
     assert ind.unit == "H"
 
 
-#######################################
+###############################################################################
 # Josephson Junction Tests
-#######################################
+###############################################################################
 
 def test_junction_error_massages():
     error = "The input unit for the Josephson Junction is not correct. " \

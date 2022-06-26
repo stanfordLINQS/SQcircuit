@@ -76,8 +76,10 @@ class Sweep(SQdata):
         self.efreq = np.zeros((self.numEig, *self._gridDims(grid)))
 
         if "loss" in self.properties:
-            # dictionary that contains the decoherence rate for each loss mechanism
-            self.dec = {key: np.zeros(self._gridDims(grid)) for key in self.dec.keys()}
+            # dictionary that contains the decoherence rate for each loss
+            # mechanism
+            self.dec = {key: np.zeros(self._gridDims(grid))
+                        for key in self.dec.keys()}
 
         for indices in product(*self._gridIndex(grid)):
 
@@ -89,7 +91,8 @@ class Sweep(SQdata):
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
                 for dec_type in self.dec.keys():
-                    self.dec[dec_type][indices] = self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
+                    self.dec[dec_type][indices] = \
+                        self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
         print("Sweeping process is finished!")
 
@@ -113,8 +116,10 @@ class Sweep(SQdata):
         self.efreq = np.zeros((self.numEig, *self._gridDims(grid)))
 
         if "loss" in self.properties:
-            # dictionary that contains the decoherence rate for each loss mechanism
-            self.dec = {key: np.zeros(self._gridDims(grid)) for key in self.dec.keys()}
+            # dictionary that contains the decoherence rate for each
+            # loss mechanism
+            self.dec = {key: np.zeros(self._gridDims(grid))
+                        for key in self.dec.keys()}
 
         for indices in product(*self._gridIndex(grid)):
 
@@ -126,7 +131,8 @@ class Sweep(SQdata):
             self.efreq[:, indices] = evec.reshape(self.efreq[:, indices].shape)
             if "loss" in self.properties:
                 for dec_type in self.dec.keys():
-                    self.dec[dec_type][indices] = self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
+                    self.dec[dec_type][indices] = \
+                        self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
         print("Sweeping process is finished!")
 

@@ -411,7 +411,7 @@ class Loop:
         """
         self.lpValue = value * 2 * np.pi
 
-    def addIndex(self, index):
+    def add_index(self, index):
         self.indices.append(index)
 
     def addK1(self, w):
