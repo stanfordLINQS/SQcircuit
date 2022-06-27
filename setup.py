@@ -5,11 +5,28 @@ from setuptools import setup, find_packages
 
 DESCRIPTION = "superconducting quantum circuit analyzer"
 
+LONG_DESCRIPTION = """SQcircuit is an open-source Python library that is 
+capable of analyzing an arbitrary superconducting quantum circuit. SQcircuit 
+uses the theory discussed in [Rajabzadeh et al., 2022] to describe the 
+Hamiltonian in the appropriate basis and to effectively find the energy 
+spectrum and eigenvectors of the circuit. To design the desired quantum 
+circuit and to discover new qubits, additional functionalities and methods 
+are provided to extract the circuit properties such as matrix elements, 
+dephasing rate, decay rates, etc.
+
+Theory detail of SQcircuit and the introduction to library functionalities are 
+presented in the following paper:
+
+Taha Rajabzadeh, Zhaoyou Wang, Nathan Lee, Takuma Makihara, Yudan Guo, 
+Amir H. Safavi-Naeini, 'Analysis of arbitrary superconducting quantum circuits 
+accompanied by a Python package: SQcircuit', arXiv:2206.08319 (2022), 
+https://arxiv.org/abs/2206.08319
+"""
+
 # version of the SQcircuit
 MAJOR = 0
 MINOR = 0
-PATCH = 10
-ISRELEASED = True
+PATCH = 11
 
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, PATCH)
 
