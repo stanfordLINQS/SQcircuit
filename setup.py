@@ -42,6 +42,7 @@ setup(
     author_email="tahar@stanford.edu, safavi@stanford.edu",
     license="BSD",
     description=DESCRIPTION,
+    long_description=LONG_DESCRIPTION,
     keywords="superconducting circuits",
     url="https://github.com/stanfordLINQS/SQcircuit",
     install_requires=INSTALL_REQUIRES,
