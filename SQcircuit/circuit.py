@@ -637,7 +637,9 @@ class Circuit:
         chDim = np.sum(self.omega == 0)
         W = np.round(self.wTrans, 6)
         S = np.round(self.S, 3)
-        if self.B is not None:
+
+        # If circuit has any loop:
+        if self.loops:
             B = np.round(self.B, 2)
         else:
             B = np.zeros((len(self.junction_keys) + len(self.inductor_keys), 1))
