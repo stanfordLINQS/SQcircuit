@@ -18,7 +18,7 @@ def test_temp_assignment():
 
 def test_freq_low_assignment():
 
-    noise.set_low_freq(1, 'KHz')
+    noise.set_low_freq(1, 'kHz')
 
     assert noise.ENV["omega_low"] == 2 * np.pi * 1e3
 
@@ -27,7 +27,7 @@ def test_freq_low_assignment():
 
 def test_freq_high_assignment():
 
-    noise.set_high_freq(1, 'KHz')
+    noise.set_high_freq(1, 'kHz')
 
     assert noise.ENV["omega_high"] == 2 * np.pi * 1e3
 
