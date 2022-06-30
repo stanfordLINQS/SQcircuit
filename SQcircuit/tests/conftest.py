@@ -34,6 +34,16 @@ class QubitTest:
         # check the transformed w matrix
         assert np.allclose(newCr.wTrans, data.cr.wTrans)
 
+    def test_if_description_run(self):
+        """ Test if description run without error"""
+        # load the data
+        data = SQdata.load(DATADIR + "/" + self.fileName)
+
+        # build the new circuit based on data circuit parameters
+        newCr = Circuit(data.cr.elements)
+
+        newCr.description(_test=True)
+
     def test_data(self):
         # load the data
         data = SQdata.load(DATADIR + "/" + self.fileName)
