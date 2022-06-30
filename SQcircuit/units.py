@@ -9,7 +9,7 @@ farad_list = {'F': 1, 'mF': 1.0e-3, 'uF': 1.0e-6,
               'nF': 1.0e-9, 'pF': 1.0e-12, 'fF': 1.0e-15}
 
 # frequency unit list
-freq_list = {'Hz': 1.0, 'KHz': 1.0e3, 'MHz': 1.0e6,
+freq_list = {'Hz': 1.0, 'kHz': 1.0e3, 'MHz': 1.0e6,
              'GHz': 1.0e9, 'THz': 1.0e12}
 
 time_list = {'s': 1.0, 'ms': 1.0e-3, 'us': 1.0e-6,
@@ -79,8 +79,8 @@ def set_unit_cap(unit: str) -> None:
             etc., or "fF", "pF", and ,etc.
     """
     if unit not in freq_list and unit not in farad_list:
-        error = "The input unit is not correct. Look at the documentation" \
-                " for the correct input format."
+        error = ("The input unit is not correct. Look at the documentation "
+                 "for the correct input format.")
         raise ValueError(error)
 
     global _unit_cap
@@ -112,8 +112,8 @@ def set_unit_ind(unit: str) -> None:
              etc., or "fH", "pH", and ,etc.
     """
     if unit not in freq_list and unit not in henry_list:
-        error = "The input unit is not correct. Look at the documentation " \
-                "for the correct input format."
+        error = ("The input unit is not correct. Look at the documentation "
+                 "for the correct input format.")
         raise ValueError(error)
 
     global _unit_ind
