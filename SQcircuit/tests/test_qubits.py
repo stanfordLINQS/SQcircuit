@@ -69,3 +69,7 @@ def test_resonator():
 
     assert np.isclose(cr.omega/2/np.pi/1e9, 1)[0]
 
+    # check if cr.description() run without error
+
+    cr.description(_test=True)
+
