@@ -35,7 +35,7 @@ def test_phase_coord_zeropi():
     zrpi = sq.Circuit(elements)
 
     loop1.set_flux(0.9)
-    zrpi.set_trunc_nums([35, 1, 11])
+    zrpi.set_trunc_nums([35, 1, 6])
     _, _ = zrpi.diag(2)
 
     # create a range for each mode
