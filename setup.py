@@ -19,7 +19,7 @@ presented in the following paper:
 
 Taha Rajabzadeh, Zhaoyou Wang, Nathan Lee, Takuma Makihara, Yudan Guo, 
 Amir H. Safavi-Naeini, 'Analysis of arbitrary superconducting quantum circuits 
-accompanied by a Python package: SQcircuit', arXiv:2206.08319 (2022), 
+accompanied by a Python package: SQcircuit', arXiv:2206.08319 (2022). 
 https://arxiv.org/abs/2206.08319
 """
 
