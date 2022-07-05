@@ -824,14 +824,26 @@ class Circuit:
         ----------
             nums:
                 A list that contains the truncation numbers for each mode.
+                Harmonic modes with truncation number N are 0, 1 , ...,
+                (N-1), and charge modes with truncation number N are -(N-1),
+                ..., 0, ..., (N-1).
         """
 
         error1 = "The input must be be a python list"
         assert isinstance(nums, list), error1
-        error2 = ("The number of modes(length of the input) must be equal to "
+        error2 = ("The number of modes (length of the input) must be equal to "
                   "the number of nodes")
         assert len(nums) == self.n, error2
-        self.m = nums
+
+        self.m = self.n*[1]
+
+        for i in range(self.n):
+            # for charge modes:
+            if self.omega[i] == 0:
+                self.m[i] = 2 * nums[i] - 1
+            # for harmonic modes
+            else:
+                self.m[i] = nums[i]
 
         # squeeze the mode with truncation number equal to 1.
         self.ms = list(filter(lambda x: x != 1, self.m))
