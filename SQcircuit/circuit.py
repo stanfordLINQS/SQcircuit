@@ -379,6 +379,17 @@ class Circuit:
 
         return cMat, lMat, wMat, bMat
 
+    def _is_charge_mode(self, i: int) -> bool:
+        """Check if the mode is a charge mode.
+
+        Parameters
+        ----------
+            i:
+                index of the mode. (start from zero for the first mode)
+        """
+
+        return self.omega[i] == 0
+
     def _transform1(self):
         """
         First transformation of the coordinates that simultaneously diagonalizes
@@ -486,7 +497,8 @@ class Circuit:
         for j in range(self.n):
 
             # for the charge basis
-            if self.omega[j] == 0:
+            if self._is_charge_mode(j):
+
                 s = np.max(np.abs(self.wTrans[:, j]))
                 if s != 0:
                     for i in range(len(self.wTrans[:, j])):
@@ -569,7 +581,7 @@ class Circuit:
 
         # set the external charge for each charge mode.
         self.charge_islands = {i: Charge() for i in range(self.n) if
-                               self.omega[i] == 0}
+                               self._is_charge_mode(i)}
 
         # the case that circuit has no JJ
         if len(self.W) == 0:
@@ -589,9 +601,9 @@ class Circuit:
             self.wTrans = self.W @ self.S1 @ self.S2
             if self.countJJnoInd == 0:
                 self.wTrans[:, self.omega == 0] = 0
-            # wQ = self.wTrans[:, self.omega == 0]
-            # wQ[np.abs(wQ) < 0.98] = 0
-            # self.wTrans[:, self.omega == 0] = wQ
+            wQ = self.wTrans[:, self.omega == 0]
+            wQ[np.abs(wQ) < 1e-5] = 0
+            self.wTrans[:, self.omega == 0] = wQ
 
             # scaling the modes
             self.S3, self.R3 = self._transform3()
@@ -839,7 +851,7 @@ class Circuit:
 
         for i in range(self.n):
             # for charge modes:
-            if self.omega[i] == 0:
+            if self._is_charge_mode(i):
                 self.m[i] = 2 * nums[i] - 1
             # for harmonic modes
             else:
@@ -927,7 +939,7 @@ class Circuit:
         # (tensor product of other modes are not applied yet!)
         QList = []
         for i in range(self.n):
-            if self.omega[i] == 0:
+            if self._is_charge_mode(i):
                 Q0 = (2 * unt.e / np.sqrt(unt.hbar)) * \
                      (qt.charge((self.m[i] - 1) / 2)
                       - self.charge_islands[i].value())
@@ -941,7 +953,7 @@ class Circuit:
         # list of flux operators in their own mode basis
         # (tensor product of other modes are not applied yet!)
         for i in range(self.n):
-            if self.omega[i] == 0:
+            if self._is_charge_mode(i):
                 flux0 = qt.qeye(self.m[i])
             else:
                 coef = np.sqrt(0.5 * np.sqrt(self.cInvTrans[i, i] /
@@ -953,7 +965,7 @@ class Circuit:
         # (tensor product of other modes are not applied yet!)
         nList = []
         for i in range(self.n):
-            if self.omega[i] == 0:
+            if self._is_charge_mode(i):
                 num0 = qt.charge((self.m[i] - 1) / 2)
             else:
                 num0 = qt.num(self.m[i])
@@ -1037,7 +1049,7 @@ class Circuit:
             # we write j in this form because of "_memory_ops["QQ"]" shape
             for j in range(self.n - i):
                 if j == 0:
-                    if self.omega[i] == 0:
+                    if self._is_charge_mode(i):
                         LC_hamil += (0.5 * self.cInvTrans[i, i]
                                      * self._memory_ops["QQ"][i][j])
                     else:
@@ -1091,7 +1103,7 @@ class Circuit:
 
             # tensor multiplication of displacement operator for JJ Hamiltonian
             for j in range(self.n):
-                if j == 0 and self.omega[j] == 0:
+                if j == 0 and self._is_charge_mode(j):
                     if self.wTrans[i, j] == 0:
                         I = qt.qeye(self.m[j])
                         H = I
@@ -1117,7 +1129,7 @@ class Circuit:
                     H = qt.displace(self.m[j], alpha)
                     H2 = qt.displace(self.m[j], alpha / 2)
 
-                if j != 0 and self.omega[j] == 0:
+                if j != 0 and self._is_charge_mode(j):
                     if self.wTrans[i, j] == 0:
                         I = qt.qeye(self.m[j])
                         H = qt.tensor(H, I)
@@ -1356,7 +1368,7 @@ class Circuit:
                 n = indList[mode]
 
                 # For charge basis
-                if self.omega[mode] == 0:
+                if self._is_charge_mode(mode):
                     term *= 1 / np.sqrt(2 * np.pi) * np.exp(
                         1j * phi_list[mode] * n)
                 # For harmonic basis
@@ -1577,7 +1589,7 @@ class Circuit:
             # first derivative of the Hamiltonian with respect to charge noise
             op = qt.Qobj()
             for i in range(self.n):
-                if self.omega[i] == 0:
+                if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
                                / np.sqrt(unt.hbar))
