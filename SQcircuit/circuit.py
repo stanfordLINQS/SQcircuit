@@ -199,12 +199,33 @@ class Circuit:
         return idx_list, basis
 
     def _add_loop(self, loop: Loop) -> None:
-        """
-        Add loop to the circuit loops.
+        """Add loop to the circuit loops.
         """
         if loop not in self.loops:
             loop.reset()
             self.loops.append(loop)
+
+    def _get_w_at_edge(self, edge: Tuple[int, int]) -> list:
+        """Get the w_k vector as list at the edge.
+
+        Parameters
+        ----------
+            edge:
+                Tuple of int which specifies an edge.
+        """
+
+        # i1 and i2 are the nodes of the edge
+        i1, i2 = edge
+
+        w = (self.n + 1) * [0]
+
+        if i1 == 0 or i2 == 0:
+            w[i1 + i2] += 1
+        else:
+            w[i1] += 1
+            w[i2] -= 1
+
+        return w[1:]
 
     def _get_LCWB(self):
         """
@@ -240,16 +261,9 @@ class Circuit:
         cEd = []
 
         for edge in self.elements.keys():
-            # i1 and i2 are the nodes of the edge
-            i1, i2 = edge
 
-            w = (self.n + 1) * [0]
-
-            if i1 == 0 or i2 == 0:
-                w[i1 + i2] += 1
-            else:
-                w[i1] += 1
-                w[i2] -= 1
+            # i1, i2 = edge
+            w = self._get_w_at_edge(edge)
 
             # elements of the edge
             edgeElements = self.elements[edge]
@@ -278,10 +292,10 @@ class Circuit:
                     for loop in loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w[1:])
+                        loop.addK1(w)
 
                     B_idx += 1
-                    K1.append(w[1:])
+                    K1.append(w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
@@ -302,10 +316,10 @@ class Circuit:
                     for loop in loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w[1:])
+                        loop.addK1(w)
 
                     B_idx += 1
-                    K1.append(w[1:])
+                    K1.append(w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
@@ -341,7 +355,7 @@ class Circuit:
                 lMat[i2 - 1, i2 - 1] += x
 
             if len(JJList) != 0:
-                wMat.append(w[1:])
+                wMat.append(w)
                 W_idx += 1
 
         wMat = np.array(wMat)
