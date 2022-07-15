@@ -16,7 +16,8 @@ from scipy.special import eval_hermite
 
 import SQcircuit.units as unt
 
-from SQcircuit.elements import Capacitor, Inductor, Junction, Loop, Charge
+from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
+                                VerySmallCap, VeryLargeCap)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 
@@ -328,9 +329,9 @@ class Circuit:
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(Capacitor(1e20, "F").value())
+                        cEd.append(VeryLargeCap().value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(Capacitor(1e-20, "F").value())
+                        cEd.append(VerySmallCap().value())
 
                 elif isinstance(el, Junction):
                     # if el.loops:
@@ -352,9 +353,9 @@ class Circuit:
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(Capacitor(1e-20, "F").value())
+                        cEd.append(VerySmallCap().value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(Capacitor(1e20, "F").value())
+                        cEd.append(VeryLargeCap().value())
 
             if len(edge_inds) == 0 and len(edge_JJs) != 0:
                 countJJnoInd += 1
