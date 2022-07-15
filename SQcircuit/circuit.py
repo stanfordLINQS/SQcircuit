@@ -227,6 +227,33 @@ class Circuit:
 
         return w[1:]
 
+    def _edge_matrix_rep(self, edge: Tuple[int, int]) -> ndarray:
+
+        """Special form of matrix representation for an edge of a graph.
+        This helps to construct the capacitance and susceptance matrices.
+
+        Parameters
+        ----------
+            edge:
+                Tuple of int which specifies an edge.
+        """
+
+        A = np.zeros((self.n, self.n))
+
+        if 0 in edge:
+            i = edge[0] + edge[1] - 1
+            A[i, i] = 1
+        else:
+            i = edge[0] - 1
+            j = edge[1] - 1
+
+            A[i, i] = 1
+            A[j, j] = 1
+            A[i, j] = -1
+            A[j, i] = -1
+
+        return A
+
     def _get_LCWB(self):
         """
         calculate the capacitance matrix, inductance matrix, W matrix,
@@ -257,45 +284,46 @@ class Circuit:
         # K1 is a matrix that transfer node coordinates to edge phase drop
         # for inductive elements
         K1 = []
+
         # capacitor at each inductive elements
         cEd = []
 
         for edge in self.elements.keys():
 
-            # i1, i2 = edge
-            w = self._get_w_at_edge(edge)
+            # w vector at the edge
+            edge_w = self._get_w_at_edge(edge)
 
-            # elements of the edge
-            edgeElements = self.elements[edge]
+            # matrix representation of an edge
+            edge_mat = self._edge_matrix_rep(edge)
 
             # list of capacitors of the edge.
-            capList = []
+            edge_caps = []
             # list of inductors of the edge
-            indList = []
+            edge_inds = []
             # list of Josephson Junction of the edge.
-            JJList = []
+            edge_JJs = []
 
-            for el in edgeElements:
+            for el in self.elements[edge]:
 
                 if isinstance(el, Capacitor):
-                    capList.append(el)
+                    edge_caps.append(el)
 
                 elif isinstance(el, Inductor):
                     # if el.loops:
                     self.inductor_keys.append((edge, el, B_idx))
                     # else:
                     #     self.inductor_keys.append((edge, el, None))
-                    indList.append(el)
+                    edge_inds.append(el)
                     # capacitor of inductor
-                    capList.append(el.cap)
-                    loops = el.loops
-                    for loop in loops:
+                    edge_caps.append(el.cap)
+
+                    for loop in el.loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w)
+                        loop.addK1(edge_w)
 
                     B_idx += 1
-                    K1.append(w)
+                    K1.append(edge_w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
@@ -309,17 +337,17 @@ class Circuit:
                     self.junction_keys.append((edge, el, B_idx, W_idx))
                     # else:
                     #     self.junction_keys.append((edge, el, None, W_idx))
-                    JJList.append(el)
+                    edge_JJs.append(el)
                     # capacitor of JJ
-                    capList.append(el.cap)
-                    loops = el.loops
-                    for loop in loops:
+                    edge_caps.append(el.cap)
+
+                    for loop in el.loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w)
+                        loop.addK1(edge_w)
 
                     B_idx += 1
-                    K1.append(w)
+                    K1.append(edge_w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
@@ -328,34 +356,22 @@ class Circuit:
                     elif self.flux_dist == "inductors":
                         cEd.append(Capacitor(1e20, "F").value())
 
-            if len(indList) == 0 and len(JJList) != 0:
+            if len(edge_inds) == 0 and len(edge_JJs) != 0:
                 countJJnoInd += 1
 
             # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.value(self.random), capList)))
+            cap = sum(list(map(lambda c: c.value(self.random), edge_caps)))
 
             # summation of the one over inductor values.
             x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random),
-                                             indList))))
+                                             edge_inds))))
 
-            if i1 != 0 and i2 == 0:
-                cMat[i1 - 1, i1 - 1] += cap
-                lMat[i1 - 1, i1 - 1] += x
-            elif i1 == 0 and i2 != 0:
-                cMat[i2 - 1, i2 - 1] += cap
-                lMat[i2 - 1, i2 - 1] += x
-            else:
-                cMat[i1 - 1, i2 - 1] = - cap
-                cMat[i2 - 1, i1 - 1] = - cap
-                cMat[i1 - 1, i1 - 1] += cap
-                cMat[i2 - 1, i2 - 1] += cap
-                lMat[i1 - 1, i2 - 1] = -x
-                lMat[i2 - 1, i1 - 1] = -x
-                lMat[i1 - 1, i1 - 1] += x
-                lMat[i2 - 1, i2 - 1] += x
+            cMat += cap * edge_mat
 
-            if len(JJList) != 0:
-                wMat.append(w)
+            lMat += x * edge_mat
+
+            if len(edge_JJs) != 0:
+                wMat.append(edge_w)
                 W_idx += 1
 
         wMat = np.array(wMat)
