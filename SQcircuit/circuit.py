@@ -1647,7 +1647,8 @@ class Circuit:
 
     def _get_partial_H(
             self,
-            el: Union[Capacitor, Inductor, Junction, Loop]
+            el: Union[Capacitor, Inductor, Junction, Loop],
+            _B_idx: Optional[int] = None,
     ) -> Qobj:
         """
         return the gradient of the Hamiltonian with respect to elements or
@@ -1658,6 +1659,12 @@ class Circuit:
             el:
                 element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
+            _B_idx:
+                Optional integer point to each row of B matrix (external flux
+                distribution of that element). This uses to specify that
+                gradient is calculated based on which JJ of the circuit
+                specifically (we use this option for critical current noise
+                calculation)
         """
 
         partial_H = qt.Qobj()
@@ -1665,8 +1672,6 @@ class Circuit:
         if isinstance(el, Loop):
 
             loop_idx = self.loops.index(el)
-            # note that this is not b_i
-            # k = self.B[:, idx]
 
             for edge, el_ind, B_idx in self.inductor_keys:
                 partial_H += (self.B[B_idx, loop_idx]
@@ -1674,9 +1679,19 @@ class Circuit:
                               / el_ind.value() * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
-            for edge, el_ind, B_idx, W_idx in self.junction_keys:
-                partial_H += (self.B[B_idx, loop_idx] * el_ind.value()
-                              * self._memory_ops['sin'][(el_ind, B_idx)])
+            for edge, el_JJ, B_idx, W_idx in self.junction_keys:
+                partial_H += (self.B[B_idx, loop_idx] * el_JJ.value()
+                              * self._memory_ops['sin'][(el_JJ, B_idx)])
+
+        elif isinstance(el, Junction):
+
+            for _, el_JJ, B_idx, W_idx in self.junction_keys:
+
+                if el == el_JJ and _B_idx is None:
+                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
+
+                elif el == el_JJ and _B_idx == B_idx:
+                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
 
         return partial_H
 
