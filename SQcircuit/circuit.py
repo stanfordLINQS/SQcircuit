@@ -1630,11 +1630,10 @@ class Circuit:
                     decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "cc":
-            for el, _ in self._memory_ops['cos']:
-                op = el.value(self.random) * self._memory_ops['cos'][(el, _)]
-                partial_omega = np.abs((state2.dag()*op*state2
-                                        - state1.dag()*op*state1).data[0, 0])
-                A = el.A
+            for el, B_idx in self._memory_ops['cos']:
+                partial_omega = self._get_partial_omega(el, states=states,
+                                                        _B_idx=B_idx)
+                A = el.A * el.value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
@@ -1698,7 +1697,8 @@ class Circuit:
     def _get_partial_omega(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
-            states: Tuple[int, int]
+            states: Tuple[int, int],
+            _B_idx: Optional[int] = None,
     ) -> float:
         """
         return the gradient of the eigen angular frequency with respect to
@@ -1715,12 +1715,18 @@ class Circuit:
                 calculate the decoherence rate. For example, for ``states=(0,
                 1)``, we calculate the decoherence rate between the ground
                 state and the first excited state.
+            _B_idx:
+                Optional integer point to each row of B matrix (external flux
+                distribution of that element). This uses to specify that
+                gradient is calculated based on which JJ of the circuit
+                specifically (we use this option for critical current noise
+                calculation)
 
         """
         state_m = self._evecs[states[0]]
         state_n = self._evecs[states[1]]
 
-        partial_H = self._get_partial_H(el)
+        partial_H = self._get_partial_H(el, _B_idx)
 
         partial_omega_m = state_m.dag() * (partial_H * state_m)
         partial_omega_n = state_n.dag() * (partial_H * state_n)
