@@ -1646,14 +1646,14 @@ class Circuit:
 
         elif dec_type == "cc":
             for el, B_idx in self._memory_ops['cos']:
-                partial_omega = self._get_partial_omega(el, states=states,
-                                                        _B_idx=B_idx)
+                partial_omega = self._get_partial_omega_mn(el, states=states,
+                                                           _B_idx=B_idx)
                 A = el.A * el.value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
             for loop in self.loops:
-                partial_omega = self._get_partial_omega(loop, states=states)
+                partial_omega = self._get_partial_omega_mn(loop, states=states)
                 A = loop.A
                 decay += self._dephasing(A, partial_omega)
 
@@ -1779,6 +1779,52 @@ class Circuit:
     def _get_partial_omega(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
+            m: int,
+            subtract_ground: bool = True,
+            _B_idx: Optional[int] = None,
+    ) -> float:
+        """
+        return the gradient of the eigen angular frequency with respect to
+        elements or loop as ``qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            el:
+                element of a circuit that can be either ``Capacitor``,
+                ``Inductor``, ``Junction``, or ``Loop``.
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
+            _B_idx:
+                Optional integer point to each row of B matrix (external flux
+                distribution of that element). This uses to specify that
+                gradient is calculated based on which JJ of the circuit
+                specifically (we use this option for critical current noise
+                calculation)
+
+        """
+
+        state_m = self._evecs[m]
+
+        partial_H = self._get_partial_H(el, _B_idx)
+
+        partial_omega_m = state_m.dag() * (partial_H*state_m)
+
+        if subtract_ground:
+
+            state_0 = self._evecs[0]
+
+            partial_omega_0 = state_0.dag() * (partial_H * state_0)
+
+            return (partial_omega_m - partial_omega_0).data[0, 0].real
+
+        else:
+
+            return partial_omega_m.data[0, 0].real
+
+    def _get_partial_omega_mn(
+            self,
+            el: Union[Capacitor, Inductor, Junction, Loop],
             states: Tuple[int, int],
             _B_idx: Optional[int] = None,
     ) -> float:
@@ -1792,17 +1838,17 @@ class Circuit:
             el:
                 element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
-            states:
-                A tuple of eigenstate indices, for which we want to
-                calculate the decoherence rate.
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
             _B_idx:
                 Optional integer point to each row of B matrix (external flux
                 distribution of that element). This uses to specify that
                 gradient is calculated based on which JJ of the circuit
                 specifically (we use this option for critical current noise
                 calculation)
-
         """
+
         state_m = self._evecs[states[0]]
         state_n = self._evecs[states[1]]
 
