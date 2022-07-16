@@ -101,7 +101,8 @@ class Circuit:
 
         # get the capacitance matrix, sudo-inductance matrix, W matrix,
         # and B matrix (loop distribution over inductive elements)
-        self.C, self.L, self.W, self.B = self._get_LCWB()
+        (self.C, self.L, self.W, self.B,
+         self.partial_C, self.partial_L) = self._get_LCWB()
 
         # the inverse of transformation of coordinates for charge operators
         self.R = np.zeros((self.n, self.n))
@@ -271,6 +272,10 @@ class Circuit:
         wMat = []
         bMat = np.array([])
 
+        partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
+
+        partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
+
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
         B_idx = 0
@@ -309,6 +314,11 @@ class Circuit:
                 if isinstance(el, Capacitor):
                     edge_caps.append(el)
 
+                    if el in partial_cMats:
+                        partial_cMats[el] += edge_mat
+                    else:
+                        partial_cMats[el] = edge_mat
+
                 elif isinstance(el, Inductor):
                     # if el.loops:
                     self.inductor_keys.append((edge, el, B_idx))
@@ -332,6 +342,11 @@ class Circuit:
                         cEd.append(VeryLargeCap().value())
                     elif self.flux_dist == "inductors":
                         cEd.append(VerySmallCap().value())
+
+                    if el in partial_lMats:
+                        partial_lMats[el] += edge_mat / el.value()**2
+                    else:
+                        partial_lMats[el] = edge_mat / el.value()**2
 
                 elif isinstance(el, Junction):
                     # if el.loops:
@@ -408,7 +423,7 @@ class Circuit:
 
         self.countJJnoInd = countJJnoInd
 
-        return cMat, lMat, wMat, bMat
+        return cMat, lMat, wMat, bMat, partial_cMats, partial_lMats
 
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
@@ -1644,6 +1659,53 @@ class Circuit:
 
         return decay
 
+    def _get_quadratic_Q(self, A: ndarray) -> Qobj:
+        """Get quadratic form of Q^T * A * Q
+
+        Parameters
+        ----------
+            A:
+                ndarray matrix that specifies the coefficient for
+                quadratic expression.
+        """
+
+        op = qt.Qobj()
+
+        for i in range(self.n):
+            for j in range(self.n-i):
+                if j == 0:
+                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
+                elif j > 0:
+                    op += 2 * A[i, i+j] * self._memory_ops["QQ"][i][j]
+
+        return op
+
+    def _get_quadratic_phi(self, A: ndarray) -> Qobj:
+        """Get quadratic form of phi^T * A * phi
+
+        Parameters
+        ----------
+            A:
+                ndarray matrix that specifies the coefficient for
+                quadratic expression.
+        """
+
+        op = qt.Qobj()
+
+        # number of harmonic modes
+        n_H = len(self.omega != 0)
+
+        for i in range(n_H):
+            for j in range(n_H):
+                phi_i = self._memory_ops["phi"][i].copy()
+                phi_j = self._memory_ops["phi"][j].copy()
+                if i == j:
+                    op += A[i, i] * phi_i ** 2
+                elif j > i:
+                    op += 2 * A[i, j] * phi_i * phi_j
+
+        return op
+
     def _get_partial_H(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
@@ -1668,7 +1730,27 @@ class Circuit:
 
         partial_H = qt.Qobj()
 
-        if isinstance(el, Loop):
+        if isinstance(el, Capacitor):
+
+            cInv = np.linalg.inv(self.C)
+            A = -0.5 * self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
+            partial_H += self._get_quadratic_Q(A)
+
+        elif isinstance(el, Inductor):
+
+            A = -0.5 * self.S.T @ self.partial_L[el]  @ self.S
+            partial_H += self._get_quadratic_phi(A)
+
+            for edge, el_ind, B_idx in self.inductor_keys:
+                if el == el_ind:
+
+                    phi = self._get_external_flux_at_element(B_idx)
+
+                    partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
+                                   / el.value()**2 / np.sqrt(unt.hbar)
+                                   * (unt.Phi0/2/np.pi) * phi)
+
+        elif isinstance(el, Loop):
 
             loop_idx = self.loops.index(el)
 
@@ -1712,9 +1794,7 @@ class Circuit:
                 ``Inductor``, ``Junction``, or ``Loop``.
             states:
                 A tuple of eigenstate indices, for which we want to
-                calculate the decoherence rate. For example, for ``states=(0,
-                1)``, we calculate the decoherence rate between the ground
-                state and the first excited state.
+                calculate the decoherence rate.
             _B_idx:
                 Optional integer point to each row of B matrix (external flux
                 distribution of that element). This uses to specify that
@@ -1728,7 +1808,7 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H * state_m)
-        partial_omega_n = state_n.dag() * (partial_H * state_n)
+        partial_omega_m = state_m.dag() * (partial_H*state_m)
+        partial_omega_n = state_n.dag() * (partial_H*state_n)
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
