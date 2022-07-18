@@ -1718,7 +1718,7 @@ class Circuit:
         Parameters
         ----------
             el:
-                element of a circuit that can be either ``Capacitor``,
+                Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             _B_idx:
                 Optional integer point to each row of B matrix (external flux
@@ -1783,14 +1783,13 @@ class Circuit:
             subtract_ground: bool = True,
             _B_idx: Optional[int] = None,
     ) -> float:
-        """
-        return the gradient of the eigen angular frequency with respect to
+        """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format.
 
         Parameters
         ----------
             el:
-                element of a circuit that can be either ``Capacitor``,
+                Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             m:
                 Integer specifies the eigenvalue. for example ``m=0`` specifies
@@ -1828,25 +1827,18 @@ class Circuit:
             states: Tuple[int, int],
             _B_idx: Optional[int] = None,
     ) -> float:
-        """
-        return the gradient of the eigen angular frequency with respect to
+        """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format. Note that if
         ``states=(m, n)``, it returns ``partial_omega_m - partial_omega_n``.
 
         Parameters
         ----------
             el:
-                element of a circuit that can be either ``Capacitor``,
+                Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             m:
                 Integer specifies the eigenvalue. for example ``m=0`` specifies
                 the ground state and ``m=1`` specifies the first excited state.
-            _B_idx:
-                Optional integer point to each row of B matrix (external flux
-                distribution of that element). This uses to specify that
-                gradient is calculated based on which JJ of the circuit
-                specifically (we use this option for critical current noise
-                calculation)
         """
 
         state_m = self._evecs[states[0]]
@@ -1858,3 +1850,40 @@ class Circuit:
         partial_omega_n = state_n.dag() * (partial_H*state_n)
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
+
+    def _get_partial_vec(self, el, m):
+        """Return the gradient of the eigenvectors with respect to
+        elements or loop as ``qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            el:
+                Element of a circuit that can be either ``Capacitor``,
+                ``Inductor``, ``Junction``, or ``Loop``.
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
+        """
+
+        state_m = self._evecs[m]
+
+        #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
+
+        n_eig = len(self._evecs)
+
+        partial_H = self._get_partial_H(el)
+        partial_state = qt.Qobj()
+
+        for n in range(n_eig):
+
+            if n == m:
+                continue
+
+            state_n = self._evecs[n]
+
+            delta_omega = (self._efreqs[m] - self._efreqs[n])
+
+            partial_state += (state_n.dag()
+                              * (partial_H * state_m)) * state_n / delta_omega
+
+        return partial_state
