@@ -13,6 +13,13 @@ class Connect:
     Parameters
     ----------
         sys1:
+            Tuple of the first circuit and the node of the circuit that we are
+            connected to.
+        sys2:
+            Tuple of the second circuit and the node of the circuit that we are
+            connected to.
+        el:
+            The element of the connection. (For now only capacitors)
     """
     def __init__(
             self,
