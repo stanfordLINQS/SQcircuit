@@ -44,11 +44,17 @@ class Couple:
 
 
 class System:
-    """Class that contains method for calculating the spectrum of a system of
-    circuits connected with specific type of coupling (either capacitively or
-    inductively).
+    """Class that contains method for calculating the spectrum and properties
+    of a system of coupled circuits.
+
+    Parameters
+    ----------
+        couplings:
+            List of couplings that describes the interaction between
+            different part of the system.
     """
 
     def __init__(self, couplings: List["Couple"]):
 
         self.couplings = couplings
+        
