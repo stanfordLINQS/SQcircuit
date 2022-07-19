@@ -2,7 +2,7 @@
 circuit.py contains the classes for the circuit and their properties
 """
 
-from typing import Dict, Tuple, List, Sequence, Optional, Union, Callable
+from typing import Dict, Tuple, List, Sequence, Optional, Union
 
 import numpy as np
 import qutip as qt
