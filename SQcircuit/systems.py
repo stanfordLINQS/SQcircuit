@@ -2,39 +2,44 @@
 superconducting circuits.
 """
 
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 from circuit import Circuit
+from elements import Capacitor, Inductor, Junction
 
 
-class Connect:
-    """Class  that stores the connection between two circuit.
+class Couple:
+    """Class  that stores the coupling between two different circuits.
 
     Parameters
     ----------
-        sys1:
-            Tuple of the first circuit and the node of the circuit that we are
-            connected to.
-        sys2:
-            Tuple of the second circuit and the node of the circuit that we are
-            connected to.
+        cr1:
+            Circuit of the system one.
+        attr1:
+            node or edge related to system one.
+        cr2:
+            Circuit of the system two.
+        attr2:
+            node or edge related to system two.
         el:
-            The element of the connection. (For now only capacitors)
+            The element of the coupling. (For now only capacitors)
     """
     def __init__(
             self,
-            sys1: Tuple[Circuit, int],
-            sys2: Tuple[Circuit, int],
-            el: Union[Capacitor]
+            cr1: Circuit,
+            attr1: Union[int, Tuple[int, int]],
+            cr2: Tuple[Circuit, int],
+            attr2: Union[int, Tuple[int, int]],
+            el: Union[Capacitor, Inductor, Junction]
     ) -> None:
 
-        # information of the system one
-        self.sys1 = sys1
+        # information of the circuits
+        self.circuits = [cr1, cr2]
 
-        # information of the system two
-        self.sys2 = sys2
+        # attribute of each circuit
+        self.attrs = [attr1, attr2]
 
-        # element of connection
+        # element of coupling
         self.el = el
 
 
@@ -43,3 +48,7 @@ class System:
     circuits connected with specific type of coupling (either capacitively or
     inductively).
     """
+
+    def __init__(self, couplings: List["Couple"]):
+
+        self.couplings = couplings
