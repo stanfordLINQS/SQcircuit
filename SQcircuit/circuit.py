@@ -80,7 +80,7 @@ class Circuit:
         # charge islands of the circuit
         self.charge_islands: Dict[int, Charge] = {}
 
-        # number of nodes
+        # number of nodes without ground
         self.n: int = max(max(self.elements))
 
         # number of branches that contain JJ without parallel inductor.
