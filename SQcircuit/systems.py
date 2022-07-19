@@ -12,9 +12,7 @@ class Connect:
 
     Parameters
     ----------
-        elements:
-            A dictionary that contains the circuit's elements at each branch
-            of the circuit.
+        sys1:
     """
     def __init__(
             self,
@@ -31,4 +29,10 @@ class Connect:
 
         # element of connection
         self.el = el
-        
+
+
+class System:
+    """Class that contains method for calculating the spectrum of a system of
+    circuits connected with specific type of coupling (either capacitively or
+    inductively).
+    """
