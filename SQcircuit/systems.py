@@ -9,6 +9,7 @@ import qutip as qt
 
 from numpy import ndarray
 from qutip.qobj import Qobj
+from scipy.linalg import block_diag
 
 from SQcircuit.circuit import Circuit
 from SQcircuit.elements import Capacitor, Inductor, Junction
@@ -87,9 +88,18 @@ class System:
 
         # number of nodes up to the cr circuit.
         N = 0
-        for circuit in self.circuits:
-            if circuit == cr:
+        for circ in self.circuits:
+            if circ == cr:
                 break
             N += circuit.n
 
         return N+node-1
+
+    def _bare_cap_matrix(self) -> ndarray:
+        """Return the capacitance matrix of the entire system as``ndarray``
+        without considering the coupling capacitors."""
+
+        # list of capacitance matrix for each circuit
+        cap_matrices = [cr.C for cr in self.circuits]
+
+        return block_diag(*cap_matrices)
