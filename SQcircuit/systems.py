@@ -100,6 +100,26 @@ class System:
         without considering the coupling capacitors."""
 
         # list of capacitance matrix for each circuit
-        cap_matrices = [cr.C for cr in self.circuits]
+        cap_matrices = [circ.C for circ in self.circuits]
 
         return block_diag(*cap_matrices)
+
+    def cap_matrix(self) -> ndarray:
+        """Return the capacitance matrix of the entire system as``ndarray``."""
+
+        C = self._bare_cap_matrix()
+
+        for couple in self.couplings:
+            
+            if isinstance(couple.el, Capacitor):
+
+                i = self._node_idx_in_sys(couple.circuits[0], couple.attrs[0])
+
+                j = self._node_idx_in_sys(couple.circuits[1], couple.attrs[1])
+
+                C[i, i] += couple.el.value()
+                C[j, j] += couple.el.value()
+                C[i, j] -= couple.el.value()
+                C[j, i] -= couple.el.value()
+
+        return C
