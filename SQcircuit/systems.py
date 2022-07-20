@@ -59,7 +59,7 @@ class System:
         self.couplings = couplings
         self.circuits = self._get_all_circuits()
 
-    def _get_all_circuits(self):
+    def _get_all_circuits(self) -> List[Circuit]:
         """Get all the circuits described in ``System.couplings`` as a list.
         """
         # list of circuits
