@@ -4,8 +4,14 @@ superconducting circuits.
 
 from typing import List, Tuple, Union
 
-from circuit import Circuit
-from elements import Capacitor, Inductor, Junction
+import numpy as np
+import qutip as qt
+
+from numpy import ndarray
+from qutip.qobj import Qobj
+
+from SQcircuit.circuit import Circuit
+from SQcircuit.elements import Capacitor, Inductor, Junction
 
 
 class Couple:
@@ -57,11 +63,14 @@ class System:
     def __init__(self, couplings: List["Couple"]) -> None:
 
         self.couplings = couplings
+
+        # list of circuits
         self.circuits = self._get_all_circuits()
 
     def _get_all_circuits(self) -> List[Circuit]:
-        """Get all the circuits described in ``System.couplings`` as a list.
-        """
+        """Return all the circuits described in ``System.couplings`` as a
+        list."""
+
         # list of circuits
         circuits = []
 
@@ -69,6 +78,18 @@ class System:
             for circuit in couple.circuits:
 
                 if circuit not in circuits:
-                    circuits += circuit
+                    circuits.append(circuit)
 
         return circuits
+
+    def _node_idx_in_sys(self, cr: Circuit, node: int) -> int:
+        """Return node index in the general system"""
+
+        # number of nodes up to the cr circuit.
+        N = 0
+        for circuit in self.circuits:
+            if circuit == cr:
+                break
+            N += circuit.n
+
+        return N+node-1
