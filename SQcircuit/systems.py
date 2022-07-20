@@ -54,7 +54,21 @@ class System:
             different part of the system.
     """
 
-    def __init__(self, couplings: List["Couple"]):
+    def __init__(self, couplings: List["Couple"]) -> None:
 
         self.couplings = couplings
-        
+        self.circuits = self._get_all_circuits()
+
+    def _get_all_circuits(self):
+        """Get all the circuits described in ``System.couplings`` as a list.
+        """
+        # list of circuits
+        circuits = []
+
+        for couple in self.couplings:
+            for circuit in couple.circuits:
+
+                if circuit not in circuits:
+                    circuits += circuit
+
+        return circuits
