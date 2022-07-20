@@ -91,7 +91,7 @@ class System:
         for circ in self.circuits:
             if circ == cr:
                 break
-            N += circuit.n
+            N += circ.n
 
         return N+node-1
 
@@ -110,7 +110,7 @@ class System:
         C = self._bare_cap_matrix()
 
         for couple in self.couplings:
-            
+
             if isinstance(couple.el, Capacitor):
 
                 i = self._node_idx_in_sys(couple.circuits[0], couple.attrs[0])
