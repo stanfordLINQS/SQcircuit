@@ -612,6 +612,33 @@ class Circuit:
 
         return S3, R3
 
+    def _scale_uncoupled_modes(self):
+        """Scale the modes that do not appear in the JJ part of the
+        Hamiltonian"""
+
+        S_s = np.eye(self.n)
+
+        for j in range(self.n):
+            if not self._is_charge_mode(j):
+                # scale the uncoupled mode
+                S = np.abs(self.S1)
+
+                s = np.max(S[:, j])
+
+                S_s[j, j] = 1 / s
+
+                for i in range(self.n):
+                    if i == j:
+                        self.cInvTrans[i, j] *= s ** 2
+                        self.lTrans[i, j] /= s ** 2
+                    else:
+                        self.cInvTrans[i, j] *= s
+                        self.lTrans[i, j] /= s
+
+        R_s = np.linalg.inv(S_s.T)
+
+        return S_s, R_s
+
     def _transform_hamil(self):
         """
         transform the Hamiltonian of the circuit that can be expressed
@@ -632,8 +659,10 @@ class Circuit:
         # the case that circuit has no JJ
         if len(self.W) == 0:
 
-            self.S = self.S1
-            self.R = self.R1
+            self.S_s, self.R_s = self._scale_uncoupled_modes()
+
+            self.S = self.S1 @ self.S_s
+            self.R = self.R1 @ self.R_s
 
         else:
 
