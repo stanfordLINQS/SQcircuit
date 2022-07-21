@@ -182,6 +182,13 @@ class Circuit:
     def __setstate__(self, state):
         self.__dict__ = state
 
+    @property
+    def efreqs(self):
+
+        assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
+
+        return self._efreqs / (2*np.pi*unt.get_unit_freq())
+
     @staticmethod
     def _independentRows(A):
         """use Gram–Schmidt to find the linear independent rows of matrix A
@@ -1316,10 +1323,7 @@ class Circuit:
         elif basis == "eig":
 
             # number of eigenvalues
-            n_eig = len(self._efreqs)
-
-            error2 = "Please diagonalize the circuit first."
-            assert n_eig != 0, error2
+            n_eig = len(self.efreqs)
 
             Q_eig = np.zeros((n_eig, n_eig), dtype=complex)
 
