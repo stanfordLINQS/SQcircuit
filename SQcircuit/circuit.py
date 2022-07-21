@@ -1290,6 +1290,46 @@ class Circuit:
 
         return H
 
+    def charge_op(self, mode: int, basis: str = 'FC') -> Qobj:
+        """Return charge operator for specific mode in the Fock/Charge basis or
+        the eigenbasis.
+
+        Parameters
+        ----------
+            mode:
+                Integer that specifies the mode number.
+            basis:
+                String that specifies the basis. It can be either ``"FC"``
+                for original Fock/Charge basis or ``"eig"`` for eigenbasis.
+        """
+
+        error1 = "Please specify the truncation number for each mode."
+        assert len(self.m) != 0, error1
+
+        # charge operator in Fock/Charge basis
+        Q_FC = self._memory_ops["Q"][mode-1]
+
+        if basis == "FC":
+
+            return Q_FC
+
+        elif basis == "eig":
+
+            # number of eigenvalues
+            n_eig = len(self._efreqs)
+
+            error2 = "Please diagonalize the circuit first."
+            assert n_eig != 0, error2
+
+            Q_eig = np.zeros((n_eig, n_eig), dtype=complex)
+
+            for i in range(n_eig):
+                for j in range(n_eig):
+                    Q_eig[i, j] = (self._evecs[i].dag()
+                                   * Q_FC * self._evecs[j]).data[0, 0]
+
+            return qt.Qobj(Q_eig)
+
     def diag(self, n_eig: int) -> Tuple[ndarray, List[Qobj]]:
         """
         Diagonalize the Hamiltonian of the circuit and return the
