@@ -68,6 +68,10 @@ class System:
         # list of circuits
         self.circuits = self._get_all_circuits()
 
+        # truncation number for each sub-circuit which is the number of
+        # eigenvalue of each sub-circuit.
+        self.trunc_nums = self._get_all_circuits_num_eig()
+
     def _get_all_circuits(self) -> List[Circuit]:
         """Return all the circuits described in ``System.couplings`` as a
         list."""
@@ -82,6 +86,17 @@ class System:
                     circuits.append(circuit)
 
         return circuits
+
+    def _get_all_circuits_num_eig(self):
+        """Return the number of eigenvalues for all circuit as a list.
+        """
+
+        num_eig_list = []
+
+        for circ in self.circuits:
+            num_eig_list.append(len(circ.efreqs))
+
+        return num_eig_list
 
     def _node_idx_in_sys(self, cr: Circuit, node: int) -> int:
         """Return node index in the general system"""
