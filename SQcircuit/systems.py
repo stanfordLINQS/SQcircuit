@@ -290,3 +290,16 @@ class System:
                     op += A[i, j] * self._QQ_op(i, j)
 
         return op
+
+    def H_local(self) -> Qobj:
+        """Return summation of local Hamiltonian in default frequency unit
+        of SQcircuit as ``Qutip.Qobj`` format.
+        """
+
+        op = qt.Qobj()
+
+        for i, circ in enumerate(self.circuits):
+
+            op += self._op_in_sys(qt.Qobj(np.diag(circ.efreqs)), i)
+
+        return op
