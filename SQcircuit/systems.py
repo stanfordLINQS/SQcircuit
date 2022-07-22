@@ -215,8 +215,8 @@ class System:
             sub_op_2: Qobj,
             sub_idx_2: int
     ) -> Qobj:
-        """Return the subsystem operator in the tensor product space of the
-        overall system as ``Qutip.Qobj`` format.
+        """Return the multiplication of two subsystem operators in the
+        tensor product space of the overall system as ``Qutip.Qobj`` format.
 
         Parameters
         ----------
@@ -249,7 +249,7 @@ class System:
 
         return qt.tensor(*op_list)
 
-    def _charge_times_charge_op(self, m: int, n: int) -> Qobj:
+    def _QQ_op(self, m: int, n: int) -> Qobj:
         """Return Q_m*Q_n operator.
 
         Parameters
