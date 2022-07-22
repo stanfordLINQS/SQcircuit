@@ -1348,8 +1348,8 @@ class Circuit:
         Returns
         ----------
             efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit (
-                gigahertz by default)
+                ndarray of eigenfrequencies in frequency unit of SQcircuit
+                (gigahertz by default)
             evecs:
                 List of eigenvectors in qutip.Qobj format.
         """

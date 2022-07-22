@@ -11,6 +11,8 @@ from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import block_diag
 
+import SQcircuit.units as unt
+
 from SQcircuit.circuit import Circuit
 from SQcircuit.elements import Capacitor, Inductor, Junction
 
@@ -282,8 +284,8 @@ class System:
 
         op = qt.Qobj()
 
-        for i in range(n_N):
-            for j in range(n_N):
+        for i in range(self.n_N):
+            for j in range(self.n_N):
                 if i == j:
                     op += 0.5 * A[i, i] * self._QQ_op(i, j)
                 elif j > i:
@@ -312,9 +314,10 @@ class System:
         delta_C_inv = (np.linalg.inv(self.cap_matrix())
                        - np.linalg.inv(self._bare_cap_matrix()))
 
-        R = block_diag([circ.R for circ in self.circuits])
+        R = block_diag(*[circ.R for circ in self.circuits])
 
-        return self._quadratic_Q(R.T @ delta_C_inv @ R)
+        return self._quadratic_Q(R.T @ delta_C_inv @ R) / (
+                2*np.pi*unt.get_unit_freq())
 
     def hamiltonian(self) -> Qobj:
         """Return Hamiltonian of the overall system in default frequency
@@ -322,3 +325,4 @@ class System:
         """
 
         return self._H_local() + self._H_int()
+
