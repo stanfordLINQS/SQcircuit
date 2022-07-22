@@ -1733,7 +1733,7 @@ class Circuit:
         return decay
 
     def _get_quadratic_Q(self, A: ndarray) -> Qobj:
-        """Get quadratic form of Q^T * A * Q
+        """Return quadratic form of 1/2 * Q^T * A * Q
 
         Parameters
         ----------
@@ -1747,14 +1747,14 @@ class Circuit:
         for i in range(self.n):
             for j in range(self.n-i):
                 if j == 0:
-                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
+                    op += 0.5 * A[i, i+j] * self._memory_ops["QQ"][i][j]
                 elif j > 0:
-                    op += 2 * A[i, i+j] * self._memory_ops["QQ"][i][j]
+                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
 
         return op
 
     def _get_quadratic_phi(self, A: ndarray) -> Qobj:
-        """Get quadratic form of phi^T * A * phi
+        """Get quadratic form of 1/2 * phi^T * A * phi
 
         Parameters
         ----------
@@ -1773,9 +1773,9 @@ class Circuit:
                 phi_i = self._memory_ops["phi"][i].copy()
                 phi_j = self._memory_ops["phi"][j].copy()
                 if i == j:
-                    op += A[i, i] * phi_i ** 2
+                    op += 0.5 * A[i, i] * phi_i ** 2
                 elif j > i:
-                    op += 2 * A[i, j] * phi_i * phi_j
+                    op += A[i, j] * phi_i * phi_j
 
         return op
 
@@ -1806,12 +1806,12 @@ class Circuit:
         if isinstance(el, Capacitor):
 
             cInv = np.linalg.inv(self.C)
-            A = -0.5 * self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
+            A = -self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
             partial_H += self._get_quadratic_Q(A)
 
         elif isinstance(el, Inductor):
 
-            A = -0.5 * self.S.T @ self.partial_L[el]  @ self.S
+            A = -self.S.T @ self.partial_L[el]  @ self.S
             partial_H += self._get_quadratic_phi(A)
 
             for edge, el_ind, B_idx in self.inductor_keys:

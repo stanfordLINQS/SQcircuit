@@ -269,3 +269,24 @@ class System:
         Q_n = self.circuits[n_sub_idx].charge_op(node_in_subsys, basis="eig")
 
         return self._op_times_op_in_sys(Q_m, m_sub_idx, Q_n, n_sub_idx)
+
+    def _quadratic_Q(self, A: ndarray) -> Qobj:
+        """Return quadratic form of 1/2 * Q^T * A * Q
+
+        Parameters
+        ----------
+            A:
+                ndarray matrix that specifies the coefficient for
+                quadratic expression.
+        """
+
+        op = qt.Qobj()
+
+        for i in range(n_N):
+            for j in range(n_N):
+                if i == j:
+                    op += 0.5 * A[i, i] * self._QQ_op(i, j)
+                elif j > i:
+                    op += A[i, j] * self._QQ_op(i, j)
+
+        return op
