@@ -68,7 +68,13 @@ class System:
         # list of circuits
         self.circuits = self._get_all_circuits()
 
-        # truncation number for each sub-circuit which is the number of
+        # number of sub-circuits (subsystems).
+        self.n_sub = len(self.circuits)
+
+        # overall number of nodes
+        self.n_N = sum([circ.n for circ in self.circuits])
+
+        # truncation numbers for each sub-circuit which is the number of
         # eigenvalue of each sub-circuit.
         self.trunc_nums = self._get_all_circuits_num_eig()
 
@@ -87,7 +93,7 @@ class System:
 
         return circuits
 
-    def _get_all_circuits_num_eig(self):
+    def _get_all_circuits_num_eig(self) -> List[int]:
         """Return the number of eigenvalues for all circuit as a list.
         """
 
@@ -98,8 +104,16 @@ class System:
 
         return num_eig_list
 
-    def _node_idx_in_sys(self, cr: Circuit, node: int) -> int:
-        """Return node index in the general system"""
+    def _node_idx_in_sys(self, cr: Circuit, i: int) -> int:
+        """Return node index in the general system.
+
+        Parameters
+        ----------
+            cr:
+                Circuit of interest as a subsystem.
+            i:
+                Integer specifies the node index in the sub-circuit.
+        """
 
         # number of nodes up to the cr circuit.
         N = 0
@@ -108,7 +122,38 @@ class System:
                 break
             N += circ.n
 
-        return N+node-1
+        return N+i-1
+
+    def _node_idx_in_sub_sys(self, i: int) -> Tuple[int, int]:
+        """Return circuit and node index related to node index in the overall
+        system.
+
+        Parameters
+        ----------
+            i:
+                node index in the overall system.
+        """
+
+        # number of nodes
+        N = 0
+
+        # node in sub-circuit
+        node_in_subsys: int = 0
+
+        # index of the sub-circuit in overall system.
+        sub_idx: int = 0
+
+        for circ in self.circuits:
+            if i < N+circ.n:
+                # node in sub-circuit
+                node_in_subsys = i-N+1
+
+                # index of the circuit in overall system.
+                sub_idx = self.circuits.index(circ)
+                break
+            N += circ.n
+
+        return node_in_subsys, sub_idx
 
     def _bare_cap_matrix(self) -> ndarray:
         """Return the capacitance matrix of the entire system as``ndarray``
@@ -138,3 +183,89 @@ class System:
                 C[j, i] -= couple.el.value()
 
         return C
+
+    def _op_in_sys(self, sub_op: Qobj, sub_idx: int) -> Qobj:
+        """Return the subsystem operator in the tensor product space of the
+        overall system as ``Qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            sub_op:
+                Subsystem operator with format of ``Qutip.Qobj``.
+            sub_idx:
+                Integer that specifies the index of the subsystem in the
+                overall system.
+        """
+
+        op_list: List[Qobj] = []
+
+        for i in range(self.n_sub):
+
+            if i == sub_idx:
+                op_list.append(sub_op)
+            else:
+                op_list.append(qt.qeye(self.trunc_nums[i]))
+
+        return qt.tensor(*op_list)
+
+    def _op_times_op_in_sys(
+            self,
+            sub_op_1: Qobj,
+            sub_idx_1: int,
+            sub_op_2: Qobj,
+            sub_idx_2: int
+    ) -> Qobj:
+        """Return the subsystem operator in the tensor product space of the
+        overall system as ``Qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            sub_op_1:
+                First subsystem operator with format of ``Qutip.Qobj``.
+            sub_idx_1:
+                Integer that specifies the first index of the subsystem in the
+                overall system.
+                        sub_op_1:
+                Second subsystem operator with format of ``Qutip.Qobj``.
+            sub_idx_1:
+                Integer that specifies the second index of the subsystem in the
+                overall system.
+        """
+
+        # If both operators are in the same subsystems.
+        if sub_idx_1 == sub_idx_2:
+            return self._op_in_sys(sub_op_1*sub_op_2, sub_idx_1)
+
+        op_list: List[Qobj] = []
+
+        for i in range(self.n_sub):
+
+            if i == sub_idx_1:
+                op_list.append(sub_op_1)
+            elif i == sub_idx_2:
+                op_list.append(sub_op_2)
+            else:
+                op_list.append(qt.qeye(self.trunc_nums[i]))
+
+        return qt.tensor(*op_list)
+
+    def _charge_times_charge_op(self, m: int, n: int) -> Qobj:
+        """Return Q_m*Q_n operator.
+
+        Parameters
+        ----------
+            m:
+                Integer that specifies the index of the first charge operator
+                in the overall system.
+            n:
+                Integer that specifies the index of the second charge operator
+                in the overall system.
+        """
+
+        node_in_subsys, m_sub_idx = self._node_idx_in_sub_sys(m)
+        Q_m = self.circuits[m_sub_idx].charge_op(node_in_subsys, basis="eig")
+
+        node_in_subsys, n_sub_idx = self._node_idx_in_sub_sys(n)
+        Q_n = self.circuits[n_sub_idx].charge_op(node_in_subsys, basis="eig")
+
+        return self._op_times_op_in_sys(Q_m, m_sub_idx, Q_n, n_sub_idx)
