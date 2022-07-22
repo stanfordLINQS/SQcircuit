@@ -291,7 +291,7 @@ class System:
 
         return op
 
-    def H_local(self) -> Qobj:
+    def _H_local(self) -> Qobj:
         """Return summation of local Hamiltonian in default frequency unit
         of SQcircuit as ``Qutip.Qobj`` format.
         """
@@ -303,3 +303,22 @@ class System:
             op += self._op_in_sys(qt.Qobj(np.diag(circ.efreqs)), i)
 
         return op
+
+    def _H_int(self) -> Qobj:
+        """Return interaction Hamiltonian in default frequency unit
+        of SQcircuit as ``Qutip.Qobj`` format.
+        """
+
+        delta_C_inv = (np.linalg.inv(self.cap_matrix())
+                       - np.linalg.inv(self._bare_cap_matrix()))
+
+        R = block_diag([circ.R for circ in self.circuits])
+
+        return self._quadratic_Q(R.T @ delta_C_inv @ R)
+
+    def hamiltonian(self) -> Qobj:
+        """Return Hamiltonian of the overall system in default frequency
+        unit of SQcircuit as ``Qutip.Qobj`` format.
+        """
+
+        return self._H_local() + self._H_int()
