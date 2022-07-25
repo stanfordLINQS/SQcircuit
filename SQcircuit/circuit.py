@@ -1887,3 +1887,35 @@ class Circuit:
                               * (partial_H * state_m)) * state_n / delta_omega
 
         return partial_state
+
+    def update_H(self):
+        (self.C, self.L, self.W, self.B,
+         self.partial_C, self.partial_L) = self._get_LCWB()
+        self._transform_hamil()
+        self._LC_hamil = self._get_LC_hamil()
+
+    def update_element(
+            self,
+            element: Union[Capacitor, Inductor, Junction],
+            value: float,
+            update_H: bool = True
+    ) -> None:
+        if element.type == Capacitor:
+            element.cValue = value
+        elif element.type == Inductor:
+            element.lValue = value
+        elif element.type == Junction:
+            element.jValue = value
+        else:
+            raise ValueError("Element type not recognized.")
+        if update_H:
+            update_H()
+
+    def update_elements(self,
+                        elements: List[Union[Capacitor, Inductor, Junction]],
+                        values: List[float]):
+        assert(len(elements) == len(values), 'Length of elements and values to update must match.')
+        for idx in range(len(elements)):
+            self.update_element(elements[idx], values[idx], update_H = False)
+        self.update_H()
+
