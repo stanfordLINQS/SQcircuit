@@ -2,7 +2,7 @@
 circuit.py contains the classes for the circuit and their properties
 """
 
-from typing import Dict, Tuple, List, Sequence, Optional, Union, Callable
+from typing import Dict, Tuple, List, Sequence, Optional, Union
 
 import numpy as np
 import qutip as qt
@@ -80,7 +80,7 @@ class Circuit:
         # charge islands of the circuit
         self.charge_islands: Dict[int, Charge] = {}
 
-        # number of nodes
+        # number of nodes without ground
         self.n: int = max(max(self.elements))
 
         # number of branches that contain JJ without parallel inductor.
@@ -181,6 +181,13 @@ class Circuit:
 
     def __setstate__(self, state):
         self.__dict__ = state
+
+    @property
+    def efreqs(self):
+
+        assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
+
+        return self._efreqs / (2*np.pi*unt.get_unit_freq())
 
     @staticmethod
     def _independentRows(A):
@@ -612,6 +619,33 @@ class Circuit:
 
         return S3, R3
 
+    def _scale_uncoupled_modes(self):
+        """Scale the modes that do not appear in the JJ part of the
+        Hamiltonian"""
+
+        S_s = np.eye(self.n)
+
+        for j in range(self.n):
+            if not self._is_charge_mode(j):
+                # scale the uncoupled mode
+                S = np.abs(self.S1)
+
+                s = np.max(S[:, j])
+
+                S_s[j, j] = 1 / s
+
+                for i in range(self.n):
+                    if i == j:
+                        self.cInvTrans[i, j] *= s ** 2
+                        self.lTrans[i, j] /= s ** 2
+                    else:
+                        self.cInvTrans[i, j] *= s
+                        self.lTrans[i, j] /= s
+
+        R_s = np.linalg.inv(S_s.T)
+
+        return S_s, R_s
+
     def _transform_hamil(self):
         """
         transform the Hamiltonian of the circuit that can be expressed
@@ -632,8 +666,10 @@ class Circuit:
         # the case that circuit has no JJ
         if len(self.W) == 0:
 
-            self.S = self.S1
-            self.R = self.R1
+            self.S_s, self.R_s = self._scale_uncoupled_modes()
+
+            self.S = self.S1 @ self.S_s
+            self.R = self.R1 @ self.R_s
 
         else:
 
@@ -1261,6 +1297,43 @@ class Circuit:
 
         return H
 
+    def charge_op(self, mode: int, basis: str = 'FC') -> Qobj:
+        """Return charge operator for specific mode in the Fock/Charge basis or
+        the eigenbasis.
+
+        Parameters
+        ----------
+            mode:
+                Integer that specifies the mode number.
+            basis:
+                String that specifies the basis. It can be either ``"FC"``
+                for original Fock/Charge basis or ``"eig"`` for eigenbasis.
+        """
+
+        error1 = "Please specify the truncation number for each mode."
+        assert len(self.m) != 0, error1
+
+        # charge operator in Fock/Charge basis
+        Q_FC = self._memory_ops["Q"][mode-1]
+
+        if basis == "FC":
+
+            return Q_FC
+
+        elif basis == "eig":
+
+            # number of eigenvalues
+            n_eig = len(self.efreqs)
+
+            Q_eig = np.zeros((n_eig, n_eig), dtype=complex)
+
+            for i in range(n_eig):
+                for j in range(n_eig):
+                    Q_eig[i, j] = (self._evecs[i].dag()
+                                   * Q_FC * self._evecs[j]).data[0, 0]
+
+            return qt.Qobj(Q_eig)
+
     def diag(self, n_eig: int) -> Tuple[ndarray, List[Qobj]]:
         """
         Diagonalize the Hamiltonian of the circuit and return the
@@ -1275,8 +1348,8 @@ class Circuit:
         Returns
         ----------
             efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit (
-                gigahertz by default)
+                ndarray of eigenfrequencies in frequency unit of SQcircuit
+                (gigahertz by default)
             evecs:
                 List of eigenvectors in qutip.Qobj format.
         """
@@ -1660,7 +1733,7 @@ class Circuit:
         return decay
 
     def _get_quadratic_Q(self, A: ndarray) -> Qobj:
-        """Get quadratic form of Q^T * A * Q
+        """Return quadratic form of 1/2 * Q^T * A * Q
 
         Parameters
         ----------
@@ -1674,14 +1747,14 @@ class Circuit:
         for i in range(self.n):
             for j in range(self.n-i):
                 if j == 0:
-                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
+                    op += 0.5 * A[i, i+j] * self._memory_ops["QQ"][i][j]
                 elif j > 0:
-                    op += 2 * A[i, i+j] * self._memory_ops["QQ"][i][j]
+                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
 
         return op
 
     def _get_quadratic_phi(self, A: ndarray) -> Qobj:
-        """Get quadratic form of phi^T * A * phi
+        """Get quadratic form of 1/2 * phi^T * A * phi
 
         Parameters
         ----------
@@ -1700,9 +1773,9 @@ class Circuit:
                 phi_i = self._memory_ops["phi"][i].copy()
                 phi_j = self._memory_ops["phi"][j].copy()
                 if i == j:
-                    op += A[i, i] * phi_i ** 2
+                    op += 0.5 * A[i, i] * phi_i ** 2
                 elif j > i:
-                    op += 2 * A[i, j] * phi_i * phi_j
+                    op += A[i, j] * phi_i * phi_j
 
         return op
 
@@ -1733,12 +1806,12 @@ class Circuit:
         if isinstance(el, Capacitor):
 
             cInv = np.linalg.inv(self.C)
-            A = -0.5 * self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
+            A = -self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
             partial_H += self._get_quadratic_Q(A)
 
         elif isinstance(el, Inductor):
 
-            A = -0.5 * self.S.T @ self.partial_L[el]  @ self.S
+            A = -self.S.T @ self.partial_L[el]  @ self.S
             partial_H += self._get_quadratic_phi(A)
 
             for edge, el_ind, B_idx in self.inductor_keys:

@@ -58,4 +58,3 @@ def test_phase_coord_zeropi():
         state1_data = pickle.load(inp)
 
     assert np.allclose(state1, state1_data, rtol=1e-4, atol=1e-3)
-
