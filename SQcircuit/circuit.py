@@ -1987,8 +1987,20 @@ class Circuit:
     def update_elements(self,
                         elements: List[Union[Capacitor, Inductor, Junction]],
                         values: List[float]):
+        """Updates an input list of circuit elements with new scalar parameter
+        values, using the units already specified for that element.
+
+        Parameters
+        ----------
+            elements:
+                List of circuit elements, which must be of the type ``Capacitor``,
+                ``Inductor``, or ``Junction``.
+            values:
+                List of floats (of the same length as ``elements``) that contains.
+                the new values for each element (in the previously specified
+                type of unit).
+        """
         assert(len(elements) == len(values), 'Length of elements and values to update must match.')
         for idx in range(len(elements)):
             self.update_element(elements[idx], values[idx], update_H = False)
         self.update_H()
-
