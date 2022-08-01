@@ -1961,15 +1961,18 @@ class Circuit:
 
         return partial_state
 
-    def update_H(self):
+    def _update_H(self):
         (self.C, self.L, self.W, self.B,
          self.partial_C, self.partial_L) = self._get_LCWB()
         self._transform_hamil()
+        self._build_op_memory()
         self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
 
-    def update_element(
+    # TODO: Replace this if/else statement with single set_value() method
+    def _update_element(
             self,
-            element: Union[Capacitor, Inductor, Junction],
+            element: Union[Capacitor, Inductor, Junction, Loop],
             value: float,
             update_H: bool = True
     ) -> None:
@@ -1979,13 +1982,15 @@ class Circuit:
             element.lValue = value
         elif element.type == Junction:
             element.jValue = value
+        elif element.type == Loop:
+            element.value = value
         else:
             raise ValueError("Element type not recognized.")
         if update_H:
-            update_H()
+            self._update_H()
 
     def update_elements(self,
-                        elements: List[Union[Capacitor, Inductor, Junction]],
+                        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
                         values: List[float]):
         """Updates an input list of circuit elements with new scalar parameter
         values, using the units already specified for that element.
@@ -2000,7 +2005,8 @@ class Circuit:
                 the new values for each element (in the previously specified
                 type of unit).
         """
-        assert(len(elements) == len(values), 'Length of elements and values to update must match.')
+        assert(len(elements) == len(values),
+               'Length of elements and values to update must match.')
         for idx in range(len(elements)):
-            self.update_element(elements[idx], values[idx], update_H = False)
-        self.update_H()
+            self._update_element(elements[idx], values[idx], update_H = False)
+        self._update_H()

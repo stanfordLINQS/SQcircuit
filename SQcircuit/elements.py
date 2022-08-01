@@ -11,8 +11,11 @@ from scipy.special import kn
 
 import SQcircuit.units as unt
 
+class Element:
+    def __init__(self, value: float = 0):
+        self.value = value
 
-class Capacitor:
+class Capacitor(Element):
     """
     Class that contains the capacitor properties.
 
@@ -51,7 +54,7 @@ class Capacitor:
                     "Look at the documentation for the correct input format."
             raise ValueError(error)
 
-        self.cValue = value
+        Element.__init__(self, value)
         self.error = error
         self.type = type(self)
 
@@ -86,9 +89,9 @@ class Capacitor:
                 deterministic or random.
         """
         if self.unit in unt.farad_list:
-            cMean = self.cValue * unt.farad_list[self.unit]
+            cMean = self.value * unt.farad_list[self.unit]
         else:
-            E_c = self.cValue * unt.freq_list[self.unit] * (
+            E_c = self.value * unt.freq_list[self.unit] * (
                     2 * np.pi * unt.hbar)
             cMean = unt.e ** 2 / 2 / E_c
 
@@ -103,10 +106,10 @@ class Capacitor:
         SQcircuit (gigahertz by default).
         """
         if self.unit in unt.freq_list:
-            return self.cValue * unt.freq_list[
+            return self.value * unt.freq_list[
                 self.unit] / unt.get_unit_freq()
         else:
-            c = self.cValue * unt.farad_list[self.unit]
+            c = self.value * unt.farad_list[self.unit]
             return unt.e ** 2 / 2 / c / (
                     2 * np.pi * unt.hbar) / unt.get_unit_freq()
 
@@ -123,7 +126,7 @@ class VeryLargeCap(Capacitor):
         super().__init__(1e20, "F", Q=None)
 
 
-class Inductor:
+class Inductor(Element):
     """
     Class that contains the inductor properties.
 
@@ -169,7 +172,7 @@ class Inductor:
                     "Look at the documentation for the correct input format."
             raise ValueError(error)
 
-        self.lValue = value
+        Element.__init__(self, value)
         self.error = error
         self.type = type(self)
         self.id_str = id_str
@@ -221,9 +224,9 @@ class Inductor:
                 deterministic or random.
         """
         if self.unit in unt.henry_list:
-            lMean = self.lValue * unt.henry_list[self.unit]
+            lMean = self.value * unt.henry_list[self.unit]
         else:
-            E_l = self.lValue * unt.freq_list[self.unit] * (
+            E_l = self.value * unt.freq_list[self.unit] * (
                     2 * np.pi * unt.hbar)
             lMean = (unt.Phi0 / 2 / np.pi) ** 2 / E_l
 
@@ -238,15 +241,15 @@ class Inductor:
         SQcircuit (gigahertz by default).
         """
         if self.unit in unt.freq_list:
-            return self.lValue * unt.freq_list[
+            return self.value * unt.freq_list[
                 self.unit] / unt.get_unit_freq()
         else:
-            l = self.lValue * unt.henry_list[self.unit]
+            l = self.value * unt.henry_list[self.unit]
             return (unt.Phi0 / 2 / np.pi) ** 2 / l / (
                     2 * np.pi * unt.hbar) / unt.get_unit_freq()
 
 
-class Junction:
+class Junction(Element):
     """
     Class that contains the Josephson junction properties.
 
@@ -298,7 +301,7 @@ class Junction:
                     "input format."
             raise ValueError(error)
 
-        self.jValue = value
+        Element.__init__(self, value)
         self.error = error
         self.type = type(self)
         self.A = A
@@ -349,7 +352,7 @@ class Junction:
                 A boolean flag which specifies whether the output
                 is deterministic or random.
         """
-        jMean = self.jValue * unt.freq_list[self.unit] * 2 * np.pi
+        jMean = self.value * unt.freq_list[self.unit] * 2 * np.pi
 
         if not random:
             return jMean
@@ -357,7 +360,7 @@ class Junction:
             return np.random.normal(jMean, jMean * self.error / 100, 1)[0]
 
 
-class Loop:
+class Loop(Element):
     """
     Class that contains the inductive loop properties, closed path of
     inductive elements.
@@ -379,7 +382,8 @@ class Loop:
         id_str: Optional[str] = None
     ) -> None:
 
-        self.lpValue = value * 2 * np.pi
+        lpValue = value * 2 * np.pi
+        Element.__init__(self, lpValue)
         self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
@@ -408,9 +412,9 @@ class Loop:
                 deterministic or random.
         """
         if not random:
-            return self.lpValue
+            return self.value
         else:
-            return np.random.normal(self.lpValue, self.A, 1)[0]
+            return np.random.normal(self.value, self.A, 1)[0]
 
     def set_flux(self, value: float) -> None:
         """
@@ -443,7 +447,7 @@ class Loop:
         return p.T
 
 
-class Charge:
+class Charge(Element):
     """
     class that contains the charge island properties.
     """
@@ -454,7 +458,7 @@ class Charge:
             -- value: The value of the offset.
             -- noise: The amplitude of the charge noise.
         """
-        self.chValue = value
+        Element.__init__(self, value)
         self.A = A
 
     def value(self, random: bool = False) -> float:
@@ -466,12 +470,12 @@ class Charge:
                 deterministically or randomly.
         """
         if not random:
-            return self.chValue
+            return self.value
         else:
-            return np.random.normal(self.chValue, self.noise, 1)[0]
+            return np.random.normal(self.value, self.noise, 1)[0]
 
     def setOffset(self, value: float) -> None:
-        self.chValue = value
+        self.value = value
 
     def setNoise(self, A: float) -> None:
         self.A = A
