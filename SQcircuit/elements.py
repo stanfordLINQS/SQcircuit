@@ -85,7 +85,7 @@ class Capacitor(Element):
             unit = unt.get_unit_cap()
         Element.set_value(self, value, unit)
 
-    def value(self, random: bool = False) -> float:
+    def get_value(self, random: bool = False) -> float:
         """
         Return the value of the capacitor in farad units. If `random` is
         `True`, it samples from a normal distribution with variance defined
@@ -224,7 +224,7 @@ class Inductor(Element):
         Element.set_value(self, value, unit)
 
 
-    def value(self, random: bool = False) -> float:
+    def get_value(self, random: bool = False) -> float:
         """
         Return the value of the inductor in henry units. If `random` is
         `True`, it samples from a normal distribution with variance defined
@@ -357,7 +357,7 @@ class Junction(Element):
         self.unit = unit
         Element.set_value(self, value, unit)
 
-    def value(self, random: bool = False) -> float:
+    def get_value(self, random: bool = False) -> float:
         """
         Return the value of the Josephson Junction in angular frequency.
         If `random` is `True`, it samples from a normal distribution with
@@ -417,7 +417,7 @@ class Loop(Element):
         self.K1 = []
         self.indices = []
 
-    def value(self, random: bool = False) -> float:
+    def get_value(self, random: bool = False) -> float:
         """
         Return the value of the external flux. If `random` is `True`, it
         samples from a normal distribution with variance defined by the flux
@@ -480,7 +480,7 @@ class Charge(Element):
         self.set_value(value)
         self.A = A
 
-    def value(self, random: bool = False) -> float:
+    def get_value(self, random: bool = False) -> float:
         """
         returns the value of charge bias. If random flag is true, it samples
         from a normal distribution.

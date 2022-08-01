@@ -344,16 +344,16 @@ class Circuit:
                     K1.append(edge_w)
 
                     if self.flux_dist == 'all':
-                        cEd.append(el.cap.value())
+                        cEd.append(el.cap.get_value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(VeryLargeCap().value())
+                        cEd.append(VeryLargeCap().get_value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(VerySmallCap().value())
+                        cEd.append(VerySmallCap().get_value())
 
                     if el in partial_lMats:
-                        partial_lMats[el] += edge_mat / el.value()**2
+                        partial_lMats[el] += edge_mat / el.get_value()**2
                     else:
-                        partial_lMats[el] = edge_mat / el.value()**2
+                        partial_lMats[el] = edge_mat / el.get_value()**2
 
                 elif isinstance(el, Junction):
                     # if el.loops:
@@ -373,20 +373,20 @@ class Circuit:
                     K1.append(edge_w)
 
                     if self.flux_dist == 'all':
-                        cEd.append(el.cap.value())
+                        cEd.append(el.cap.get_value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(VerySmallCap().value())
+                        cEd.append(VerySmallCap().get_value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(VeryLargeCap().value())
+                        cEd.append(VeryLargeCap().get_value())
 
             if len(edge_inds) == 0 and len(edge_JJs) != 0:
                 countJJnoInd += 1
 
             # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.value(self.random), edge_caps)))
+            cap = sum(list(map(lambda c: c.get_value(self.random), edge_caps)))
 
             # summation of the one over inductor values.
-            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random),
+            x = np.sum(1 / np.array(list(map(lambda l: l.get_value(self.random),
                                              edge_inds))))
 
             cMat += cap * edge_mat
@@ -754,7 +754,7 @@ class Circuit:
         indHamilTxt = ""
 
         for i, (edge, el, B_idx, W_idx) in enumerate(self.junction_keys):
-            EJLst.append(el.value() / 2 / np.pi / unt.get_unit_freq())
+            EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
@@ -803,7 +803,7 @@ class Circuit:
             modeTxt += '\n'
         for i in range(chDim):
             modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].value(), 3)
+            ng = np.round(self.charge_islands[harDim + i].get_value(), 3)
             modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
             modeTxt += '\n'
 
@@ -836,7 +836,7 @@ class Circuit:
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
+            phiExt = self.loops[i].get_value() / 2 / np.pi
             loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
                 phiExt) + txt.tab()
 
@@ -1024,7 +1024,7 @@ class Circuit:
             if self._is_charge_mode(i):
                 Q0 = (2 * unt.e / np.sqrt(unt.hbar)) * \
                      (qt.charge((self.m[i] - 1) / 2)
-                      - self.charge_islands[i].value())
+                      - self.charge_islands[i].get_value())
             else:
                 coef = -1j * np.sqrt(
                     0.5 * np.sqrt(self.lTrans[i, i] / self.cInvTrans[i, i]))
@@ -1253,7 +1253,7 @@ class Circuit:
         """
         phi_ext = 0.0
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.value(self.random) * self.B[B_idx, i]
+            phi_ext += loop.get_value(self.random) * self.B[B_idx, i]
 
         return phi_ext
 
@@ -1267,7 +1267,7 @@ class Circuit:
             phi = self._get_external_flux_at_element(B_idx)
 
             # summation of the 1 over inductor values.
-            x = 1 / el.value(self.random)
+            x = 1 / el.get_value(self.random)
             O = self.coupling_op("inductive", edge)
             H += x * phi * (unt.Phi0 / 2 / np.pi) * O / np.sqrt(unt.hbar)
 
@@ -1279,7 +1279,7 @@ class Circuit:
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
-            EJ = el.value(self.random)
+            EJ = el.get_value(self.random)
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1685,14 +1685,14 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.value() / cap.Q(omega) * np.abs(
+                        decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
-                x = 1 / el.value()
+                x = 1 / el.get_value()
                 if el.Q:
                     decay += tempS / el.Q(omega, ENV["T"]) * x * np.abs(
                         (state1.dag() * op * state2).data[0, 0]) ** 2
@@ -1700,7 +1700,7 @@ class Circuit:
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.value() \
+                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
                          * unt.hbar * np.abs(
                     (state1.dag() * op * state2).data[0, 0]) ** 2
 
@@ -1721,7 +1721,7 @@ class Circuit:
             for el, B_idx in self._memory_ops['cos']:
                 partial_omega = self._get_partial_omega_mn(el, states=states,
                                                            _B_idx=B_idx)
-                A = el.A * el.value(self.random)
+                A = el.A * el.get_value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
@@ -1820,7 +1820,7 @@ class Circuit:
                     phi = self._get_external_flux_at_element(B_idx)
 
                     partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / el.value()**2 / np.sqrt(unt.hbar)
+                                   / el.get_value()**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
         elif isinstance(el, Loop):
@@ -1830,11 +1830,11 @@ class Circuit:
             for edge, el_ind, B_idx in self.inductor_keys:
                 partial_H += (self.B[B_idx, loop_idx]
                               * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / el_ind.value() * unt.Phi0 / np.sqrt(unt.hbar)
+                              / el_ind.get_value() * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
             for edge, el_JJ, B_idx, W_idx in self.junction_keys:
-                partial_H += (self.B[B_idx, loop_idx] * el_JJ.value()
+                partial_H += (self.B[B_idx, loop_idx] * el_JJ.get_value()
                               * self._memory_ops['sin'][(el_JJ, B_idx)])
 
         elif isinstance(el, Junction):
