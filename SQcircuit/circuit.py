@@ -1962,6 +1962,8 @@ class Circuit:
         return partial_state
 
     def _update_H(self):
+        """Update the circuit Hamiltonian to reflect changes made to the
+        scalar values used for circuit elements (ex. C, L, J...)."""
         (self.C, self.L, self.W, self.B,
          self.partial_C, self.partial_L) = self._get_LCWB()
         self._transform_hamil()
@@ -1969,29 +1971,35 @@ class Circuit:
         self._LC_hamil = self._get_LC_hamil()
         self._build_exp_ops()
 
-    # TODO: Replace this if/else statement with single set_value() method
     def _update_element(
             self,
             element: Union[Capacitor, Inductor, Junction, Loop],
             value: float,
+            unit: str,
             update_H: bool = True
     ) -> None:
-        if element.type == Capacitor:
-            element.cValue = value
-        elif element.type == Inductor:
-            element.lValue = value
-        elif element.type == Junction:
-            element.jValue = value
-        elif element.type == Loop:
-            element.value = value
-        else:
-            raise ValueError("Element type not recognized.")
+        """Update a single circuit element with a given element value and unit.
+        If the unit is `None` (not specified), the element's units will not be
+        altered.
+
+        Parameters
+        ----------
+            value:
+                The scalar value to set for a given element, which can be the
+                capacitance, inductance, Josephson energy, or loop flux.
+            unit:
+                The units corresponding to the input value, which must correspond
+                to the type of element used.
+        """
+        if element.type not in [Capacitor, Inductor, Junction, Loop]:
+            raise ValueError("Element type must be one of Capacitor, Inductor, Junction, or Loop.")
+        element.set_value(value, unit)
         if update_H:
             self._update_H()
 
     def update_elements(self,
                         elements: List[Union[Capacitor, Inductor, Junction, Loop]],
-                        values: List[float]):
+                        values_units: List[Tuple[float, str]]):
         """Updates an input list of circuit elements with new scalar parameter
         values, using the units already specified for that element.
 
@@ -2000,13 +2008,16 @@ class Circuit:
             elements:
                 List of circuit elements, which must be of the type ``Capacitor``,
                 ``Inductor``, or ``Junction``.
-            values:
-                List of floats (of the same length as ``elements``) that contains.
-                the new values for each element (in the previously specified
-                type of unit).
+            values_units:
+                List of tuples (of the same length as ``elements``) for which
+                the first tuple element is the value to update with, and the
+                second is the unit corresponding to that value.
         """
-        assert(len(elements) == len(values),
-               'Length of elements and values to update must match.')
+        assert(len(elements) == len(values_units),
+               'Length of elements and values/units arrays must match.')
         for idx in range(len(elements)):
-            self._update_element(elements[idx], values[idx], update_H = False)
+            self._update_element(elements[idx],
+                                 values_units[idx][0],
+                                 values_units[idx][1],
+                                 update_H = False)
         self._update_H()

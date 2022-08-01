@@ -15,6 +15,13 @@ class Element:
     def __init__(self, value: float = 0):
         self.value = value
 
+    def set_value(self,
+                     value: float,
+                     unit: Optional[str] = None):
+        self.value = value
+        if unit is not None:
+            self.unit = unit
+
 class Capacitor(Element):
     """
     Class that contains the capacitor properties.
@@ -47,21 +54,10 @@ class Capacitor(Element):
         id_str: Optional[str] = None,
     ) -> None:
 
-        if (unit not in unt.freq_list and
-                unit not in unt.farad_list and
-                unit is not None):
-            error = "The input unit for the capacitor is not correct. " \
-                    "Look at the documentation for the correct input format."
-            raise ValueError(error)
-
-        Element.__init__(self, value)
+        Element.__init__(self)
+        self.set_value(value, unit)
         self.error = error
         self.type = type(self)
-
-        if unit is None:
-            self.unit = unt.get_unit_cap()
-        else:
-            self.unit = unit
 
         if Q == "default":
             self.Q = lambda omega: 1e6 * (
@@ -72,9 +68,22 @@ class Capacitor(Element):
             self.Q = Q
 
         if id_str is None:
-            self.id_str = "C_{}_{}".format(value, self.unit)
+            self.id_str = f"C_{value}_{self.unit}"
         else:
             self.id_str = id_str
+
+    def set_value(self,
+                     value: float,
+                     unit: Optional[str] = None):
+        if (unit not in unt.freq_list and
+                unit not in unt.farad_list and
+                unit is not None):
+            error = "The input unit for the capacitor is not correct. " \
+                    "Look at the documentation for the correct input format."
+            raise ValueError(error)
+        if unit is None:
+            unit = unt.get_unit_cap()
+        Element.set_value(self, value, unit)
 
     def value(self, random: bool = False) -> float:
         """
@@ -165,22 +174,11 @@ class Inductor(Element):
             id_str: Optional[str] = None
     ) -> None:
 
-        if (unit not in unt.freq_list and
-                unit not in unt.henry_list and
-                unit is not None):
-            error = "The input unit for the inductor is not correct. " \
-                    "Look at the documentation for the correct input format."
-            raise ValueError(error)
-
-        Element.__init__(self, value)
+        Element.__init__(self)
+        self.set_value(value, unit)
         self.error = error
         self.type = type(self)
         self.id_str = id_str
-
-        if unit is None:
-            self.unit = unt.get_unit_ind()
-        else:
-            self.unit = unit
 
         if cap is None:
             self.cap = VerySmallCap()
@@ -210,6 +208,21 @@ class Inductor(Element):
             self.id_str = "L_{}_{}".format(value, self.unit)
         else:
             self.id_str = id_str
+
+    def set_value(self,
+                  value: float,
+                  unit: Optional[str] = None):
+        if (unit not in unt.freq_list and
+                unit not in unt.henry_list and
+                unit is not None):
+            error = "The input unit for the inductor is not correct. " \
+                    "Look at the documentation for the correct input format."
+            raise ValueError(error)
+
+        if unit is None:
+            unit = unt.get_unit_ind()
+        Element.set_value(self, value, unit)
+
 
     def value(self, random: bool = False) -> float:
         """
@@ -294,23 +307,12 @@ class Junction(Element):
         id_str: Optional[str] = None,
     ) -> None:
 
-        if (unit not in unt.freq_list and
-                unit is not None):
-            error = "The input unit for the Josephson Junction is not " \
-                    "correct. Look at the documentation for the correct " \
-                    "input format."
-            raise ValueError(error)
-
-        Element.__init__(self, value)
+        Element.__init__(self)
+        self.set_value(value, unit)
         self.error = error
         self.type = type(self)
         self.A = A
         self.id_str = id_str
-
-        if unit is None:
-            self.unit = unt.get_unit_JJ()
-        else:
-            self.unit = unit
 
         if cap is None:
             self.cap = VerySmallCap()
@@ -339,6 +341,21 @@ class Junction(Element):
             self.id_str = "JJ_{}_{}".format(value, self.unit)
         else:
             self.id_str = id_str
+
+    def set_value(self,
+                     value: float,
+                     unit: Optional[str] = None):
+        if (unit not in unt.freq_list and
+                unit is not None):
+            error = "The input unit for the Josephson Junction is not " \
+                    "correct. Look at the documentation for the correct " \
+                    "input format."
+            raise ValueError(error)
+
+        if unit is None:
+            unit = unt.get_unit_JJ()
+        self.unit = unit
+        Element.set_value(self, value, unit)
 
     def value(self, random: bool = False) -> float:
         """
@@ -383,7 +400,8 @@ class Loop(Element):
     ) -> None:
 
         lpValue = value * 2 * np.pi
-        Element.__init__(self, lpValue)
+        Element.__init__(self)
+        Element.set_value(self, lpValue)
         self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
@@ -425,7 +443,7 @@ class Loop(Element):
             value:
                 The external flux value
         """
-        self.lpValue = value * 2 * np.pi
+        self.value = value * 2 * np.pi
 
     def add_index(self, index):
         self.indices.append(index)
@@ -458,7 +476,8 @@ class Charge(Element):
             -- value: The value of the offset.
             -- noise: The amplitude of the charge noise.
         """
-        Element.__init__(self, value)
+        Element.__init__(self)
+        self.set_value(value)
         self.A = A
 
     def value(self, random: bool = False) -> float:
