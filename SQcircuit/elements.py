@@ -85,24 +85,30 @@ class Capacitor(Element):
             unit = unt.get_unit_cap()
         Element.set_value(self, value, unit)
 
-    def get_value(self, random: bool = False) -> float:
+    def get_value(self,
+                  element_units: bool = False,
+                  random: bool = False) -> float:
         """
-        Return the value of the capacitor in farad units. If `random` is
-        `True`, it samples from a normal distribution with variance defined
-        by the fabrication error.
+        Return the value of the capacitor, by default in units of farads. If
+        `random` is `True`, it samples from a normal distribution with
+        variance defined by the fabrication error.
 
         Parameters
         ----------
+            element_units:
+                A boolean flag that determines whether to keep units
+                in element's preset units (True) or return in farads (False).
             random:
                 A boolean flag which specifies whether the output is
                 deterministic or random.
         """
         if self.unit in unt.farad_list:
-            cMean = self.value * unt.farad_list[self.unit]
+            cMean = self.value
         else:
-            E_c = self.value * unt.freq_list[self.unit] * (
-                    2 * np.pi * unt.hbar)
+            E_c = self.value * (2 * np.pi * unt.hbar)
             cMean = unt.e ** 2 / 2 / E_c
+        if not element_units:
+            cMean *= unt.farad_list[self.unit]
 
         if not random:
             return cMean
@@ -224,23 +230,31 @@ class Inductor(Element):
         Element.set_value(self, value, unit)
 
 
-    def get_value(self, random: bool = False) -> float:
+    def get_value(self,
+                  element_units: bool = False,
+                  random: bool = False) -> float:
         """
-        Return the value of the inductor in henry units. If `random` is
-        `True`, it samples from a normal distribution with variance defined
-        by the fabrication error.
+        Return the value of the inductor, by default in units of henries.
+        If `random` is `True`, it samples from a normal distribution
+        with variance defined by the fabrication error.
 
         Parameters
         ----------
+            element_units:
+                A boolean flag that determines whether to keep units
+                in element's preset units (True) or return in henries (False).
             random:
                 A boolean flag which specifies whether the output is
                 deterministic or random.
         """
         if self.unit in unt.henry_list:
-            lMean = self.value * unt.henry_list[self.unit]
+            lMean = self.value
+            if not element_units:
+                lMean *= unt.henry_list[self.unit]
         else:
-            E_l = self.value * unt.freq_list[self.unit] * (
-                    2 * np.pi * unt.hbar)
+            E_l = self.value * ( 2 * np.pi * unt.hbar)
+            if not element_units:
+                E_l *= unt.freq_list[self.unit]
             lMean = (unt.Phi0 / 2 / np.pi) ** 2 / E_l
 
         if not random:
@@ -357,19 +371,27 @@ class Junction(Element):
         self.unit = unit
         Element.set_value(self, value, unit)
 
-    def get_value(self, random: bool = False) -> float:
+    def get_value(self,
+                  element_units: bool = False,
+                  random: bool = False) -> float:
         """
-        Return the value of the Josephson Junction in angular frequency.
-        If `random` is `True`, it samples from a normal distribution with
-        variance defined by the fabrication error.
+        Return the value of the Josephson junction in terms of angular
+        frequency, by default in units of hertz. If `random` is `True`,
+        it samples from a normal distribution with variance defined by
+        the fabrication error.
 
         Parameters
         ----------
+            element_units:
+                A boolean flag that determines whether to keep units
+                in element's preset units (True) or return in Hz (False).
             random:
                 A boolean flag which specifies whether the output
                 is deterministic or random.
         """
-        jMean = self.value * unt.freq_list[self.unit] * 2 * np.pi
+        jMean = self.value * 2 * np.pi
+        if not element_units:
+            jMean *= unt.freq_list[self.unit]
 
         if not random:
             return jMean
@@ -482,7 +504,7 @@ class Charge(Element):
 
     def get_value(self, random: bool = False) -> float:
         """
-        returns the value of charge bias. If random flag is true, it samples
+        returns the value of charge bias. If random flag is True, it samples
         from a normal distribution.
         inputs:
             -- random: A flag which specifies whether the output is picked
