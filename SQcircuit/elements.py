@@ -369,7 +369,7 @@ class Junction(Element):
         if unit is None:
             unit = unt.get_unit_JJ()
         self.unit = unit
-        Element.set_value(self, value, unit)
+        Element.set_value(self, value / (2 * np.pi), unit)
 
     def get_value(self,
                   element_units: bool = False,
