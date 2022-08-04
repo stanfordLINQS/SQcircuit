@@ -279,6 +279,9 @@ class Circuit:
         wMat = []
         bMat = np.array([])
 
+        inductor_keys: List[tuple, Inductor, int, int] = []
+        junction_keys: List[tuple, Junction, int, int] = []
+
         partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
 
         partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
@@ -328,7 +331,7 @@ class Circuit:
 
                 elif isinstance(el, Inductor):
                     # if el.loops:
-                    self.inductor_keys.append((edge, el, B_idx))
+                    inductor_keys.append((edge, el, B_idx))
                     # else:
                     #     self.inductor_keys.append((edge, el, None))
                     edge_inds.append(el)
@@ -357,7 +360,7 @@ class Circuit:
 
                 elif isinstance(el, Junction):
                     # if el.loops:
-                    self.junction_keys.append((edge, el, B_idx, W_idx))
+                    junction_keys.append((edge, el, B_idx, W_idx))
                     # else:
                     #     self.junction_keys.append((edge, el, None, W_idx))
                     edge_JJs.append(el)
@@ -428,6 +431,8 @@ class Circuit:
             print("The edge list does not specify a connected graph or "
                   "all inductive loops of the circuit are not specified.")
 
+        self.junction_keys = junction_keys
+        self.inductor_keys = inductor_keys
         self.countJJnoInd = countJJnoInd
 
         return cMat, lMat, wMat, bMat, partial_cMats, partial_lMats
@@ -1379,6 +1384,7 @@ class Circuit:
         self._efreqs = efreqs_sorted
         self._evecs = evecs_sorted
 
+        # TODO: Frequency units?
         return efreqs_sorted / (2*np.pi*unt.get_unit_freq()), evecs_sorted
 
     ###########################################################################
@@ -1719,14 +1725,14 @@ class Circuit:
 
         elif dec_type == "cc":
             for el, B_idx in self._memory_ops['cos']:
-                partial_omega = self._get_partial_omega_mn(el, states=states,
+                partial_omega = self.get_partial_omega_mn(el, states=states,
                                                            _B_idx=B_idx)
                 A = el.A * el.get_value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
             for loop in self.loops:
-                partial_omega = self._get_partial_omega_mn(loop, states=states)
+                partial_omega = self.get_partial_omega_mn(loop, states=states)
                 A = loop.A
                 decay += self._dephasing(A, partial_omega)
 
@@ -1849,7 +1855,7 @@ class Circuit:
 
         return partial_H
 
-    def _get_partial_omega(
+    def get_partial_omega(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
             m: int,
@@ -1894,7 +1900,7 @@ class Circuit:
 
             return partial_omega_m.data[0, 0].real
 
-    def _get_partial_omega_mn(
+    def get_partial_omega_mn(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
             states: Tuple[int, int],
