@@ -373,6 +373,7 @@ class Junction(Element):
 
     def get_value(self,
                   element_units: bool = False,
+                  angular_frequency: bool = True,
                   random: bool = False) -> float:
         """
         Return the value of the Josephson junction in terms of angular
@@ -389,7 +390,9 @@ class Junction(Element):
                 A boolean flag which specifies whether the output
                 is deterministic or random.
         """
-        jMean = self.value * 2 * np.pi
+        jMean = self.value
+        if angular_frequency:
+            jMean *= (2 * np.pi)
         if not element_units:
             jMean *= unt.freq_list[self.unit]
 
