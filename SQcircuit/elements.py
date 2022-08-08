@@ -232,6 +232,7 @@ class Inductor(Element):
 
     def get_value(self,
                   element_units: bool = False,
+                  angular_frequency: bool = True,
                   random: bool = False) -> float:
         """
         Return the value of the inductor, by default in units of henries.
@@ -252,7 +253,9 @@ class Inductor(Element):
             if not element_units:
                 lMean *= unt.henry_list[self.unit]
         else:
-            E_l = self.value * ( 2 * np.pi * unt.hbar)
+            E_l = self.value * unt.hbar
+            if angular_frequency:
+                E_l *= (2 * np.pi)
             if not element_units:
                 E_l *= unt.freq_list[self.unit]
             lMean = (unt.Phi0 / 2 / np.pi) ** 2 / E_l
