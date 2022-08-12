@@ -18,7 +18,7 @@ class Element:
     def set_value(self,
                      value: float,
                      unit: Optional[str] = None):
-        self.value = value
+        self.value = max(value, 0)
         if unit is not None:
             self.unit = unit
 
