@@ -18,7 +18,7 @@ class Element:
     def set_value(self,
                      value: float,
                      unit: Optional[str] = None):
-        self.value = abs(value, 0)
+        self.value = abs(value)
         if unit is not None:
             self.unit = unit
 
