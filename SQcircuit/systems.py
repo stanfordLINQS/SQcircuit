@@ -325,4 +325,3 @@ class System:
         """
 
         return self._H_local() + self._H_int()
-
