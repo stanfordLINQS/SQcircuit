@@ -991,7 +991,7 @@ class Circuit:
 
     def _squeeze_op(self, op: Qobj) -> Qobj:
         """
-        Return the same Quantum operator with squeezed dimensions
+        Return the same Quantum operator with squeezed dimensions.
 
         Parameters
         ----------
@@ -1116,9 +1116,8 @@ class Circuit:
         return coef * np.sqrt(unt.hbar/2*Z) * self.wTrans[i, j]
 
     def _build_op_memory(self) -> None:
-        """
-        build the charge operators, number operators, and cross
-        multiplication of charge operators.
+        """build the charge, flux, number, and cross multiplication of charge
+        operators and store them in memory related to operators.
         """
 
         charge_ops: List[Qobj] = []
@@ -1127,65 +1126,37 @@ class Circuit:
         charge_by_charge_ops: List[List[Qobj]] = []
 
         for i in range(self.n):
-            chargeRowList = []
-            num = qt.Qobj()
-            Q = qt.Qobj()
-            flux = qt.Qobj()
+
+            Q = []
+            charges_row = []
+            num = []
+            flux = []
             for j in range(self.n):
-                # find the appropriate charge and number operator for first mode
-                if j == 0 and i == 0:
-                    Q = self._charge_op_isolated(j)
-                    Q2 = Q*Q
-                    num = self._num_op_isolated(j)
-                    flux = self._flux_op_isolated(j)
-
-                    # Tensor product the charge with I for other modes
-                    for k in range(self.n - 1):
-                        Q2 = qt.tensor(Q2, qt.qeye(self.m[k + 1]))
-                    chargeRowList.append(self._squeeze_op(Q2))
-
-                elif j == 0 and i != 0:
-                    I = qt.qeye(self.m[j])
-                    Q = I
-                    num = I
-                    flux = I
-
-                # find the rest of the modes
-                elif j != 0 and j < i:
-                    I = qt.qeye(self.m[j])
-                    Q = qt.tensor(Q, I)
-                    num = qt.tensor(num, I)
-                    flux = qt.tensor(flux, I)
-
-                elif j != 0 and j == i:
+                if i == j:
                     Q_iso = self._charge_op_isolated(j)
-                    Q2 = qt.tensor(Q, Q_iso * Q_iso)
-                    Q = qt.tensor(Q, Q_iso)
-                    num = qt.tensor(num, self._num_op_isolated(j))
-                    flux = qt.tensor(flux, self._flux_op_isolated(j))
+                    Q2 = Q + [Q_iso * Q_iso]
+                    # append the rest with qeye.
+                    Q2 += [qt.qeye(self.m[k]) for k in range(j+1, self.n)]
+                    charges_row.append(self._squeeze_op(qt.tensor(*Q2)))
 
-                    # Tensor product the charge with I for other modes
-                    for k in range(self.n - j - 1):
-                        Q2 = qt.tensor(Q2, qt.qeye(self.m[k + j + 1]))
-                    chargeRowList.append(self._squeeze_op(Q2))
+                    Q.append(Q_iso)
+                    num.append(self._num_op_isolated(j))
+                    flux.append(self._flux_op_isolated(j))
+                else:
+                    if j > i:
+                        QQ = Q + [self._charge_op_isolated(j)]
+                        # append the rest with qeye.
+                        QQ += [qt.qeye(self.m[k]) for k in range(j+1, self.n)]
+                        charges_row.append(self._squeeze_op(qt.tensor(*QQ)))
 
-                elif j > i:
-                    QQ = qt.tensor(Q, self._charge_op_isolated(j))
+                    Q.append(qt.qeye(self.m[j]))
+                    num.append(qt.qeye(self.m[j]))
+                    flux.append(qt.qeye(self.m[j]))
 
-                    # Tensor product the QQ with I for other modes
-                    for k in range(self.n - j - 1):
-                        QQ = qt.tensor(QQ, qt.qeye(self.m[k + j + 1]))
-                    chargeRowList.append(self._squeeze_op(QQ))
-
-                    I = qt.qeye(self.m[j])
-                    Q = qt.tensor(Q, I)
-                    num = qt.tensor(num, I)
-                    flux = qt.tensor(flux, I)
-
-            charge_ops.append(self._squeeze_op(Q))
-            charge_by_charge_ops.append(chargeRowList)
-            flux_ops.append(self._squeeze_op(flux))
-            num_ops.append(self._squeeze_op(num))
+            charge_ops.append(self._squeeze_op(qt.tensor(*Q)))
+            num_ops.append(self._squeeze_op(qt.tensor(*num)))
+            flux_ops.append(self._squeeze_op(qt.tensor(*flux)))
+            charge_by_charge_ops.append(charges_row)
 
         self._memory_ops["Q"] = charge_ops
         self._memory_ops["QQ"] = charge_by_charge_ops
@@ -1193,12 +1164,16 @@ class Circuit:
         self._memory_ops["N"] = num_ops
 
     def _build_exp_ops(self) -> None:
-        """Each cosine potential of the Josephson Junction can be written as
-        summation of two exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This
-        function returns the quantum operators for only one exponential term.
+        """Build exponential operators needed to construct cosine potential of
+        the Josephson Junctions and store them in memory related to operators.
+        Note that cosine of JJs can be written as summation of two
+        exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This function builds
+        the quantum operators for only one exponential terms.
         """
 
+        # list of exp operators
         exp_ops = []
+        # list of square root of exp operators
         root_exp_ops = []
 
         # number of Josephson Junctions
@@ -1219,7 +1194,7 @@ class Circuit:
                     exp_h.append(qt.qeye(self.m[j]))
                 else:
                     exp.append(qt.displace(self.m[j], self.alpha(i, j)))
-                    exp_h.append(qt.displace(self.m[j], self.alpha(i, j) / 2))
+                    exp_h.append(qt.displace(self.m[j], self.alpha(i, j)/2))
 
             exp_ops.append(self._squeeze_op(qt.tensor(*exp)))
             root_exp_ops.append(self._squeeze_op(qt.tensor(*exp_h)))
@@ -1280,11 +1255,11 @@ class Circuit:
 
             # summation of the 1 over inductor values.
             x = 1 / el.value(self.random)
-            O = self.coupling_op("inductive", edge)
-            H += x * phi * (unt.Phi0 / 2 / np.pi) * O / np.sqrt(unt.hbar)
+            op = self.coupling_op("inductive", edge)
+            H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
-            self._memory_ops["ind_hamil"][(el, B_idx)] = O
+            self._memory_ops["ind_hamil"][(el, B_idx)] = op
 
         for _, el, B_idx, W_idx in self.junction_keys:
             # phi = 0
