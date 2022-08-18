@@ -146,7 +146,6 @@ class Circuit:
 
         self._memory_ops: Dict[str, Union[List[Qobj],
                                           List[List[Qobj]], dict]] = {
-            "I": [],  # list of identity operators
             "Q": [],  # list of charge operators (normalized by 1/sqrt(hbar))
             "QQ": [[]],  # list of charge times charge operators
             "phi": [],  # list of flux operators (normalized by 1/sqrt(hbar))
@@ -438,7 +437,7 @@ class Circuit:
         Parameters
         ----------
             i:
-                index of the mode. (start from zero for the first mode)
+                index of the mode. (starts from zero for the first mode)
         """
 
         return self.omega[i] == 0
@@ -1006,6 +1005,116 @@ class Circuit:
 
         return op_sq
 
+    def _charge_op_isolated(self, i: int) -> Qobj:
+        """Return charge operator for each isolated mode normalized by
+        square root of hbar. By isolated, we mean that the operator is not in
+        the general tensor product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        if self._is_charge_mode(i):
+            ng = self.charge_islands[i].value()
+            op = (2*unt.e/np.sqrt(unt.hbar)) * (qt.charge((self.m[i]-1)/2)-ng)
+
+        else:
+            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
+            Q_zp = -1j * np.sqrt(0.5/Z)
+            op = Q_zp * (qt.destroy(self.m[i]) - qt.create(self.m[i]))
+
+        return op
+
+    def _flux_op_isolated(self, i: int) -> Qobj:
+        """Return flux operator for each isolated mode normalized by
+        square root of hbar. By isolated, we mean that the operator is not in
+        the general tensor product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        if self._is_charge_mode(i):
+            op = qt.qeye(self.m[i])
+
+        else:
+            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
+            op = np.sqrt(0.5*Z) * (qt.destroy(self.m[i])+qt.create(self.m[i]))
+
+        return op
+
+    def _num_op_isolated(self, i: int) -> Qobj:
+        """Return number operator for each isolated mode. By isolated,
+        we mean that the operator is not in the general tensor product states
+        of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        if self._is_charge_mode(i):
+            op = qt.charge((self.m[i] - 1) / 2)
+
+        else:
+            op = qt.num(self.m[i])
+
+        return op
+
+    def _d_op_isolated(self, i: int, w: float) -> Qobj:
+        """Return charge displacement operator for each isolated mode. By
+        isolated, we mean that the operator is not in the general tensor
+        product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+            w:
+                Represent the power of the displacement operator, d^w. Right
+                now w should be only 0, 1, and -1.
+        """
+
+        if w == 0:
+            return qt.qeye(self.m[i])
+
+        d = np.zeros((self.m[i], self.m[i]))
+
+        for k in range(self.m[i]):
+            for j in range(self.m[i]):
+                if j - 1 == k:
+                    d[k, j] = 1
+        d = qt.Qobj(d)
+
+        if w < 0:
+            return d
+
+        elif w > 0:
+            return d.dag()
+
+    def alpha(self, i: int, j: int) -> float:
+        """Return the alpha, amount of displacement, for the bosonic
+        displacement operator for junction i and mode j.
+
+        Parameters
+        ----------
+            i:
+                Index of the Junction. (starts from zero for the first mode)
+            j:
+               Index of the mode. (starts from zero for the first mode)
+        """
+
+        Z = np.sqrt(self.cInvTrans[j, j] / self.lTrans[j, j])
+
+        coef = 2 * np.pi / unt.Phi0 * 1j
+
+        return coef * np.sqrt(unt.hbar/2*Z) * self.wTrans[i, j]
+
     def _build_op_memory(self) -> None:
         """
         build the charge operators, number operators, and cross
@@ -1017,42 +1126,6 @@ class Circuit:
         num_ops: List[Qobj] = []
         charge_by_charge_ops: List[List[Qobj]] = []
 
-        # list of charge operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        QList = []
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                Q0 = (2 * unt.e / np.sqrt(unt.hbar)) * \
-                     (qt.charge((self.m[i] - 1) / 2)
-                      - self.charge_islands[i].value())
-            else:
-                coef = -1j * np.sqrt(
-                    0.5 * np.sqrt(self.lTrans[i, i] / self.cInvTrans[i, i]))
-                Q0 = coef * (qt.destroy(self.m[i]) - qt.create(self.m[i]))
-            QList.append(Q0)
-
-        fluxList = []
-        # list of flux operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                flux0 = qt.qeye(self.m[i])
-            else:
-                coef = np.sqrt(0.5 * np.sqrt(self.cInvTrans[i, i] /
-                                             self.lTrans[i, i]))
-                flux0 = coef * (qt.destroy(self.m[i]) + qt.create(self.m[i]))
-            fluxList.append(flux0)
-
-        # list of number operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        nList = []
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                num0 = qt.charge((self.m[i] - 1) / 2)
-            else:
-                num0 = qt.num(self.m[i])
-            nList.append(num0)
-
         for i in range(self.n):
             chargeRowList = []
             num = qt.Qobj()
@@ -1061,10 +1134,10 @@ class Circuit:
             for j in range(self.n):
                 # find the appropriate charge and number operator for first mode
                 if j == 0 and i == 0:
-                    Q2 = QList[j] * QList[j]
-                    Q = QList[j]
-                    num = nList[j]
-                    flux = fluxList[j]
+                    Q = self._charge_op_isolated(j)
+                    Q2 = Q*Q
+                    num = self._num_op_isolated(j)
+                    flux = self._flux_op_isolated(j)
 
                     # Tensor product the charge with I for other modes
                     for k in range(self.n - 1):
@@ -1085,10 +1158,11 @@ class Circuit:
                     flux = qt.tensor(flux, I)
 
                 elif j != 0 and j == i:
-                    Q2 = qt.tensor(Q, QList[j] * QList[j])
-                    Q = qt.tensor(Q, QList[j])
-                    num = qt.tensor(num, nList[j])
-                    flux = qt.tensor(flux, fluxList[j])
+                    Q_iso = self._charge_op_isolated(j)
+                    Q2 = qt.tensor(Q, Q_iso * Q_iso)
+                    Q = qt.tensor(Q, Q_iso)
+                    num = qt.tensor(num, self._num_op_isolated(j))
+                    flux = qt.tensor(flux, self._flux_op_isolated(j))
 
                     # Tensor product the charge with I for other modes
                     for k in range(self.n - j - 1):
@@ -1096,7 +1170,7 @@ class Circuit:
                     chargeRowList.append(self._squeeze_op(Q2))
 
                 elif j > i:
-                    QQ = qt.tensor(Q, QList[j])
+                    QQ = qt.tensor(Q, self._charge_op_isolated(j))
 
                     # Tensor product the QQ with I for other modes
                     for k in range(self.n - j - 1):
@@ -1117,6 +1191,41 @@ class Circuit:
         self._memory_ops["QQ"] = charge_by_charge_ops
         self._memory_ops["phi"] = flux_ops
         self._memory_ops["N"] = num_ops
+
+    def _build_exp_ops(self) -> None:
+        """Each cosine potential of the Josephson Junction can be written as
+        summation of two exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This
+        function returns the quantum operators for only one exponential term.
+        """
+
+        exp_ops = []
+        root_exp_ops = []
+
+        # number of Josephson Junctions
+        nJ = self.wTrans.shape[0]
+
+        for i in range(nJ):
+
+            # list of isolated exp operators
+            exp = []
+            # list of isolated square root of exp operators
+            exp_h = []
+
+            # tensor multiplication of displacement operator for JJ Hamiltonian
+            for j in range(self.n):
+
+                if self._is_charge_mode(j):
+                    exp.append(self._d_op_isolated(j, self.wTrans[i, j]))
+                    exp_h.append(qt.qeye(self.m[j]))
+                else:
+                    exp.append(qt.displace(self.m[j], self.alpha(i, j)))
+                    exp_h.append(qt.displace(self.m[j], self.alpha(i, j) / 2))
+
+            exp_ops.append(self._squeeze_op(qt.tensor(*exp)))
+            root_exp_ops.append(self._squeeze_op(qt.tensor(*exp_h)))
+
+        self._memory_ops["exp"] = exp_ops
+        self._memory_ops["root_exp"] = root_exp_ops
 
     def _get_LC_hamil(self) -> Qobj:
         """
@@ -1143,103 +1252,6 @@ class Circuit:
                                      * self._memory_ops["QQ"][i][j])
 
         return LC_hamil
-
-    @staticmethod
-    def _d_op(N: int) -> Qobj:
-        """
-        return charge displacement operator with size N.
-        input:
-            -- N: size of the Hilbert Space
-        output:
-            -- d: charge displace ment operator( qutip object)
-        """
-        d = np.zeros((N, N))
-        for i in range(N):
-            for j in range(N):
-                if j - 1 == i:
-                    d[i, j] = 1
-        d = qt.Qobj(d)
-        d = d.dag()
-
-        return d
-
-    def _build_exp_ops(self) -> None:
-        """
-        Each cosine potential of the Josephson Junction can be written as
-        summation of two exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This
-        function returns the quantum operators for only one exponential term.
-        """
-
-        exp_ops = []
-        root_exp_ops = []
-
-        # number of Josephson Junctions
-        nJ = self.wTrans.shape[0]
-
-        H = 0
-        # for calculating sin(phi/2) operator for quasi-particle
-        # loss decay rate
-        H2 = 0
-
-        for i in range(nJ):
-
-            # tensor multiplication of displacement operator for JJ Hamiltonian
-            for j in range(self.n):
-                if j == 0 and self._is_charge_mode(j):
-                    if self.wTrans[i, j] == 0:
-                        I = qt.qeye(self.m[j])
-                        H = I
-                        H2 = I
-                    elif self.wTrans[i, j] > 0:
-                        d = self._d_op(self.m[j])
-                        I = qt.qeye(self.m[j])
-                        H = d
-                        # not correct just to avoid error:
-                        H2 = I
-                    else:
-                        d = self._d_op(self.m[j])
-                        I = qt.qeye(self.m[j])
-                        H = d.dag()
-                        # not correct just to avoid error:
-                        H2 = I
-
-                elif j == 0 and self.omega[j] != 0:
-                    alpha = 2 * np.pi / unt.Phi0 * 1j * np.sqrt(
-                        unt.hbar / 2 * np.sqrt(
-                            self.cInvTrans[j, j] / self.lTrans[j, j])) * \
-                            self.wTrans[i, j]
-                    H = qt.displace(self.m[j], alpha)
-                    H2 = qt.displace(self.m[j], alpha / 2)
-
-                if j != 0 and self._is_charge_mode(j):
-                    if self.wTrans[i, j] == 0:
-                        I = qt.qeye(self.m[j])
-                        H = qt.tensor(H, I)
-                        H2 = qt.tensor(H2, I)
-                    elif self.wTrans[i, j] > 0:
-                        I = qt.qeye(self.m[j])
-                        d = self._d_op(self.m[j])
-                        H = qt.tensor(H, d)
-                        H2 = qt.tensor(H2, I)
-                    else:
-                        I = qt.qeye(self.m[j])
-                        d = self._d_op(self.m[j])
-                        H = qt.tensor(H, d.dag())
-                        H2 = qt.tensor(H2, I)
-
-                elif j != 0 and self.omega[j] != 0:
-                    alpha = 2 * np.pi / unt.Phi0 * 1j * np.sqrt(
-                        unt.hbar / 2 * np.sqrt(
-                            self.cInvTrans[j, j] / self.lTrans[j, j])) * \
-                            self.wTrans[i, j]
-                    H = qt.tensor(H, qt.displace(self.m[j], alpha))
-                    H2 = qt.tensor(H2, qt.displace(self.m[j], alpha / 2))
-
-            exp_ops.append(self._squeeze_op(H))
-            root_exp_ops.append(self._squeeze_op(H2))
-
-        self._memory_ops["exp"] = exp_ops
-        self._memory_ops["root_exp"] = root_exp_ops
 
     def _get_external_flux_at_element(self, B_idx: int) -> float:
         """
