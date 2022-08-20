@@ -2,6 +2,7 @@
 circuit.py contains the classes for the circuit and their properties
 """
 
+from collections import OrderedDict
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 
 import numpy as np
@@ -65,7 +66,9 @@ class Circuit:
         # General circuit attributes
         #######################################################################
 
-        self.elements = elements
+        self.elements = OrderedDict(
+            [(key, elements[key]) for key in elements.keys()]
+        )
 
         error = ("flux_dist option must be either \"junctions\", "
                  "\"inductors\", or \"all\"")

@@ -22,6 +22,9 @@ class Element:
         if unit is not None:
             self.unit = unit
 
+    def get_value(self, *args):
+        pass
+
 class Capacitor(Element):
     """
     Class that contains the capacitor properties.
