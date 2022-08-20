@@ -67,4 +67,4 @@ def eigencircuit(circuit: Circuit, num_eigen):
                                                        initial_element_vals[el_idx]
             return torch.sum(partial_omega * grad_output, axis=-1)
 
-    return element_tensors, EigenvalueSolver(element_tensors)
+    return element_tensors, EigenvalueSolver
