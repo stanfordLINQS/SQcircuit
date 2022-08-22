@@ -77,8 +77,8 @@ class Circuit:
         # circuit inductive loops
         self.loops: List[Loop] = []
 
-        # charge islands of the circuit
-        self.charge_islands: Dict[int, Charge] = {}
+        # # charge islands of the circuit
+        # self.charge_islands: Dict[int, Charge] = {}
 
         # number of nodes without ground
         self.n: int = max(max(self.elements))
@@ -104,28 +104,13 @@ class Circuit:
         (self.C, self.L, self.W, self.B,
          self.partial_C, self.partial_L) = self._get_LCWB()
 
-        # the inverse of transformation of coordinates for charge operators
-        self.R = np.zeros((self.n, self.n))
+        # initialize the transformation matrix for charge and flux operators.
+        self.R, self.S = np.eye(self.n), np.eye(self.n)
 
-        # the inverse of transformation of coordinates for flux operators
-        self.S = np.zeros((self.n, self.n))
-
-        # S and R matrix of first, second, and third transformation
-        self.R1 = np.zeros((self.n, self.n))
-        self.S1 = np.zeros((self.n, self.n))
-        self.R2 = np.zeros((self.n, self.n))
-        self.S2 = np.zeros((self.n, self.n))
-        self.R3 = np.zeros((self.n, self.n))
-        self.S3 = np.zeros((self.n, self.n))
-
-        # transformed sudo-inductance matrix (diagonal matrix)
-        self.lTrans = np.zeros((self.n, self.n))
-        # transformed capacitance matrix
-        self.cTrans = np.zeros((self.n, self.n))
-        # transformed inverse capacitance matrix
-        self.cInvTrans = np.zeros((self.n, self.n))
-        # transformed W matrix
-        self.wTrans = np.zeros_like(self.W)
+        # initialize transformed susceptance, inverse capacitance, and W matrix.
+        self.cInvTrans, self.lTrans, self.wTrans = (np.linalg.inv(self.C),
+                                                    self.L.copy(),
+                                                    self.W.copy())
 
         # natural angular frequencies of the circuit for each mode as a numpy
         # array (zero for charge modes)
@@ -133,6 +118,10 @@ class Circuit:
 
         # transform the Hamiltonian of the circuit
         self._transform_hamil()
+
+        # charge islands of the circuit
+        self.charge_islands = {i: Charge() for i in range(self.n) if
+                               self._is_charge_mode(i)}
 
         #######################################################################
         # Operator and diagonalization related attributes
@@ -187,24 +176,6 @@ class Circuit:
         assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
 
         return self._efreqs / (2*np.pi*unt.get_unit_freq())
-
-    @staticmethod
-    def _independentRows(A):
-        """use Gram–Schmidt to find the linear independent rows of matrix A
-        """
-        # normalize the row of matrix A
-        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
-
-        basis = []
-        idx_list = []
-
-        for i, a in enumerate(A_norm):
-            a_prime = a - sum([np.dot(a, e) * e for e in basis])
-            if (np.abs(a_prime) > 1e-7).any():
-                idx_list.append(i)
-                basis.append(a_prime / np.linalg.norm(a_prime))
-
-        return idx_list, basis
 
     def _add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -442,28 +413,34 @@ class Circuit:
 
         return self.omega[i] == 0
 
-    def _transform1(self):
-        """
-        First transformation of the coordinates that simultaneously diagonalizes
-        the capacitance and inductance matrices.
+    def _apply_transformation(self, S: ndarray, R: ndarray) -> None:
+        """Apply S and R transformation on transformed C, L, and W matrix.
 
-        output:
-            --  lTrans: diagonalized sudo-inductance matrix (self.n,self.n)
-            --  cInvTrans: diagonalized inverse of capacitance
-                matrix (self.n,self.n)
-            --  R1: transformation of charge operators (self.n,self.n)
-            --  S1: transformation of flux operators (self.n,self.n)
+        Parameters
+        ----------
+            S:
+                Transformation matrices related to flux operators.
+            R:
+                Transformation matrices related to charge operators.
         """
 
-        # cMat = self.getMatC()
-        cMat = self.C
-        # lMat = self.getMatL()
-        lMat = self.L
-        cMatInv = np.linalg.inv(cMat)
+        self.cInvTrans = R.T @ self.cInvTrans @ R
+        self.lTrans = S.T @ self.lTrans @ S
 
-        cMatRoot = sqrtm(cMat)
+        if len(self.W) != 0:
+            self.wTrans = self.wTrans @ S
+
+        self.S = self.S @ S
+        self.R = self.R @ R
+
+    def _get_and_apply_transformation_1(self) -> Tuple[ndarray, ndarray]:
+        """Get and apply Second transformation of the coordinates that
+        simultaneously diagonalizes the capacitance and susceptance matrices.
+        """
+
+        cMatRoot = sqrtm(self.C)
         cMatRootInv = np.linalg.inv(cMatRoot)
-        lMatRoot = sqrtm(lMat)
+        lMatRoot = sqrtm(self.L)
 
         V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
 
@@ -473,7 +450,7 @@ class Circuit:
             singLoc = list(range(0, self.n))
         else:
             # find the number of singularity in the circuit
-            lEig, _ = np.linalg.eig(lMat)
+            lEig, _ = np.linalg.eig(self.L)
             numSing = len(lEig[lEig / np.max(lEig) < 1e-11])
             singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
@@ -482,29 +459,83 @@ class Circuit:
         S1 = cMatRootInv @ U.T @ np.diag(np.sqrt(D))
         R1 = np.linalg.inv(S1).T
 
-        cInvTrans = R1.T @ cMatInv @ R1
-        lTrans = S1.T @ lMat @ S1
+        self._apply_transformation(S1, R1)
 
-        lTrans[singLoc, singLoc] = 0
+        self.lTrans[singLoc, singLoc] = 0
 
-        return lTrans, cInvTrans, S1, R1
+        return S1, R1
 
-    def _transform2(self, omega: np.array, S1: np.array):
+    @staticmethod
+    def _independentRows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
+        """Use Gram–Schmidt to find the linear independent rows of matrix A
+        and return the list of row indices of A and list of the rows.
+
+        Parameters
+        ----------
+            A:
+                ``Numpy.ndarray`` matrix that we try to find its independent
+                rows.
         """
-        Second transformation of the coordinates that transforms the subspace
-        of the charge operators which are defined in the charge basis in
-        order to have the Bloch wave vectors in the cartesian direction.
-        output:
-            --  R2: Second transformation of charge operators (self.n,self.n)
-            --  S2: Second transformation of flux operators (self.n,self.n)
+
+        # normalize the row of matrix A
+        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
+
+        basis = []
+        idx_list = []
+
+        for i, a in enumerate(A_norm):
+            a_prime = a - sum([np.dot(a, e) * e for e in basis])
+            if (np.abs(a_prime) > 1e-7).any():
+                idx_list.append(i)
+                basis.append(a_prime / np.linalg.norm(a_prime))
+
+        return idx_list, basis
+
+    def _round_to_zero_one(self, W: ndarray) -> ndarray:
+        """Round the charge mode elements of W or transformed W matrix that
+        are close to 0, -1, and 1 to the exact value of 0, -1, and 1
+        respectively.
+
+        Parameters
+        ----------
+            W:
+                ``Numpy.ndarray`` that can be either W or transformed W matrix.
         """
 
-        # apply the first transformation on w and get the charge basis part
-        wTrans1 = self.W @ S1
-        wQ = wTrans1[:, omega == 0]
+        rounded_W = W.copy()
 
-        # number of operators represented in charge bases
-        nq = wQ.shape[1]
+        if self.countJJnoInd == 0:
+            rounded_W[:, self.omega == 0] = 0
+
+        charge_only_W = rounded_W[:, self.omega == 0]
+
+        charge_only_W[np.abs(charge_only_W) < 1e-7] = 0
+        charge_only_W[np.abs(charge_only_W - 1) < 1e-7] = 1
+        charge_only_W[np.abs(charge_only_W + 1) < 1e-7] = -1
+
+        rounded_W[:, self.omega == 0] = charge_only_W
+
+        return rounded_W
+
+    def _is_JJ_in_circuit(self) -> bool:
+        """Check if there is any Josephson junction in the circuit."""
+
+        return len(self.W) != 0
+
+    def _get_and_apply_transformation_2(self) -> Tuple[ndarray, ndarray]:
+        """ Get and apply Second transformation of the coordinates that
+        transforms the subspace of the charge operators in order to have the
+        reciprocal primitive vectors in Cartesian direction.
+        """
+
+        if len(self.W) != 0:
+            # get the charge basis part of the wTrans matrix
+            wQ = self.wTrans[:, self.omega == 0].copy()
+            # number of operators represented in charge bases
+            nq = wQ.shape[1]
+        else:
+            nq = 0
+            wQ = np.array([])
 
         # if we need to represent an operator in charge basis
         if nq != 0 and self.countJJnoInd != 0:
@@ -535,165 +566,103 @@ class Circuit:
             S2 = np.eye(self.n, self.n)
             R2 = S2
 
-        return S2, R2
+        if self._is_Gram_Schmidt_successful(S2):
 
-    def _transform3(self):
-        """ Third transformation of the coordinates that scales the modes.
-        output:
-            --  R3: Third transformation of charge operators (self.n,self.n)
-            --  S3: Third transformation of flux operators (self.n,self.n)
+            self._apply_transformation(S2, R2)
+
+            self.wTrans = self._round_to_zero_one(self.wTrans)
+
+            return S2, R2
+
+        else:
+            print("Gram_Schmidt process failed. Retrying...")
+
+            return self._get_and_apply_transformation_2()
+
+    def _is_Gram_Schmidt_successful(self, S) -> bool:
+        """Check if the Gram_Schmidt process has the sufficient accuracy.
+
+        Parameters
+        ----------
+            S:
+                Transformation matrices related to flux operators.
+        """
+
+        is_successful = True
+
+        # absolute value of the current wTrans
+        cur_wTrans = self.wTrans @ S
+
+        cur_wTrans = self._round_to_zero_one(cur_wTrans)
+
+        for j in range(self.n):
+            if self._is_charge_mode(j):
+                for abs_w in np.abs(cur_wTrans[:, j]):
+                    if abs_w != 0 and abs_w != 1:
+                        is_successful = False
+
+        return is_successful
+
+    def _get_and_apply_transformation_3(self) -> Tuple[ndarray, ndarray]:
+        """ Get and apply Third transformation of the coordinates that scales
+        the modes.
         """
 
         S3 = np.eye(self.n)
 
         for j in range(self.n):
 
-            # for the charge basis
             if self._is_charge_mode(j):
+                # already scaled by second transformation
+                continue
 
-                s = np.max(np.abs(self.wTrans[:, j]))
-                if s != 0:
-                    for i in range(len(self.wTrans[:, j])):
-                        # check if abs(A[i,j]/s is either zero or
-                        # one with 1e-11 accuracy
-                        if (abs(self.wTrans[i, j] / s) >= 1e-11
-                                and abs(
-                                    abs(self.wTrans[i, j] / s) - 1) >= 1e-11):
-                            raise ValueError("This solver cannot solve"
-                                             " your circuit.")
-                        if abs(self.wTrans[i, j] / s) <= 1e-11:
-                            self.wTrans[i, j] = 0
-
-                    S3[j, j] = 1 / s
-
-                # correcting the cInvRotated values
-                for i in range(self.n):
-                    if i == j:
-                        self.cInvTrans[i, j] = self.cInvTrans[i, j] * s ** 2
-                    else:
-                        self.cInvTrans[i, j] = self.cInvTrans[i, j] * s
             # for harmonic modes
-            else:
+            elif self._is_JJ_in_circuit():
 
                 # note: alpha here is absolute value of alpha (alpha is pure
                 # imaginary)
+                # get alpha for j-th mode
+                jth_alphas = np.abs(self.alpha(range(self.wTrans.shape[0]), j))
+                self.wTrans[:, j][jth_alphas < 1e-11] = 0
 
-                # alpha for j-th mode
-                alpha = np.abs(
-                    2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
-                        self.cInvTrans[j, j] / self.lTrans[
-                            j, j])) * self.wTrans[:, j])
-
-                self.wTrans[:, j][alpha < 1e-11] = 0
-                if np.max(alpha) > 1e-11:
+                if np.max(jth_alphas) > 1e-11:
                     # find the coefficient in wTrans for j-th mode that
                     # has maximum alpha
-                    s = np.abs(self.wTrans[np.argmax(alpha), j])
-                    # scale that mode with s
-                    self.wTrans[:, j] = self.wTrans[:, j] / s
+                    s = np.abs(self.wTrans[np.argmax(jth_alphas), j])
                     S3[j, j] = 1 / s
-                    for i in range(self.n):
-                        if i == j:
-                            self.cInvTrans[i, j] *= s ** 2
-                            self.lTrans[i, j] /= s ** 2
-                        else:
-                            self.cInvTrans[i, j] *= s
-                            self.lTrans[i, j] /= s
                 else:
                     # scale the uncoupled mode
-                    S = np.abs(self.S1 @ self.S2)
-
-                    s = np.max(S[:, j])
-
+                    s = np.max(np.abs(self.S[:, j]))
                     S3[j, j] = 1 / s
-                    for i in range(self.n):
-                        if i == j:
-                            self.cInvTrans[i, j] *= s ** 2
-                            self.lTrans[i, j] /= s ** 2
-                        else:
-                            self.cInvTrans[i, j] *= s
-                            self.lTrans[i, j] /= s
+
+            else:
+                # scale the uncoupled mode
+                s = np.max(np.abs(self.S[:, j]))
+                S3[j, j] = 1 / s
 
         R3 = np.linalg.inv(S3.T)
 
+        self._apply_transformation(S3, R3)
+
         return S3, R3
 
-    def _scale_uncoupled_modes(self):
-        """Scale the modes that do not appear in the JJ part of the
-        Hamiltonian"""
-
-        S_s = np.eye(self.n)
-
-        for j in range(self.n):
-            if not self._is_charge_mode(j):
-                # scale the uncoupled mode
-                S = np.abs(self.S1)
-
-                s = np.max(S[:, j])
-
-                S_s[j, j] = 1 / s
-
-                for i in range(self.n):
-                    if i == j:
-                        self.cInvTrans[i, j] *= s ** 2
-                        self.lTrans[i, j] /= s ** 2
-                    else:
-                        self.cInvTrans[i, j] *= s
-                        self.lTrans[i, j] /= s
-
-        R_s = np.linalg.inv(S_s.T)
-
-        return S_s, R_s
-
     def _transform_hamil(self):
-        """
-        transform the Hamiltonian of the circuit that can be expressed
+        """transform the Hamiltonian of the circuit that can be expressed
         in charge and Fock bases
         """
 
-        # get the first transformation:
-        self.lTrans, self.cInvTrans, self.S1, self.R1 = self._transform1()
-        # second transformation
+        # get the first transformation
+        self.S1, self.R1 = self._get_and_apply_transformation_1()
 
         # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvTrans) * np.diag(self.lTrans))
 
-        # set the external charge for each charge mode.
-        self.charge_islands = {i: Charge() for i in range(self.n) if
-                               self._is_charge_mode(i)}
+        if self._is_JJ_in_circuit():
+            # get the second transformation
+            self.S2, self.R2 = self._get_and_apply_transformation_2()
 
-        # the case that circuit has no JJ
-        if len(self.W) == 0:
-
-            self.S_s, self.R_s = self._scale_uncoupled_modes()
-
-            self.S = self.S1 @ self.S_s
-            self.R = self.R1 @ self.R_s
-
-        else:
-
-            # get the second transformation:
-            self.S2, self.R2 = self._transform2(self.omega, self.S1)
-
-            # apply the second transformation on self.cInvTrans
-            self.cInvTrans = self.R2.T @ self.cInvTrans @ self.R2
-
-            # get the transformed W matrix
-            self.wTrans = self.W @ self.S1 @ self.S2
-            if self.countJJnoInd == 0:
-                self.wTrans[:, self.omega == 0] = 0
-            wQ = self.wTrans[:, self.omega == 0]
-            wQ[np.abs(wQ) < 1e-5] = 0
-            self.wTrans[:, self.omega == 0] = wQ
-
-            # scaling the modes
-            self.S3, self.R3 = self._transform3()
-
-            # The final transformations are:
-            self.S = self.S1 @ self.S2 @ self.S3
-            self.R = self.R1 @ self.R2 @ self.R3
-
-            # self.cTrans = np.linalg.inv(self.cInvTrans)
+        # scaling the modes by third transformation
+        self.S3, self.R3 = self._get_and_apply_transformation_3()
 
     def description(
             self,
@@ -1097,7 +1066,7 @@ class Circuit:
         elif w > 0:
             return d.dag()
 
-    def alpha(self, i: int, j: int) -> float:
+    def alpha(self, i: Union[int, range], j: int) -> float:
         """Return the alpha, amount of displacement, for the bosonic
         displacement operator for junction i and mode j.
 
