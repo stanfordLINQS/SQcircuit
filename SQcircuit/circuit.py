@@ -1,5 +1,4 @@
-"""
-circuit.py contains the classes for the circuit and their properties
+"""circuit.py contains the classes for the circuit and their properties
 """
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
@@ -20,11 +19,11 @@ from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
                                 VerySmallCap, VeryLargeCap)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
+from SQcircuit.settings import ACC
 
 
 class Circuit:
-    """
-    Class that contains the circuit properties and uses the theory discussed
+    """Class that contains the circuit properties and uses the theory discussed
     in the original paper of the SQcircuit to calculate:
 
         * Eigenvalues and eigenvectors
@@ -451,7 +450,7 @@ class Circuit:
         else:
             # find the number of singularity in the circuit
             lEig, _ = np.linalg.eig(self.L)
-            numSing = len(lEig[lEig / np.max(lEig) < 1e-11])
+            numSing = len(lEig[lEig / np.max(lEig) < ACC["sing_mode_detect"]])
             singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
 
@@ -485,7 +484,7 @@ class Circuit:
 
         for i, a in enumerate(A_norm):
             a_prime = a - sum([np.dot(a, e) * e for e in basis])
-            if (np.abs(a_prime) > 1e-7).any():
+            if (np.abs(a_prime) > ACC["Gram–Schmidt"]).any():
                 idx_list.append(i)
                 basis.append(a_prime / np.linalg.norm(a_prime))
 
@@ -509,9 +508,9 @@ class Circuit:
 
         charge_only_W = rounded_W[:, self.omega == 0]
 
-        charge_only_W[np.abs(charge_only_W) < 1e-7] = 0
-        charge_only_W[np.abs(charge_only_W - 1) < 1e-7] = 1
-        charge_only_W[np.abs(charge_only_W + 1) < 1e-7] = -1
+        charge_only_W[np.abs(charge_only_W) < ACC["Gram–Schmidt"]] = 0
+        charge_only_W[np.abs(charge_only_W - 1) < ACC["Gram–Schmidt"]] = 1
+        charge_only_W[np.abs(charge_only_W + 1) < ACC["Gram–Schmidt"]] = -1
 
         rounded_W[:, self.omega == 0] = charge_only_W
 
@@ -623,9 +622,9 @@ class Circuit:
                 # imaginary)
                 # get alpha for j-th mode
                 jth_alphas = np.abs(self.alpha(range(self.wTrans.shape[0]), j))
-                self.wTrans[:, j][jth_alphas < 1e-11] = 0
+                self.wTrans[:, j][jth_alphas < ACC["har_mode_elim"]] = 0
 
-                if np.max(jth_alphas) > 1e-11:
+                if np.max(jth_alphas) > ACC["har_mode_elim"]:
                     # find the coefficient in wTrans for j-th mode that
                     # has maximum alpha
                     s = np.abs(self.wTrans[np.argmax(jth_alphas), j])
