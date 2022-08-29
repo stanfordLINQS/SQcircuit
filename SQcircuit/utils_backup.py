@@ -2,9 +2,12 @@
 utils_backup.py contains backup utility classes
 """
 
-from typing import List
+from typing import List, Tuple
 
 from SQcircuit.circuit import Circuit
+from SQcircuit.elements import Capacitor
+from SQcircuit.noise import ENV
+import SQcircuit.units as unt
 
 import torch
 import numpy as np
@@ -49,7 +52,6 @@ def eigencircuit(circuit: Circuit, num_eigen):
             values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
                             for idx in range(len(element_tensors))]
             circuit.update_elements(elements, values_units=values_units)
-            H = circuit.hamiltonian()
             eigenvalues, _ = circuit.diag(n_eig=num_eigen)
             eigenvalues = [eigenvalue * 1e9 * 2 * np.pi for eigenvalue in eigenvalues]
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
@@ -67,4 +69,29 @@ def eigencircuit(circuit: Circuit, num_eigen):
                                                        initial_element_vals[el_idx]
             return torch.sum(partial_omega * grad_output, axis=-1)
 
-    return element_tensors, EigenvalueSolver
+    class EigenvectorSolver(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, element_tensors):
+            elements = list(circuit.elements.values())[0]
+            values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
+                            for idx in range(len(element_tensors))]
+            circuit.update_elements(elements, values_units=values_units)
+            _, eigenvectors = circuit.diag(n_eig=num_eigen)
+            eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for eigenvector in eigenvectors]
+            return torch.squeeze(torch.stack(eigenvector_tensors))
+
+        @staticmethod
+        def backward(ctx, grad_output):
+            cr_elements = list(circuit.elements.values())[0]
+            m, n, l = element_tensors.shape[0], *grad_output.shape
+            partial_eigenvec = torch.zeros([m, n, l])
+            for el_idx in range(m):
+                for eigen_idx in range(n):
+                    partial_tensor = torch.squeeze(
+                        torch.as_tensor(circuit._get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
+                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor * initial_element_vals[
+                        el_idx]  # rescale gradient based on initial value
+            return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)) +
+                              torch.sum(torch.conj(partial_eigenvec) * grad_output, axis=(-1, -2)))
+
+    return element_tensors, EigenvalueSolver, EigenvectorSolver
