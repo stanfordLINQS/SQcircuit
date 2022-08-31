@@ -98,7 +98,7 @@ class Circuit:
         # Transformation related attributes
         #######################################################################
 
-        # get the capacitance matrix, sudo-inductance matrix, W matrix,
+        # get the capacitance matrix, pseudo-inductance matrix, W matrix,
         # and B matrix (loop distribution over inductive elements)
         (self.C, self.L, self.W, self.B,
          self.partial_C, self.partial_L) = self._get_LCWB()
@@ -146,6 +146,15 @@ class Circuit:
             "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
         }
 
+        # TODO: fix typing; add comments etc.
+        self._descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
+            "omega": [], 
+            "phi_zp": [], 
+            "ng": [],
+            "EC": None,
+            "EJ" : None
+        }
+
         # LC part of the Hamiltonian
         self._LC_hamil = qt.Qobj()
 
@@ -159,7 +168,7 @@ class Circuit:
         # type_attrs = type(self).__dict__
 
         # Attributes that we are avoiding to store for reducing the size of
-        # the saved file( Qutip objects and Quantum operators usually).
+        # the saved file (Qutip objects and Quantum operators usually).
         avoid_attrs = ["_memory_ops", "_LC_hamil"]
 
         self_dict = {k: attrs[k] for k in attrs if k not in avoid_attrs}
@@ -175,6 +184,13 @@ class Circuit:
         assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
 
         return self._efreqs / (2*np.pi*unt.get_unit_freq())
+
+    # TODO: finish
+    @property 
+    def descrip_vars(self):
+        # require description() to have been called ffirst
+
+        return self._descrip_vars
 
     def _add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -203,10 +219,10 @@ class Circuit:
             w[i1] += 1
             w[i2] -= 1
 
+        # TODO: raise explicit error if (i1, i2) == (0, 0)?
         return w[1:]
 
     def _edge_matrix_rep(self, edge: Tuple[int, int]) -> ndarray:
-
         """Special form of matrix representation for an edge of a graph.
         This helps to construct the capacitance and susceptance matrices.
 
@@ -433,7 +449,7 @@ class Circuit:
         self.R = self.R @ R
 
     def _get_and_apply_transformation_1(self) -> Tuple[ndarray, ndarray]:
-        """Get and apply Second transformation of the coordinates that
+        """Get and apply 1st transformation of the coordinates that
         simultaneously diagonalizes the capacitance and susceptance matrices.
         """
 
@@ -679,11 +695,11 @@ class Circuit:
                 If ``None`` prints out the output as Latex if SQcircuit is
                 running in a Jupyter notebook and as text if SQcircuit is
                 running in Python terminal. If ``tp`` is ``"ltx"``,
-                the output is in Latex format if ``tp`` is ``"txt"`` the
+                the output is in Latex format, and if ``tp`` is ``"txt"`` the
                 output is in text format.
             _test:
                 if True, return the entire description as string
-                text. (use only for testing the function)
+                text (use only for testing the function).
         """
         if tp is None:
             if is_notebook():
@@ -800,6 +816,143 @@ class Circuit:
             paramTxt += txt.Ej(i + 1) + txt.eq() + str(
                 np.round(EJLst[i], 3)) + txt.tab()
         paramTxt += '\n'
+
+        loopTxt = txt.loops() + txt.tab()
+        for i in range(len(self.loops)):
+            phiExt = self.loops[i].value() / 2 / np.pi
+            loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
+                phiExt) + txt.tab()
+
+        finalTxt = hamilTxt + txt.line + modeTxt + txt.line + paramTxt + loopTxt
+
+        txt.display(finalTxt)
+
+        if _test:
+            return finalTxt
+
+    def _LC_description(self, txt: HamilTxt) -> List[str]:
+        descrip_text = ''
+        mode_text = ''
+        param_text = ''
+
+        # harmonic modes
+        harDim = np.sum(self.omega != 0)
+        for i in range(harDim):
+            descrip_text += txt.omega(i+1) + txt.ad(i+1) + txt.a(i+1) + txt.p()
+
+            self._descrip_vars['omega'][i] = self.omega[i] \
+                                            / (2 * np.pi * unt.get_unit_freq())
+            self._descrip_vars['phi_zp'][i] = 2 * np.pi / unt.Phi0 \
+                * np.sqrt(unt.hbar / 2 * np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i]))
+            
+            mode_text += txt.har_mode_txt(i, self._descrip_vars['omega'][i], \
+                self._descrip_vars['phi_zp'][i])
+
+
+        # charge modes
+        for i in range(harDim, self.n):
+            for j in range(i, self.n):
+                descrip_text += txt.Ec(i + 1, j + 1) + \
+                                txt.n(i + 1, j + 1) + txt.p()
+                self._descrip_vars['ng'][i] = self.charge_islands[i]
+                mode_text += txt.ch_mode_txt(i, self._descrip_vars['ng'][i])
+
+                # TODO: condense calculation
+                if i == j:
+                    self._descrip_vars['EC'][i,j] = (2 * unt.e) ** 2 / (
+                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
+                             self.cInvTrans[i, j] / 2
+                else:
+                    self._descrip_vars['EC'][i,j] = (2 * unt.e) ** 2 / (
+                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
+                             self.cInvTrans[i, j]
+                param_text += txt.Ec(i + 1, j + 1) + txt.eq() \
+                            + str(np.round(self.descrip_vars['EC'][i,j]), 3) \
+                            + txt.tab()
+
+        return descrip_text, mode_text, param_text
+
+    
+    def _inductive_description(self, txt: HamilTxt) -> str:
+        harDim = np.sum(self.omega != 0)
+        W = np.round(self.wTrans, 6)
+        S = np.round(self.S, 3)
+        if self.loops:
+            B = np.round(self.B, 2)
+        else:
+            B = np.zeros((len(self.junction_keys) + len(self.inductor_keys), 1))
+
+        descrip_text = ''
+        param_text = ''
+
+        for i, (edge, el, B_idx, W_idx) in enumerate(self.junction_keys):
+            self._descrip_vars['EJ'][i] = el.value() / 2 / np.pi / unt.get_unit_freq()
+
+            descrip_text += txt.Ej(i + 1) + txt.cos() + "("
+            descrip_text += txt.linear(txt.phi, W[W_idx, :]) + \
+                      txt.linear(txt.phiExt, B[B_idx, :], st=False)
+            descrip_text += ")" + txt.p()
+
+            param_text += txt.El(i+1) + txt.eq() + str(
+                np.round(self._descrip_vars['EJ'][i], 3)) + txt.tab() + '\n'
+
+        for i, (edge, el, B_idx) in enumerate(self.inductor_keys):
+            if np.sum(np.abs(B[B_idx, :])) == 0:
+                continue
+
+            self._descrip_vars['EL'][i] = el.energy()
+
+            descrip_text += txt.El(i + 1) + "("
+            if 0 in edge:
+                w = S[edge[0] + edge[1] - 1, :]
+            else:
+                w = S[edge[0] - 1, :] - S[edge[1] - 1, :]
+            w = np.round(w[:harDim], 3)
+            descrip_text += txt.linear(txt.phi, w) + ")(" + \
+                      txt.linear(txt.phiExt, B[B_idx, :])
+            descrip_text += ")" + txt.p()
+
+            param_text += txt.El(i+1) + txt.eq() + str(
+                np.round(self._descrip_vars['EL'][i], 3)) + txt.tab() + '\n'
+
+        return descrip_text, param_text
+
+    def description_new(
+            self,
+            tp: Optional[str] = None,
+            _test: bool = False,
+    ) -> Optional[str]:
+        """
+        Print out Hamiltonian and a listing of the modes (whether they are
+        harmonic or charge modes with the frequency for each harmonic mode),
+        Hamiltonian parameters, and external flux values.
+
+        Parameters
+        ----------
+            tp:
+                If ``None`` prints out the output as Latex if SQcircuit is
+                running in a Jupyter notebook and as text if SQcircuit is
+                running in Python terminal. If ``tp`` is ``"ltx"``,
+                the output is in Latex format, and if ``tp`` is ``"txt"`` the
+                output is in text format.
+            _test:
+                if True, return the entire description as string
+                text (use only for testing the function).
+        """
+        if tp is None:
+            if is_notebook():
+                txt = HamilTxt('ltx')
+            else:
+                txt = HamilTxt('txt')
+        else:
+            txt = HamilTxt(tp)
+
+        lcHamilTxt, lcModeTxt, lcParamTxt = self._LC_description(txt)
+        indHamilTxt, indParamTxt = self._inductive_description(txt)
+
+        hamilTxt = lcHamilTxt + indHamilTxt
+        modeTxt = lcModeTxt
+        paramTxt = txt.param() + txt.tab() + lcHamilTxt + indParamTxt
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):

@@ -31,6 +31,24 @@ class HamilTxt:
         self.tp = tp
         self.line = 60 * "-" + "\n"
 
+    def a(self, i):
+        if self.tp == 'ltx':
+            return f"\hat a_{i}"
+        elif self.tp == 'txt':
+            return f"a_{i}"
+
+    def ad(self, i):
+        if self.tp == 'ltx':
+            return f"\hat a^\dagger_{i}"
+        elif self.tp == 'txt':
+            return f"ad_{i}"
+
+    def cos(self):
+        if self.tp == 'ltx':
+            return "\cos"
+        elif self.tp == 'txt':
+            return "cos"
+
     def Ec(self, i, j):
         if self.tp == 'ltx':
             return "E_{C_{" + f"{i}{j}" + "}}"
@@ -49,53 +67,17 @@ class HamilTxt:
         elif self.tp == 'txt':
             return f"EL_{i}"
 
-    def phi(self, i):
+    def eq(self):
         if self.tp == 'ltx':
-            return "\hat{\\varphi}_" + f"{i}"
+            return "~=~"
         elif self.tp == 'txt':
-            return f"\u03C6_{i}"
+            return " = "
 
-    def phiExt(self, i):
+    def H(self):
         if self.tp == 'ltx':
-            return "\\varphi_{\\text{ext}_{" + f"{i}" + "}}"
+            return "\hat{H} =~"
         elif self.tp == 'txt':
-            return f"\u03C6_e{i}"
-
-    def zp(self, i):
-        if self.tp == 'ltx':
-            return "\\varphi_{zp_{" + f"{i}" + "}}"
-        elif self.tp == 'txt':
-            return f"zp_{i}"
-
-    def omega(self, i, F=True):
-        if self.tp == 'ltx':
-            if F:
-                return f"\omega_{i}"
-            else:
-                return f"\omega_{i}" + "/2\pi"
-        elif self.tp == 'txt':
-            if F:
-                return f"\u03C9_{i}"
-            else:
-                return f"\u03C9_{i}" + "/2\u03C0"
-
-    def tPi(self):
-        if self.tp == 'ltx':
-            return "/2\pi"
-        elif self.tp == 'txt':
-            return "/2\u03C0"
-
-    def a(self, i):
-        if self.tp == 'ltx':
-            return f"\hat a_{i}"
-        elif self.tp == 'txt':
-            return f"a_{i}"
-
-    def ad(self, i):
-        if self.tp == 'ltx':
-            return f"\hat a^\dagger_{i}"
-        elif self.tp == 'txt':
-            return f"ad_{i}"
+            return "H = "
 
     def n(self, i, j):
         if self.tp == 'ltx':
@@ -117,23 +99,47 @@ class HamilTxt:
         elif self.tp == 'txt':
             return f"ng_{i}"
 
-    def mode(self, i):
+    def omega(self, i, F=True):
         if self.tp == 'ltx':
-            return "\\text{mode}" + f"~{i}:"
+            if F:
+                return f"\omega_{i}"
+            else:
+                return f"\omega_{i}" + "/2\pi"
         elif self.tp == 'txt':
-            return f"mode {i}:"
+            if F:
+                return f"\u03C9_{i}"
+            else:
+                return f"\u03C9_{i}" + "/2\u03C0"
 
-    def param(self):
+    def p(self):
         if self.tp == 'ltx':
-            return "\\text{parameters}:"
+            return "~+~"
         elif self.tp == 'txt':
-            return f"parameters:"
+            return " + "
 
-    def har(self):
+    def phi(self, i):
         if self.tp == 'ltx':
-            return "\\text{harmonic}"
+            return "\hat{\\varphi}_" + f"{i}"
         elif self.tp == 'txt':
-            return "harmonic"
+            return f"\u03C6_{i}"
+
+    def phiExt(self, i):
+        if self.tp == 'ltx':
+            return "\\varphi_{\\text{ext}_{" + f"{i}" + "}}"
+        elif self.tp == 'txt':
+            return f"\u03C6_e{i}"
+
+    def tPi(self):
+        if self.tp == 'ltx':
+            return "/2\pi"
+        elif self.tp == 'txt':
+            return "/2\u03C0"
+    
+    def zp(self, i):
+        if self.tp == 'ltx':
+            return "\\varphi_{zp_{" + f"{i}" + "}}"
+        elif self.tp == 'txt':
+            return f"zp_{i}"
 
     def ch(self):
         if self.tp == 'ltx':
@@ -141,41 +147,35 @@ class HamilTxt:
         elif self.tp == 'txt':
             return "charge  "
 
+    def har(self):
+        if self.tp == 'ltx':
+            return "\\text{harmonic}"
+        elif self.tp == 'txt':
+            return "harmonic"
+
+    def mode(self, i):
+        if self.tp == 'ltx':
+            return "\\text{mode}" + f"~{i}:"
+        elif self.tp == 'txt':
+            return f"mode {i}:"
+
     def loops(self):
         if self.tp == 'ltx':
             return "\\text{loops}:~~~~~~~~~"
         elif self.tp == 'txt':
             return f"loops:     "
 
-    def H(self):
+    def param(self):
         if self.tp == 'ltx':
-            return "\hat{H} =~"
+            return "\\text{parameters}:"
         elif self.tp == 'txt':
-            return "H = "
-
-    def cos(self):
-        if self.tp == 'ltx':
-            return "\cos"
-        elif self.tp == 'txt':
-            return "cos"
-
-    def eq(self):
-        if self.tp == 'ltx':
-            return "~=~"
-        elif self.tp == 'txt':
-            return " = "
+            return f"parameters:"
 
     def tab(self):
         if self.tp == 'ltx':
             return 11*"~"
         elif self.tp == 'txt':
             return 7*" "
-
-    def p(self):
-        if self.tp == 'ltx':
-            return "~+~"
-        elif self.tp == 'txt':
-            return " + "
 
     @staticmethod
     def ltx(txt):
@@ -206,6 +206,25 @@ class HamilTxt:
                 else:
                     txt += '-' + str(-w[j]) + method(j + 1)
 
+        return txt
+
+    def har_mode_text(self, i, omega, phi_zp) -> str:
+        omega  = np.round(omega, 5)
+        zpTxt = "{:.2e}".format(phi_zp)
+
+        txt = self.mode(i + 1) + self.tab() + txt.har()
+        txt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
+                       + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
+        txt += txt.tab() + txt.omega(i + 1, False) + txt.eq() + str(omega) \
+            + txt.tab() + txt.zp(i + 1) + txt.eq() + zpTxt
+        
+        return txt
+
+    def ch_mode_text(self, i, ng):
+        ng = np.round(ng, 3)
+
+        txt = txt.mode(i + 1) + txt.tab() + txt.ch() \
+            + txt.tab() + txt.ng(i + 1) + txt.eq() + str(ng)
         return txt
 
     def display(self, text):
