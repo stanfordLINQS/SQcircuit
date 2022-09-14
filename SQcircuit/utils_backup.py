@@ -53,7 +53,7 @@ def eigencircuit(circuit: Circuit, num_eigen):
                             for idx in range(len(element_tensors))]
             circuit.update_elements(elements, values_units=values_units)
             eigenvalues, _ = circuit.diag(n_eig=num_eigen)
-            eigenvalues = [eigenvalue * 1e9 * 2 * np.pi for eigenvalue in eigenvalues]
+            eigenvalues = [eigenvalue * 2 * np.pi for eigenvalue in eigenvalues]
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
             return torch.stack(eigenvalue_tensors)
 
