@@ -1743,6 +1743,7 @@ class Circuit:
                 A = loop.A
                 decay += self._dephasing(A, partial_omega)
 
+        print(f"decay: {decay}")
         return decay
 
     def _get_quadratic_Q(self, A: ndarray) -> Qobj:
