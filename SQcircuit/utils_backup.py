@@ -23,7 +23,7 @@ def _vectorize(circuit: Circuit) -> torch.Tensor:
             A circuit to vectorize.
     """
     elements = list(circuit.elements.values())[0]
-    element_values = [element.get_value(element_units=True) for element in elements]
+    element_values = [element.get_value(element_units=False) for element in elements]
     element_tensors = [torch.as_tensor(element_value)
                        for element_value in element_values]
     element_tensors = torch.stack(element_tensors)
