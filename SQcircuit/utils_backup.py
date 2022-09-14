@@ -73,7 +73,7 @@ def eigencircuit(circuit: Circuit, num_eigen):
         @staticmethod
         def forward(ctx, element_tensors):
             elements = list(circuit.elements.values())[0]
-            values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
+            values_units = [(element_tensors[idx].numpy() * unt.freq_list[elements[idx].unit], elements[idx].unit)
                             for idx in range(len(element_tensors))]
             circuit.update_elements(elements, values_units=values_units)
             _, eigenvectors = circuit.diag(n_eig=num_eigen)
