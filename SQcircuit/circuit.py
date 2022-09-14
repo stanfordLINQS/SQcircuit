@@ -1,8 +1,7 @@
-"""
-circuit.py contains the classes for the circuit and their properties
+"""circuit.py contains the classes for the circuit and their properties
 """
 
-from typing import Dict, Tuple, List, Sequence, Optional, Union, Callable
+from typing import Dict, Tuple, List, Sequence, Optional, Union
 
 import numpy as np
 import qutip as qt
@@ -16,14 +15,15 @@ from scipy.special import eval_hermite
 
 import SQcircuit.units as unt
 
-from SQcircuit.elements import Capacitor, Inductor, Junction, Loop, Charge
+from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
+                                VerySmallCap, VeryLargeCap)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
+from SQcircuit.settings import ACC
 
 
 class Circuit:
-    """
-    Class that contains the circuit properties and uses the theory discussed
+    """Class that contains the circuit properties and uses the theory discussed
     in the original paper of the SQcircuit to calculate:
 
         * Eigenvalues and eigenvectors
@@ -76,10 +76,10 @@ class Circuit:
         # circuit inductive loops
         self.loops: List[Loop] = []
 
-        # charge islands of the circuit
-        self.charge_islands: Dict[int, Charge] = {}
+        # # charge islands of the circuit
+        # self.charge_islands: Dict[int, Charge] = {}
 
-        # number of nodes
+        # number of nodes without ground
         self.n: int = max(max(self.elements))
 
         # number of branches that contain JJ without parallel inductor.
@@ -100,30 +100,16 @@ class Circuit:
 
         # get the capacitance matrix, sudo-inductance matrix, W matrix,
         # and B matrix (loop distribution over inductive elements)
-        self.C, self.L, self.W, self.B = self._get_LCWB()
+        (self.C, self.L, self.W, self.B,
+         self.partial_C, self.partial_L) = self._get_LCWB()
 
-        # the inverse of transformation of coordinates for charge operators
-        self.R = np.zeros((self.n, self.n))
+        # initialize the transformation matrix for charge and flux operators.
+        self.R, self.S = np.eye(self.n), np.eye(self.n)
 
-        # the inverse of transformation of coordinates for flux operators
-        self.S = np.zeros((self.n, self.n))
-
-        # S and R matrix of first, second, and third transformation
-        self.R1 = np.zeros((self.n, self.n))
-        self.S1 = np.zeros((self.n, self.n))
-        self.R2 = np.zeros((self.n, self.n))
-        self.S2 = np.zeros((self.n, self.n))
-        self.R3 = np.zeros((self.n, self.n))
-        self.S3 = np.zeros((self.n, self.n))
-
-        # transformed sudo-inductance matrix (diagonal matrix)
-        self.lTrans = np.zeros((self.n, self.n))
-        # transformed capacitance matrix
-        self.cTrans = np.zeros((self.n, self.n))
-        # transformed inverse capacitance matrix
-        self.cInvTrans = np.zeros((self.n, self.n))
-        # transformed W matrix
-        self.wTrans = np.zeros_like(self.W)
+        # initialize transformed susceptance, inverse capacitance, and W matrix.
+        self.cInvTrans, self.lTrans, self.wTrans = (np.linalg.inv(self.C),
+                                                    self.L.copy(),
+                                                    self.W.copy())
 
         # natural angular frequencies of the circuit for each mode as a numpy
         # array (zero for charge modes)
@@ -131,6 +117,10 @@ class Circuit:
 
         # transform the Hamiltonian of the circuit
         self._transform_hamil()
+
+        # charge islands of the circuit
+        self.charge_islands = {i: Charge() for i in range(self.n) if
+                               self._is_charge_mode(i)}
 
         #######################################################################
         # Operator and diagonalization related attributes
@@ -144,7 +134,6 @@ class Circuit:
 
         self._memory_ops: Dict[str, Union[List[Qobj],
                                           List[List[Qobj]], dict]] = {
-            "I": [],  # list of identity operators
             "Q": [],  # list of charge operators (normalized by 1/sqrt(hbar))
             "QQ": [[]],  # list of charge times charge operators
             "phi": [],  # list of flux operators (normalized by 1/sqrt(hbar))
@@ -180,31 +169,68 @@ class Circuit:
     def __setstate__(self, state):
         self.__dict__ = state
 
-    @staticmethod
-    def _independentRows(A):
-        """use Gram–Schmidt to find the linear independent rows of matrix A
-        """
-        # normalize the row of matrix A
-        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
+    @property
+    def efreqs(self):
 
-        basis = []
-        idx_list = []
+        assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
 
-        for i, a in enumerate(A_norm):
-            a_prime = a - sum([np.dot(a, e) * e for e in basis])
-            if (np.abs(a_prime) > 1e-7).any():
-                idx_list.append(i)
-                basis.append(a_prime / np.linalg.norm(a_prime))
-
-        return idx_list, basis
+        return self._efreqs / (2*np.pi*unt.get_unit_freq())
 
     def _add_loop(self, loop: Loop) -> None:
-        """
-        Add loop to the circuit loops.
+        """Add loop to the circuit loops.
         """
         if loop not in self.loops:
             loop.reset()
             self.loops.append(loop)
+
+    def _get_w_at_edge(self, edge: Tuple[int, int]) -> list:
+        """Get the w_k vector as list at the edge.
+
+        Parameters
+        ----------
+            edge:
+                Tuple of int which specifies an edge.
+        """
+
+        # i1 and i2 are the nodes of the edge
+        i1, i2 = edge
+
+        w = (self.n + 1) * [0]
+
+        if i1 == 0 or i2 == 0:
+            w[i1 + i2] += 1
+        else:
+            w[i1] += 1
+            w[i2] -= 1
+
+        return w[1:]
+
+    def _edge_matrix_rep(self, edge: Tuple[int, int]) -> ndarray:
+
+        """Special form of matrix representation for an edge of a graph.
+        This helps to construct the capacitance and susceptance matrices.
+
+        Parameters
+        ----------
+            edge:
+                Tuple of int which specifies an edge.
+        """
+
+        A = np.zeros((self.n, self.n))
+
+        if 0 in edge:
+            i = edge[0] + edge[1] - 1
+            A[i, i] = 1
+        else:
+            i = edge[0] - 1
+            j = edge[1] - 1
+
+            A[i, i] = 1
+            A[j, j] = 1
+            A[i, j] = -1
+            A[j, i] = -1
+
+        return A
 
     def _get_LCWB(self):
         """
@@ -222,6 +248,10 @@ class Circuit:
         wMat = []
         bMat = np.array([])
 
+        partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
+
+        partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
+
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
         B_idx = 0
@@ -236,112 +266,104 @@ class Circuit:
         # K1 is a matrix that transfer node coordinates to edge phase drop
         # for inductive elements
         K1 = []
+
         # capacitor at each inductive elements
         cEd = []
 
         for edge in self.elements.keys():
-            # i1 and i2 are the nodes of the edge
-            i1, i2 = edge
 
-            w = (self.n + 1) * [0]
+            # w vector at the edge
+            edge_w = self._get_w_at_edge(edge)
 
-            if i1 == 0 or i2 == 0:
-                w[i1 + i2] += 1
-            else:
-                w[i1] += 1
-                w[i2] -= 1
-
-            # elements of the edge
-            edgeElements = self.elements[edge]
+            # matrix representation of an edge
+            edge_mat = self._edge_matrix_rep(edge)
 
             # list of capacitors of the edge.
-            capList = []
+            edge_caps = []
             # list of inductors of the edge
-            indList = []
+            edge_inds = []
             # list of Josephson Junction of the edge.
-            JJList = []
+            edge_JJs = []
 
-            for el in edgeElements:
+            for el in self.elements[edge]:
 
                 if isinstance(el, Capacitor):
-                    capList.append(el)
+                    edge_caps.append(el)
+
+                    if el in partial_cMats:
+                        partial_cMats[el] += edge_mat
+                    else:
+                        partial_cMats[el] = edge_mat
 
                 elif isinstance(el, Inductor):
                     # if el.loops:
                     self.inductor_keys.append((edge, el, B_idx))
                     # else:
                     #     self.inductor_keys.append((edge, el, None))
-                    indList.append(el)
+                    edge_inds.append(el)
                     # capacitor of inductor
-                    capList.append(el.cap)
-                    loops = el.loops
-                    for loop in loops:
+                    edge_caps.append(el.cap)
+
+                    for loop in el.loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w[1:])
+                        loop.addK1(edge_w)
 
                     B_idx += 1
-                    K1.append(w[1:])
+                    K1.append(edge_w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(Capacitor(1e20, "F").value())
+                        cEd.append(VeryLargeCap().value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(Capacitor(1e-20, "F").value())
+                        cEd.append(VerySmallCap().value())
+
+                    if el in partial_lMats:
+                        partial_lMats[el] += edge_mat / el.value()**2
+                    else:
+                        partial_lMats[el] = edge_mat / el.value()**2
 
                 elif isinstance(el, Junction):
                     # if el.loops:
                     self.junction_keys.append((edge, el, B_idx, W_idx))
                     # else:
                     #     self.junction_keys.append((edge, el, None, W_idx))
-                    JJList.append(el)
+                    edge_JJs.append(el)
                     # capacitor of JJ
-                    capList.append(el.cap)
-                    loops = el.loops
-                    for loop in loops:
+                    edge_caps.append(el.cap)
+
+                    for loop in el.loops:
                         self._add_loop(loop)
                         loop.add_index(B_idx)
-                        loop.addK1(w[1:])
+                        loop.addK1(edge_w)
 
                     B_idx += 1
-                    K1.append(w[1:])
+                    K1.append(edge_w)
 
                     if self.flux_dist == 'all':
                         cEd.append(el.cap.value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(Capacitor(1e-20, "F").value())
+                        cEd.append(VerySmallCap().value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(Capacitor(1e20, "F").value())
+                        cEd.append(VeryLargeCap().value())
 
-            if len(indList) == 0 and len(JJList) != 0:
+            if len(edge_inds) == 0 and len(edge_JJs) != 0:
                 countJJnoInd += 1
 
             # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.value(self.random), capList)))
+            cap = sum(list(map(lambda c: c.value(self.random), edge_caps)))
 
             # summation of the one over inductor values.
             x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random),
-                                             indList))))
+                                             edge_inds))))
 
-            if i1 != 0 and i2 == 0:
-                cMat[i1 - 1, i1 - 1] += cap
-                lMat[i1 - 1, i1 - 1] += x
-            elif i1 == 0 and i2 != 0:
-                cMat[i2 - 1, i2 - 1] += cap
-                lMat[i2 - 1, i2 - 1] += x
-            else:
-                cMat[i1 - 1, i2 - 1] = - cap
-                cMat[i2 - 1, i1 - 1] = - cap
-                cMat[i1 - 1, i1 - 1] += cap
-                cMat[i2 - 1, i2 - 1] += cap
-                lMat[i1 - 1, i2 - 1] = -x
-                lMat[i2 - 1, i1 - 1] = -x
-                lMat[i1 - 1, i1 - 1] += x
-                lMat[i2 - 1, i2 - 1] += x
+            cMat += cap * edge_mat
 
-            if len(JJList) != 0:
-                wMat.append(w[1:])
+            lMat += x * edge_mat
+
+            if len(edge_JJs) != 0:
+                wMat.append(edge_w)
                 W_idx += 1
 
         wMat = np.array(wMat)
@@ -377,7 +399,7 @@ class Circuit:
 
         self.countJJnoInd = countJJnoInd
 
-        return cMat, lMat, wMat, bMat
+        return cMat, lMat, wMat, bMat, partial_cMats, partial_lMats
 
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
@@ -385,33 +407,39 @@ class Circuit:
         Parameters
         ----------
             i:
-                index of the mode. (start from zero for the first mode)
+                index of the mode. (starts from zero for the first mode)
         """
 
         return self.omega[i] == 0
 
-    def _transform1(self):
-        """
-        First transformation of the coordinates that simultaneously diagonalizes
-        the capacitance and inductance matrices.
+    def _apply_transformation(self, S: ndarray, R: ndarray) -> None:
+        """Apply S and R transformation on transformed C, L, and W matrix.
 
-        output:
-            --  lTrans: diagonalized sudo-inductance matrix (self.n,self.n)
-            --  cInvTrans: diagonalized inverse of capacitance
-                matrix (self.n,self.n)
-            --  R1: transformation of charge operators (self.n,self.n)
-            --  S1: transformation of flux operators (self.n,self.n)
+        Parameters
+        ----------
+            S:
+                Transformation matrices related to flux operators.
+            R:
+                Transformation matrices related to charge operators.
         """
 
-        # cMat = self.getMatC()
-        cMat = self.C
-        # lMat = self.getMatL()
-        lMat = self.L
-        cMatInv = np.linalg.inv(cMat)
+        self.cInvTrans = R.T @ self.cInvTrans @ R
+        self.lTrans = S.T @ self.lTrans @ S
 
-        cMatRoot = sqrtm(cMat)
+        if len(self.W) != 0:
+            self.wTrans = self.wTrans @ S
+
+        self.S = self.S @ S
+        self.R = self.R @ R
+
+    def _get_and_apply_transformation_1(self) -> Tuple[ndarray, ndarray]:
+        """Get and apply Second transformation of the coordinates that
+        simultaneously diagonalizes the capacitance and susceptance matrices.
+        """
+
+        cMatRoot = sqrtm(self.C)
         cMatRootInv = np.linalg.inv(cMatRoot)
-        lMatRoot = sqrtm(lMat)
+        lMatRoot = sqrtm(self.L)
 
         V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
 
@@ -421,8 +449,8 @@ class Circuit:
             singLoc = list(range(0, self.n))
         else:
             # find the number of singularity in the circuit
-            lEig, _ = np.linalg.eig(lMat)
-            numSing = len(lEig[lEig / np.max(lEig) < 1e-11])
+            lEig, _ = np.linalg.eig(self.L)
+            numSing = len(lEig[lEig / np.max(lEig) < ACC["sing_mode_detect"]])
             singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
 
@@ -430,29 +458,83 @@ class Circuit:
         S1 = cMatRootInv @ U.T @ np.diag(np.sqrt(D))
         R1 = np.linalg.inv(S1).T
 
-        cInvTrans = R1.T @ cMatInv @ R1
-        lTrans = S1.T @ lMat @ S1
+        self._apply_transformation(S1, R1)
 
-        lTrans[singLoc, singLoc] = 0
+        self.lTrans[singLoc, singLoc] = 0
 
-        return lTrans, cInvTrans, S1, R1
+        return S1, R1
 
-    def _transform2(self, omega: np.array, S1: np.array):
+    @staticmethod
+    def _independentRows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
+        """Use Gram–Schmidt to find the linear independent rows of matrix A
+        and return the list of row indices of A and list of the rows.
+
+        Parameters
+        ----------
+            A:
+                ``Numpy.ndarray`` matrix that we try to find its independent
+                rows.
         """
-        Second transformation of the coordinates that transforms the subspace
-        of the charge operators which are defined in the charge basis in
-        order to have the Bloch wave vectors in the cartesian direction.
-        output:
-            --  R2: Second transformation of charge operators (self.n,self.n)
-            --  S2: Second transformation of flux operators (self.n,self.n)
+
+        # normalize the row of matrix A
+        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
+
+        basis = []
+        idx_list = []
+
+        for i, a in enumerate(A_norm):
+            a_prime = a - sum([np.dot(a, e) * e for e in basis])
+            if (np.abs(a_prime) > ACC["Gram–Schmidt"]).any():
+                idx_list.append(i)
+                basis.append(a_prime / np.linalg.norm(a_prime))
+
+        return idx_list, basis
+
+    def _round_to_zero_one(self, W: ndarray) -> ndarray:
+        """Round the charge mode elements of W or transformed W matrix that
+        are close to 0, -1, and 1 to the exact value of 0, -1, and 1
+        respectively.
+
+        Parameters
+        ----------
+            W:
+                ``Numpy.ndarray`` that can be either W or transformed W matrix.
         """
 
-        # apply the first transformation on w and get the charge basis part
-        wTrans1 = self.W @ S1
-        wQ = wTrans1[:, omega == 0]
+        rounded_W = W.copy()
 
-        # number of operators represented in charge bases
-        nq = wQ.shape[1]
+        if self.countJJnoInd == 0:
+            rounded_W[:, self.omega == 0] = 0
+
+        charge_only_W = rounded_W[:, self.omega == 0]
+
+        charge_only_W[np.abs(charge_only_W) < ACC["Gram–Schmidt"]] = 0
+        charge_only_W[np.abs(charge_only_W - 1) < ACC["Gram–Schmidt"]] = 1
+        charge_only_W[np.abs(charge_only_W + 1) < ACC["Gram–Schmidt"]] = -1
+
+        rounded_W[:, self.omega == 0] = charge_only_W
+
+        return rounded_W
+
+    def _is_JJ_in_circuit(self) -> bool:
+        """Check if there is any Josephson junction in the circuit."""
+
+        return len(self.W) != 0
+
+    def _get_and_apply_transformation_2(self) -> Tuple[ndarray, ndarray]:
+        """ Get and apply Second transformation of the coordinates that
+        transforms the subspace of the charge operators in order to have the
+        reciprocal primitive vectors in Cartesian direction.
+        """
+
+        if len(self.W) != 0:
+            # get the charge basis part of the wTrans matrix
+            wQ = self.wTrans[:, self.omega == 0].copy()
+            # number of operators represented in charge bases
+            nq = wQ.shape[1]
+        else:
+            nq = 0
+            wQ = np.array([])
 
         # if we need to represent an operator in charge basis
         if nq != 0 and self.countJJnoInd != 0:
@@ -483,136 +565,103 @@ class Circuit:
             S2 = np.eye(self.n, self.n)
             R2 = S2
 
-        return S2, R2
+        if self._is_Gram_Schmidt_successful(S2):
 
-    def _transform3(self):
-        """ Third transformation of the coordinates that scales the modes.
-        output:
-            --  R3: Third transformation of charge operators (self.n,self.n)
-            --  S3: Third transformation of flux operators (self.n,self.n)
+            self._apply_transformation(S2, R2)
+
+            self.wTrans = self._round_to_zero_one(self.wTrans)
+
+            return S2, R2
+
+        else:
+            print("Gram_Schmidt process failed. Retrying...")
+
+            return self._get_and_apply_transformation_2()
+
+    def _is_Gram_Schmidt_successful(self, S) -> bool:
+        """Check if the Gram_Schmidt process has the sufficient accuracy.
+
+        Parameters
+        ----------
+            S:
+                Transformation matrices related to flux operators.
+        """
+
+        is_successful = True
+
+        # absolute value of the current wTrans
+        cur_wTrans = self.wTrans @ S
+
+        cur_wTrans = self._round_to_zero_one(cur_wTrans)
+
+        for j in range(self.n):
+            if self._is_charge_mode(j):
+                for abs_w in np.abs(cur_wTrans[:, j]):
+                    if abs_w != 0 and abs_w != 1:
+                        is_successful = False
+
+        return is_successful
+
+    def _get_and_apply_transformation_3(self) -> Tuple[ndarray, ndarray]:
+        """ Get and apply Third transformation of the coordinates that scales
+        the modes.
         """
 
         S3 = np.eye(self.n)
 
         for j in range(self.n):
 
-            # for the charge basis
             if self._is_charge_mode(j):
+                # already scaled by second transformation
+                continue
 
-                s = np.max(np.abs(self.wTrans[:, j]))
-                if s != 0:
-                    for i in range(len(self.wTrans[:, j])):
-                        # check if abs(A[i,j]/s is either zero or
-                        # one with 1e-11 accuracy
-                        if (abs(self.wTrans[i, j] / s) >= 1e-11
-                                and abs(
-                                    abs(self.wTrans[i, j] / s) - 1) >= 1e-11):
-                            raise ValueError("This solver cannot solve"
-                                             " your circuit.")
-                        if abs(self.wTrans[i, j] / s) <= 1e-11:
-                            self.wTrans[i, j] = 0
-
-                    S3[j, j] = 1 / s
-
-                # correcting the cInvRotated values
-                for i in range(self.n):
-                    if i == j:
-                        self.cInvTrans[i, j] = self.cInvTrans[i, j] * s ** 2
-                    else:
-                        self.cInvTrans[i, j] = self.cInvTrans[i, j] * s
             # for harmonic modes
-            else:
+            elif self._is_JJ_in_circuit():
 
                 # note: alpha here is absolute value of alpha (alpha is pure
                 # imaginary)
+                # get alpha for j-th mode
+                jth_alphas = np.abs(self.alpha(range(self.wTrans.shape[0]), j))
+                self.wTrans[:, j][jth_alphas < ACC["har_mode_elim"]] = 0
 
-                # alpha for j-th mode
-                alpha = np.abs(
-                    2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
-                        self.cInvTrans[j, j] / self.lTrans[
-                            j, j])) * self.wTrans[:, j])
-
-                self.wTrans[:, j][alpha < 1e-11] = 0
-                if np.max(alpha) > 1e-11:
+                if np.max(jth_alphas) > ACC["har_mode_elim"]:
                     # find the coefficient in wTrans for j-th mode that
                     # has maximum alpha
-                    s = np.abs(self.wTrans[np.argmax(alpha), j])
-                    # scale that mode with s
-                    self.wTrans[:, j] = self.wTrans[:, j] / s
+                    s = np.abs(self.wTrans[np.argmax(jth_alphas), j])
                     S3[j, j] = 1 / s
-                    for i in range(self.n):
-                        if i == j:
-                            self.cInvTrans[i, j] *= s ** 2
-                            self.lTrans[i, j] /= s ** 2
-                        else:
-                            self.cInvTrans[i, j] *= s
-                            self.lTrans[i, j] /= s
                 else:
                     # scale the uncoupled mode
-                    S = np.abs(self.S1 @ self.S2)
-
-                    s = np.max(S[:, j])
-
+                    s = np.max(np.abs(self.S[:, j]))
                     S3[j, j] = 1 / s
-                    for i in range(self.n):
-                        if i == j:
-                            self.cInvTrans[i, j] *= s ** 2
-                            self.lTrans[i, j] /= s ** 2
-                        else:
-                            self.cInvTrans[i, j] *= s
-                            self.lTrans[i, j] /= s
+
+            else:
+                # scale the uncoupled mode
+                s = np.max(np.abs(self.S[:, j]))
+                S3[j, j] = 1 / s
 
         R3 = np.linalg.inv(S3.T)
+
+        self._apply_transformation(S3, R3)
 
         return S3, R3
 
     def _transform_hamil(self):
-        """
-        transform the Hamiltonian of the circuit that can be expressed
+        """transform the Hamiltonian of the circuit that can be expressed
         in charge and Fock bases
         """
 
-        # get the first transformation:
-        self.lTrans, self.cInvTrans, self.S1, self.R1 = self._transform1()
-        # second transformation
+        # get the first transformation
+        self.S1, self.R1 = self._get_and_apply_transformation_1()
 
         # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvTrans) * np.diag(self.lTrans))
 
-        # set the external charge for each charge mode.
-        self.charge_islands = {i: Charge() for i in range(self.n) if
-                               self._is_charge_mode(i)}
+        if self._is_JJ_in_circuit():
+            # get the second transformation
+            self.S2, self.R2 = self._get_and_apply_transformation_2()
 
-        # the case that circuit has no JJ
-        if len(self.W) == 0:
-
-            self.S = self.S1
-            self.R = self.R1
-
-        else:
-
-            # get the second transformation:
-            self.S2, self.R2 = self._transform2(self.omega, self.S1)
-
-            # apply the second transformation on self.cInvTrans
-            self.cInvTrans = self.R2.T @ self.cInvTrans @ self.R2
-
-            # get the transformed W matrix
-            self.wTrans = self.W @ self.S1 @ self.S2
-            if self.countJJnoInd == 0:
-                self.wTrans[:, self.omega == 0] = 0
-            wQ = self.wTrans[:, self.omega == 0]
-            wQ[np.abs(wQ) < 1e-5] = 0
-            self.wTrans[:, self.omega == 0] = wQ
-
-            # scaling the modes
-            self.S3, self.R3 = self._transform3()
-
-            # The final transformations are:
-            self.S = self.S1 @ self.S2 @ self.S3
-            self.R = self.R1 @ self.R2 @ self.R3
-
-            # self.cTrans = np.linalg.inv(self.cInvTrans)
+        # scaling the modes by third transformation
+        self.S3, self.R3 = self._get_and_apply_transformation_3()
 
     def description(
             self,
@@ -910,7 +959,7 @@ class Circuit:
 
     def _squeeze_op(self, op: Qobj) -> Qobj:
         """
-        Return the same Quantum operator with squeezed dimensions
+        Return the same Quantum operator with squeezed dimensions.
 
         Parameters
         ----------
@@ -924,10 +973,119 @@ class Circuit:
 
         return op_sq
 
-    def _build_op_memory(self) -> None:
+    def _charge_op_isolated(self, i: int) -> Qobj:
+        """Return charge operator for each isolated mode normalized by
+        square root of hbar. By isolated, we mean that the operator is not in
+        the general tensor product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
         """
-        build the charge operators, number operators, and cross
-        multiplication of charge operators.
+
+        if self._is_charge_mode(i):
+            ng = self.charge_islands[i].value()
+            op = (2*unt.e/np.sqrt(unt.hbar)) * (qt.charge((self.m[i]-1)/2)-ng)
+
+        else:
+            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
+            Q_zp = -1j * np.sqrt(0.5/Z)
+            op = Q_zp * (qt.destroy(self.m[i]) - qt.create(self.m[i]))
+
+        return op
+
+    def _flux_op_isolated(self, i: int) -> Qobj:
+        """Return flux operator for each isolated mode normalized by
+        square root of hbar. By isolated, we mean that the operator is not in
+        the general tensor product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        if self._is_charge_mode(i):
+            op = qt.qeye(self.m[i])
+
+        else:
+            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
+            op = np.sqrt(0.5*Z) * (qt.destroy(self.m[i])+qt.create(self.m[i]))
+
+        return op
+
+    def _num_op_isolated(self, i: int) -> Qobj:
+        """Return number operator for each isolated mode. By isolated,
+        we mean that the operator is not in the general tensor product states
+        of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        if self._is_charge_mode(i):
+            op = qt.charge((self.m[i] - 1) / 2)
+
+        else:
+            op = qt.num(self.m[i])
+
+        return op
+
+    def _d_op_isolated(self, i: int, w: float) -> Qobj:
+        """Return charge displacement operator for each isolated mode. By
+        isolated, we mean that the operator is not in the general tensor
+        product states of the overall system.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+            w:
+                Represent the power of the displacement operator, d^w. Right
+                now w should be only 0, 1, and -1.
+        """
+
+        if w == 0:
+            return qt.qeye(self.m[i])
+
+        d = np.zeros((self.m[i], self.m[i]))
+
+        for k in range(self.m[i]):
+            for j in range(self.m[i]):
+                if j - 1 == k:
+                    d[k, j] = 1
+        d = qt.Qobj(d)
+
+        if w < 0:
+            return d
+
+        elif w > 0:
+            return d.dag()
+
+    def alpha(self, i: Union[int, range], j: int) -> float:
+        """Return the alpha, amount of displacement, for the bosonic
+        displacement operator for junction i and mode j.
+
+        Parameters
+        ----------
+            i:
+                Index of the Junction. (starts from zero for the first mode)
+            j:
+               Index of the mode. (starts from zero for the first mode)
+        """
+
+        Z = np.sqrt(self.cInvTrans[j, j] / self.lTrans[j, j])
+
+        coef = 2 * np.pi / unt.Phi0 * 1j
+
+        return coef * np.sqrt(unt.hbar/2*Z) * self.wTrans[i, j]
+
+    def _build_op_memory(self) -> None:
+        """build the charge, flux, number, and cross multiplication of charge
+        operators and store them in memory related to operators.
         """
 
         charge_ops: List[Qobj] = []
@@ -935,106 +1093,82 @@ class Circuit:
         num_ops: List[Qobj] = []
         charge_by_charge_ops: List[List[Qobj]] = []
 
-        # list of charge operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        QList = []
         for i in range(self.n):
-            if self._is_charge_mode(i):
-                Q0 = (2 * unt.e / np.sqrt(unt.hbar)) * \
-                     (qt.charge((self.m[i] - 1) / 2)
-                      - self.charge_islands[i].value())
-            else:
-                coef = -1j * np.sqrt(
-                    0.5 * np.sqrt(self.lTrans[i, i] / self.cInvTrans[i, i]))
-                Q0 = coef * (qt.destroy(self.m[i]) - qt.create(self.m[i]))
-            QList.append(Q0)
 
-        fluxList = []
-        # list of flux operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                flux0 = qt.qeye(self.m[i])
-            else:
-                coef = np.sqrt(0.5 * np.sqrt(self.cInvTrans[i, i] /
-                                             self.lTrans[i, i]))
-                flux0 = coef * (qt.destroy(self.m[i]) + qt.create(self.m[i]))
-            fluxList.append(flux0)
-
-        # list of number operators in their own mode basis
-        # (tensor product of other modes are not applied yet!)
-        nList = []
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                num0 = qt.charge((self.m[i] - 1) / 2)
-            else:
-                num0 = qt.num(self.m[i])
-            nList.append(num0)
-
-        for i in range(self.n):
-            chargeRowList = []
-            num = qt.Qobj()
-            Q = qt.Qobj()
-            flux = qt.Qobj()
+            Q = []
+            charges_row = []
+            num = []
+            flux = []
             for j in range(self.n):
-                # find the appropriate charge and number operator for first mode
-                if j == 0 and i == 0:
-                    Q2 = QList[j] * QList[j]
-                    Q = QList[j]
-                    num = nList[j]
-                    flux = fluxList[j]
+                if i == j:
+                    Q_iso = self._charge_op_isolated(j)
+                    Q2 = Q + [Q_iso * Q_iso]
+                    # append the rest with qeye.
+                    Q2 += [qt.qeye(self.m[k]) for k in range(j+1, self.n)]
+                    charges_row.append(self._squeeze_op(qt.tensor(*Q2)))
 
-                    # Tensor product the charge with I for other modes
-                    for k in range(self.n - 1):
-                        Q2 = qt.tensor(Q2, qt.qeye(self.m[k + 1]))
-                    chargeRowList.append(self._squeeze_op(Q2))
+                    Q.append(Q_iso)
+                    num.append(self._num_op_isolated(j))
+                    flux.append(self._flux_op_isolated(j))
+                else:
+                    if j > i:
+                        QQ = Q + [self._charge_op_isolated(j)]
+                        # append the rest with qeye.
+                        QQ += [qt.qeye(self.m[k]) for k in range(j+1, self.n)]
+                        charges_row.append(self._squeeze_op(qt.tensor(*QQ)))
 
-                elif j == 0 and i != 0:
-                    I = qt.qeye(self.m[j])
-                    Q = I
-                    num = I
-                    flux = I
+                    Q.append(qt.qeye(self.m[j]))
+                    num.append(qt.qeye(self.m[j]))
+                    flux.append(qt.qeye(self.m[j]))
 
-                # find the rest of the modes
-                elif j != 0 and j < i:
-                    I = qt.qeye(self.m[j])
-                    Q = qt.tensor(Q, I)
-                    num = qt.tensor(num, I)
-                    flux = qt.tensor(flux, I)
-
-                elif j != 0 and j == i:
-                    Q2 = qt.tensor(Q, QList[j] * QList[j])
-                    Q = qt.tensor(Q, QList[j])
-                    num = qt.tensor(num, nList[j])
-                    flux = qt.tensor(flux, fluxList[j])
-
-                    # Tensor product the charge with I for other modes
-                    for k in range(self.n - j - 1):
-                        Q2 = qt.tensor(Q2, qt.qeye(self.m[k + j + 1]))
-                    chargeRowList.append(self._squeeze_op(Q2))
-
-                elif j > i:
-                    QQ = qt.tensor(Q, QList[j])
-
-                    # Tensor product the QQ with I for other modes
-                    for k in range(self.n - j - 1):
-                        QQ = qt.tensor(QQ, qt.qeye(self.m[k + j + 1]))
-                    chargeRowList.append(self._squeeze_op(QQ))
-
-                    I = qt.qeye(self.m[j])
-                    Q = qt.tensor(Q, I)
-                    num = qt.tensor(num, I)
-                    flux = qt.tensor(flux, I)
-
-            charge_ops.append(self._squeeze_op(Q))
-            charge_by_charge_ops.append(chargeRowList)
-            flux_ops.append(self._squeeze_op(flux))
-            num_ops.append(self._squeeze_op(num))
+            charge_ops.append(self._squeeze_op(qt.tensor(*Q)))
+            num_ops.append(self._squeeze_op(qt.tensor(*num)))
+            flux_ops.append(self._squeeze_op(qt.tensor(*flux)))
+            charge_by_charge_ops.append(charges_row)
 
         self._memory_ops["Q"] = charge_ops
         self._memory_ops["QQ"] = charge_by_charge_ops
         self._memory_ops["phi"] = flux_ops
         self._memory_ops["N"] = num_ops
+
+    def _build_exp_ops(self) -> None:
+        """Build exponential operators needed to construct cosine potential of
+        the Josephson Junctions and store them in memory related to operators.
+        Note that cosine of JJs can be written as summation of two
+        exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This function builds
+        the quantum operators for only one exponential terms.
+        """
+
+        # list of exp operators
+        exp_ops = []
+        # list of square root of exp operators
+        root_exp_ops = []
+
+        # number of Josephson Junctions
+        nJ = self.wTrans.shape[0]
+
+        for i in range(nJ):
+
+            # list of isolated exp operators
+            exp = []
+            # list of isolated square root of exp operators
+            exp_h = []
+
+            # tensor multiplication of displacement operator for JJ Hamiltonian
+            for j in range(self.n):
+
+                if self._is_charge_mode(j):
+                    exp.append(self._d_op_isolated(j, self.wTrans[i, j]))
+                    exp_h.append(qt.qeye(self.m[j]))
+                else:
+                    exp.append(qt.displace(self.m[j], self.alpha(i, j)))
+                    exp_h.append(qt.displace(self.m[j], self.alpha(i, j)/2))
+
+            exp_ops.append(self._squeeze_op(qt.tensor(*exp)))
+            root_exp_ops.append(self._squeeze_op(qt.tensor(*exp_h)))
+
+        self._memory_ops["exp"] = exp_ops
+        self._memory_ops["root_exp"] = root_exp_ops
 
     def _get_LC_hamil(self) -> Qobj:
         """
@@ -1061,103 +1195,6 @@ class Circuit:
                                      * self._memory_ops["QQ"][i][j])
 
         return LC_hamil
-
-    @staticmethod
-    def _d_op(N: int) -> Qobj:
-        """
-        return charge displacement operator with size N.
-        input:
-            -- N: size of the Hilbert Space
-        output:
-            -- d: charge displace ment operator( qutip object)
-        """
-        d = np.zeros((N, N))
-        for i in range(N):
-            for j in range(N):
-                if j - 1 == i:
-                    d[i, j] = 1
-        d = qt.Qobj(d)
-        d = d.dag()
-
-        return d
-
-    def _build_exp_ops(self) -> None:
-        """
-        Each cosine potential of the Josephson Junction can be written as
-        summation of two exponential terms,cos(x)=(exp(ix)+exp(-ix))/2. This
-        function returns the quantum operators for only one exponential term.
-        """
-
-        exp_ops = []
-        root_exp_ops = []
-
-        # number of Josephson Junctions
-        nJ = self.wTrans.shape[0]
-
-        H = 0
-        # for calculating sin(phi/2) operator for quasi-particle
-        # loss decay rate
-        H2 = 0
-
-        for i in range(nJ):
-
-            # tensor multiplication of displacement operator for JJ Hamiltonian
-            for j in range(self.n):
-                if j == 0 and self._is_charge_mode(j):
-                    if self.wTrans[i, j] == 0:
-                        I = qt.qeye(self.m[j])
-                        H = I
-                        H2 = I
-                    elif self.wTrans[i, j] > 0:
-                        d = self._d_op(self.m[j])
-                        I = qt.qeye(self.m[j])
-                        H = d
-                        # not correct just to avoid error:
-                        H2 = I
-                    else:
-                        d = self._d_op(self.m[j])
-                        I = qt.qeye(self.m[j])
-                        H = d.dag()
-                        # not correct just to avoid error:
-                        H2 = I
-
-                elif j == 0 and self.omega[j] != 0:
-                    alpha = 2 * np.pi / unt.Phi0 * 1j * np.sqrt(
-                        unt.hbar / 2 * np.sqrt(
-                            self.cInvTrans[j, j] / self.lTrans[j, j])) * \
-                            self.wTrans[i, j]
-                    H = qt.displace(self.m[j], alpha)
-                    H2 = qt.displace(self.m[j], alpha / 2)
-
-                if j != 0 and self._is_charge_mode(j):
-                    if self.wTrans[i, j] == 0:
-                        I = qt.qeye(self.m[j])
-                        H = qt.tensor(H, I)
-                        H2 = qt.tensor(H2, I)
-                    elif self.wTrans[i, j] > 0:
-                        I = qt.qeye(self.m[j])
-                        d = self._d_op(self.m[j])
-                        H = qt.tensor(H, d)
-                        H2 = qt.tensor(H2, I)
-                    else:
-                        I = qt.qeye(self.m[j])
-                        d = self._d_op(self.m[j])
-                        H = qt.tensor(H, d.dag())
-                        H2 = qt.tensor(H2, I)
-
-                elif j != 0 and self.omega[j] != 0:
-                    alpha = 2 * np.pi / unt.Phi0 * 1j * np.sqrt(
-                        unt.hbar / 2 * np.sqrt(
-                            self.cInvTrans[j, j] / self.lTrans[j, j])) * \
-                            self.wTrans[i, j]
-                    H = qt.tensor(H, qt.displace(self.m[j], alpha))
-                    H2 = qt.tensor(H2, qt.displace(self.m[j], alpha / 2))
-
-            exp_ops.append(self._squeeze_op(H))
-            root_exp_ops.append(self._squeeze_op(H2))
-
-        self._memory_ops["exp"] = exp_ops
-        self._memory_ops["root_exp"] = root_exp_ops
 
     def _get_external_flux_at_element(self, B_idx: int) -> float:
         """
@@ -1186,11 +1223,11 @@ class Circuit:
 
             # summation of the 1 over inductor values.
             x = 1 / el.value(self.random)
-            O = self.coupling_op("inductive", edge)
-            H += x * phi * (unt.Phi0 / 2 / np.pi) * O / np.sqrt(unt.hbar)
+            op = self.coupling_op("inductive", edge)
+            H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
-            self._memory_ops["ind_hamil"][(el, B_idx)] = O
+            self._memory_ops["ind_hamil"][(el, B_idx)] = op
 
         for _, el, B_idx, W_idx in self.junction_keys:
             # phi = 0
@@ -1215,6 +1252,43 @@ class Circuit:
 
         return H
 
+    def charge_op(self, mode: int, basis: str = 'FC') -> Qobj:
+        """Return charge operator for specific mode in the Fock/Charge basis or
+        the eigenbasis.
+
+        Parameters
+        ----------
+            mode:
+                Integer that specifies the mode number.
+            basis:
+                String that specifies the basis. It can be either ``"FC"``
+                for original Fock/Charge basis or ``"eig"`` for eigenbasis.
+        """
+
+        error1 = "Please specify the truncation number for each mode."
+        assert len(self.m) != 0, error1
+
+        # charge operator in Fock/Charge basis
+        Q_FC = self._memory_ops["Q"][mode-1]
+
+        if basis == "FC":
+
+            return Q_FC
+
+        elif basis == "eig":
+
+            # number of eigenvalues
+            n_eig = len(self.efreqs)
+
+            Q_eig = np.zeros((n_eig, n_eig), dtype=complex)
+
+            for i in range(n_eig):
+                for j in range(n_eig):
+                    Q_eig[i, j] = (self._evecs[i].dag()
+                                   * Q_FC * self._evecs[j]).data[0, 0]
+
+            return qt.Qobj(Q_eig)
+
     def diag(self, n_eig: int) -> Tuple[ndarray, List[Qobj]]:
         """
         Diagonalize the Hamiltonian of the circuit and return the
@@ -1229,8 +1303,8 @@ class Circuit:
         Returns
         ----------
             efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit (
-                gigahertz by default)
+                ndarray of eigenfrequencies in frequency unit of SQcircuit
+                (gigahertz by default)
             evecs:
                 List of eigenvectors in qutip.Qobj format.
         """
@@ -1599,24 +1673,71 @@ class Circuit:
                     decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "cc":
-            for el, _ in self._memory_ops['cos']:
-                op = el.value(self.random) * self._memory_ops['cos'][(el, _)]
-                partial_omega = np.abs((state2.dag()*op*state2
-                                        - state1.dag()*op*state1).data[0, 0])
-                A = el.A
+            for el, B_idx in self._memory_ops['cos']:
+                partial_omega = self._get_partial_omega_mn(el, states=states,
+                                                           _B_idx=B_idx)
+                A = el.A * el.value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
             for loop in self.loops:
-                partial_omega = self._get_partial_omega(loop, states=states)
+                partial_omega = self._get_partial_omega_mn(loop, states=states)
                 A = loop.A
                 decay += self._dephasing(A, partial_omega)
 
         return decay
 
+    def _get_quadratic_Q(self, A: ndarray) -> Qobj:
+        """Return quadratic form of 1/2 * Q^T * A * Q
+
+        Parameters
+        ----------
+            A:
+                ndarray matrix that specifies the coefficient for
+                quadratic expression.
+        """
+
+        op = qt.Qobj()
+
+        for i in range(self.n):
+            for j in range(self.n-i):
+                if j == 0:
+                    op += 0.5 * A[i, i+j] * self._memory_ops["QQ"][i][j]
+                elif j > 0:
+                    op += A[i, i+j] * self._memory_ops["QQ"][i][j]
+
+        return op
+
+    def _get_quadratic_phi(self, A: ndarray) -> Qobj:
+        """Get quadratic form of 1/2 * phi^T * A * phi
+
+        Parameters
+        ----------
+            A:
+                ndarray matrix that specifies the coefficient for
+                quadratic expression.
+        """
+
+        op = qt.Qobj()
+
+        # number of harmonic modes
+        n_H = len(self.omega != 0)
+
+        for i in range(n_H):
+            for j in range(n_H):
+                phi_i = self._memory_ops["phi"][i].copy()
+                phi_j = self._memory_ops["phi"][j].copy()
+                if i == j:
+                    op += 0.5 * A[i, i] * phi_i ** 2
+                elif j > i:
+                    op += A[i, j] * phi_i * phi_j
+
+        return op
+
     def _get_partial_H(
             self,
-            el: Union[Capacitor, Inductor, Junction, Loop]
+            el: Union[Capacitor, Inductor, Junction, Loop],
+            _B_idx: Optional[int] = None,
     ) -> Qobj:
         """
         return the gradient of the Hamiltonian with respect to elements or
@@ -1625,17 +1746,41 @@ class Circuit:
         Parameters
         ----------
             el:
-                element of a circuit that can be either ``Capacitor``,
+                Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
+            _B_idx:
+                Optional integer point to each row of B matrix (external flux
+                distribution of that element). This uses to specify that
+                gradient is calculated based on which JJ of the circuit
+                specifically (we use this option for critical current noise
+                calculation)
         """
 
         partial_H = qt.Qobj()
 
-        if isinstance(el, Loop):
+        if isinstance(el, Capacitor):
+
+            cInv = np.linalg.inv(self.C)
+            A = -self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
+            partial_H += self._get_quadratic_Q(A)
+
+        elif isinstance(el, Inductor):
+
+            A = -self.S.T @ self.partial_L[el]  @ self.S
+            partial_H += self._get_quadratic_phi(A)
+
+            for edge, el_ind, B_idx in self.inductor_keys:
+                if el == el_ind:
+
+                    phi = self._get_external_flux_at_element(B_idx)
+
+                    partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
+                                   / el.value()**2 / np.sqrt(unt.hbar)
+                                   * (unt.Phi0/2/np.pi) * phi)
+
+        elif isinstance(el, Loop):
 
             loop_idx = self.loops.index(el)
-            # note that this is not b_i
-            # k = self.B[:, idx]
 
             for edge, el_ind, B_idx in self.inductor_keys:
                 partial_H += (self.B[B_idx, loop_idx]
@@ -1643,40 +1788,130 @@ class Circuit:
                               / el_ind.value() * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
-            for edge, el_ind, B_idx, W_idx in self.junction_keys:
-                partial_H += (self.B[B_idx, loop_idx] * el_ind.value()
-                              * self._memory_ops['sin'][(el_ind, B_idx)])
+            for edge, el_JJ, B_idx, W_idx in self.junction_keys:
+                partial_H += (self.B[B_idx, loop_idx] * el_JJ.value()
+                              * self._memory_ops['sin'][(el_JJ, B_idx)])
+
+        elif isinstance(el, Junction):
+
+            for _, el_JJ, B_idx, W_idx in self.junction_keys:
+
+                if el == el_JJ and _B_idx is None:
+                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
+
+                elif el == el_JJ and _B_idx == B_idx:
+                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
 
         return partial_H
 
     def _get_partial_omega(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
-            states: Tuple[int, int]
+            m: int,
+            subtract_ground: bool = True,
+            _B_idx: Optional[int] = None,
     ) -> float:
+        """Return the gradient of the eigen angular frequency with respect to
+        elements or loop as ``qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            el:
+                Element of a circuit that can be either ``Capacitor``,
+                ``Inductor``, ``Junction``, or ``Loop``.
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
+            _B_idx:
+                Optional integer point to each row of B matrix (external flux
+                distribution of that element). This uses to specify that
+                gradient is calculated based on which JJ of the circuit
+                specifically (we use this option for critical current noise
+                calculation)
+
         """
-        return the gradient of the eigen angular frequency with respect to
+
+        state_m = self._evecs[m]
+
+        partial_H = self._get_partial_H(el, _B_idx)
+
+        partial_omega_m = state_m.dag() * (partial_H*state_m)
+
+        if subtract_ground:
+
+            state_0 = self._evecs[0]
+
+            partial_omega_0 = state_0.dag() * (partial_H * state_0)
+
+            return (partial_omega_m - partial_omega_0).data[0, 0].real
+
+        else:
+
+            return partial_omega_m.data[0, 0].real
+
+    def _get_partial_omega_mn(
+            self,
+            el: Union[Capacitor, Inductor, Junction, Loop],
+            states: Tuple[int, int],
+            _B_idx: Optional[int] = None,
+    ) -> float:
+        """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format. Note that if
         ``states=(m, n)``, it returns ``partial_omega_m - partial_omega_n``.
 
         Parameters
         ----------
             el:
-                element of a circuit that can be either ``Capacitor``,
+                Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
-            states:
-                A tuple of eigenstate indices, for which we want to
-                calculate the decoherence rate. For example, for ``states=(0,
-                1)``, we calculate the decoherence rate between the ground
-                state and the first excited state.
-
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
         """
+
         state_m = self._evecs[states[0]]
         state_n = self._evecs[states[1]]
 
-        partial_H = self._get_partial_H(el)
+        partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H * state_m)
-        partial_omega_n = state_n.dag() * (partial_H * state_n)
+        partial_omega_m = state_m.dag() * (partial_H*state_m)
+        partial_omega_n = state_n.dag() * (partial_H*state_n)
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
+
+    def _get_partial_vec(self, el, m):
+        """Return the gradient of the eigenvectors with respect to
+        elements or loop as ``qutip.Qobj`` format.
+
+        Parameters
+        ----------
+            el:
+                Element of a circuit that can be either ``Capacitor``,
+                ``Inductor``, ``Junction``, or ``Loop``.
+            m:
+                Integer specifies the eigenvalue. for example ``m=0`` specifies
+                the ground state and ``m=1`` specifies the first excited state.
+        """
+
+        state_m = self._evecs[m]
+
+        #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
+
+        n_eig = len(self._evecs)
+
+        partial_H = self._get_partial_H(el)
+        partial_state = qt.Qobj()
+
+        for n in range(n_eig):
+
+            if n == m:
+                continue
+
+            state_n = self._evecs[n]
+
+            delta_omega = (self._efreqs[m] - self._efreqs[n])
+
+            partial_state += (state_n.dag()
+                              * (partial_H * state_m)) * state_n / delta_omega
+
+        return partial_state

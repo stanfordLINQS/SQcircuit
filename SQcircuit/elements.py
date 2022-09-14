@@ -111,6 +111,18 @@ class Capacitor:
                     2 * np.pi * unt.hbar) / unt.get_unit_freq()
 
 
+class VerySmallCap(Capacitor):
+
+    def __init__(self):
+        super().__init__(1e-20, "F", Q=None)
+
+
+class VeryLargeCap(Capacitor):
+
+    def __init__(self):
+        super().__init__(1e20, "F", Q=None)
+
+
 class Inductor:
     """
     Class that contains the inductor properties.
@@ -168,7 +180,7 @@ class Inductor:
             self.unit = unit
 
         if cap is None:
-            self.cap = Capacitor(1e-20, "F", Q=None)
+            self.cap = VerySmallCap()
         else:
             self.cap = cap
 
@@ -298,7 +310,7 @@ class Junction:
             self.unit = unit
 
         if cap is None:
-            self.cap = Capacitor(1e-20, "F", Q=None)
+            self.cap = VerySmallCap()
         else:
             self.cap = cap
 
