@@ -40,7 +40,7 @@ def eigencircuit(circuit: Circuit, num_eigen):
     """
 
     elements = list(circuit.elements.values())[0]
-    initial_element_vals = [element.get_value(element_units=True) for element in elements]
+    initial_element_vals = [element.get_value(element_units=False) for element in elements]
 
     element_tensors = _vectorize(circuit)
     element_tensors.requires_grad = True
