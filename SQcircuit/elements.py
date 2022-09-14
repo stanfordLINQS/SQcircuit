@@ -111,7 +111,6 @@ class Capacitor(Element):
             E_c = self.value * (2 * np.pi * unt.hbar)
             cMean = unt.e ** 2 / 2 / E_c
         if not element_units:
-            print(f"unit value: {unt.farad_list[self.unit]}")
             cMean *= unt.farad_list[self.unit]
 
         if not random:
