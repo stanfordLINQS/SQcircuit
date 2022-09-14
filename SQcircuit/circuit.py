@@ -1701,6 +1701,7 @@ class Circuit:
                         decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
+                        print(f"numpy decay: {decay}")
                     print(f"{self.matrix_elements('capacitive', edge, states)}")
 
         if dec_type == "inductive":
