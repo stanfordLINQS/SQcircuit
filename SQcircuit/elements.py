@@ -22,6 +22,9 @@ class Element:
         if unit is not None:
             self.unit = unit
 
+    def get_unit_scale(self):
+        pass
+
     def get_value(self, *args):
         pass
 
@@ -117,6 +120,9 @@ class Capacitor(Element):
             return cMean
         else:
             return np.random.normal(cMean, cMean * self.error / 100, 1)[0]
+
+    def get_unit_scale(self):
+        return unt.farad_list[self.unit]
 
     def energy(self) -> float:
         """
@@ -268,6 +274,9 @@ class Inductor(Element):
         else:
             return np.random.normal(lMean, lMean * self.error / 100, 1)[0]
 
+    def get_unit_scale(self):
+        return unt.henry_list[self.unit]
+
     def energy(self) -> float:
         """
         Return the inductive energy of the capacitor in frequency unit of
@@ -406,6 +415,9 @@ class Junction(Element):
             return jMean
         else:
             return np.random.normal(jMean, jMean * self.error / 100, 1)[0]
+
+    def get_unit_scale(self):
+        return unt.freq_list[self.unit]
 
 
 class Loop(Element):
