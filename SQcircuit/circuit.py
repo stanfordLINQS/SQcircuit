@@ -1695,7 +1695,8 @@ class Circuit:
                         cap = el
                     else:
                         cap = el.cap
-                    print(f"cap: {cap}")
+                    print(f"tempS: {tempS}")
+                    print(f"cap.Q(omega): {cap.Q(omega)}")
                     if cap.Q:
                         print(f"value: {cap.get_value()}")
                         decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
