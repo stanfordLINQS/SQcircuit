@@ -1664,6 +1664,7 @@ class Circuit:
         state2 = self._evecs[states[1]]
 
         omega = np.abs(omega2 - omega1)
+        print(f"omega: {omega}")
 
         decay = 0
 
@@ -1676,6 +1677,7 @@ class Circuit:
             alpha = unt.hbar * omega / (unt.k_B * ENV["T"])
             down = (1 + 1 / np.tanh(alpha / 2))
             up = down * np.exp(-alpha)
+            print(f"alpha: {alpha}")
 
         # for temperature dependent loss
         if not total:
@@ -1693,12 +1695,15 @@ class Circuit:
                         cap = el
                     else:
                         cap = el.cap
+                    print(f"cap: {cap}")
                     if cap.Q:
-                        A = np.abs(self.matrix_elements("capacitive", edge, states))
-                        print(f"mat element: {A}")
+                        print(f"value: {cap.get_value()}")
                         decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
+                        print(f"{np.abs(self.matrix_elements('capacitive', edge, states))}")
+                        print(f"numpy decay: {decay}")
+                    print(f"{self.matrix_elements('capacitive', edge, states)}")
 
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
@@ -1741,6 +1746,7 @@ class Circuit:
                 A = loop.A
                 decay += self._dephasing(A, partial_omega)
 
+        print(f"decay: {decay}")
         return decay
 
     def _get_quadratic_Q(self, A: ndarray) -> Qobj:
