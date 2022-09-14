@@ -1697,6 +1697,7 @@ class Circuit:
                         cap = el.cap
                     print(f"cap: {cap}")
                     if cap.Q:
+                        print(f"value: {cap.get_value()}")
                         decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
