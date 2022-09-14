@@ -1679,6 +1679,7 @@ class Circuit:
             up = down * np.exp(-alpha)
             print(f"alpha: {alpha}")
 
+        print(f"down: {down}, up: {up}")
         # for temperature dependent loss
         if not total:
             if states[0] > states[1]:
