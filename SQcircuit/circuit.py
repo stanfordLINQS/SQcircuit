@@ -1,6 +1,8 @@
 """circuit.py contains the classes for the circuit and their properties
 """
 
+from collections import OrderedDict
+
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 
 import numpy as np
@@ -57,7 +59,7 @@ class Circuit:
 
     def __init__(
             self,
-            elements: Dict[Tuple[int, int],
+            elements: OrderedDict[Tuple[int, int],
                            List[Union[Capacitor, Inductor, Junction]]],
             flux_dist: str = 'junctions',
             random: bool = False
@@ -67,7 +69,9 @@ class Circuit:
         # General circuit attributes
         #######################################################################
 
-        self.elements = elements
+        self.elements = OrderedDict(
+            [(key, elements[key]) for key in elements.keys()]
+        )
 
         error = ("flux_dist option must be either \"junctions\", "
                  "\"inductors\", or \"all\"")
@@ -153,7 +157,7 @@ class Circuit:
         self._LC_hamil = qt.Qobj()
 
         # eigenvalues of the circuit
-        self._efreqs = np.array([])
+        self._efreqs = qarray([])
         # eigenvectors of the circuit
         self._evecs = []
 
@@ -177,7 +181,7 @@ class Circuit:
 
         assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
 
-        return self._efreqs / (2*np.pi*unt.get_unit_freq())
+        return self._efreqs / (2 * np.pi * unt.get_unit_freq())
 
     def _add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -1292,25 +1296,7 @@ class Circuit:
 
             return qt.Qobj(Q_eig)
 
-    def diag(self, n_eig: int) -> Tuple[ndarray, List[Qobj]]:
-        """
-        Diagonalize the Hamiltonian of the circuit and return the
-        eigenfrequencies and eigenvectors of the circuit up to specified
-        number of eigenvalues.
-
-        Parameters
-        ----------
-            n_eig:
-                Number of eigenvalues to output. The lower ``n_eig``, the
-                faster ``SQcircuit`` finds the eigenvalues.
-        Returns
-        ----------
-            efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit
-                (gigahertz by default)
-            evecs:
-                List of eigenvectors in qutip.Qobj format.
-        """
+    def diag_np(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         error1 = "Please specify the truncation number for each mode."
         assert len(self.m) != 0, error1
         error2 = "n_eig (number of eigenvalues) should be an integer."
@@ -1337,7 +1323,41 @@ class Circuit:
         self._efreqs = efreqs_sorted
         self._evecs = evecs_sorted
 
-        return efreqs_sorted / (2*np.pi*unt.get_unit_freq()), evecs_sorted
+        return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
+
+    def diag_torch(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+        tensor_list, EigenvalueSolver, EigenvectorSolver = eigencircuit(self, num_eigen = n_eig)
+        eigenvalues = EigenvalueSolver.apply(tensor_list)
+        eigenvectors = EigenvectorSolver.apply(tensor_list)
+        self._efreqs = eigenvalues
+        self._evecs = eigenvectors
+
+        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+
+    def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+        """
+        Diagonalize the Hamiltonian of the circuit and return the
+        eigenfrequencies and eigenvectors of the circuit up to specified
+        number of eigenvalues.
+
+        Parameters
+        ----------
+            n_eig:
+                Number of eigenvalues to output. The lower ``n_eig``, the
+                faster ``SQcircuit`` finds the eigenvalues.
+        Returns
+        ----------
+            efreq:
+                ndarray of eigenfrequencies in frequency unit of SQcircuit
+                (gigahertz by default)
+            evecs:
+                List of eigenvectors in qutip.Qobj or Tensor format, depending
+                on optimization mode.
+        """
+        if OPTIM_MODE:
+            return self.diag_torch(n_eig)
+        else:
+            return self.diag_np(n_eig)
 
     ###########################################################################
     # Methods that calculate circuit properties
@@ -1918,3 +1938,62 @@ class Circuit:
                               * (partial_H * state_m)) * state_n / delta_omega
 
         return partial_state
+
+    def _update_H(self):
+        """Update the circuit Hamiltonian to reflect changes made to the
+        scalar values used for circuit elements (ex. C, L, J...)."""
+        (self.C, self.L, self.W, self.B,
+         self.partial_C, self.partial_L) = self._get_LCWB()
+        self._transform_hamil()
+        self._build_op_memory()
+        self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
+
+    def _update_element(
+            self,
+            element: Union[Capacitor, Inductor, Junction, Loop],
+            value: float,
+            unit: str,
+            update_H: bool = True
+    ) -> None:
+        """Update a single circuit element with a given element value and unit.
+        If the unit is `None` (not specified), the element's units will not be
+        altered.
+        Parameters
+        ----------
+            value:
+                The scalar value to set for a given element, which can be the
+                capacitance, inductance, Josephson energy, or loop flux.
+            unit:
+                The units corresponding to the input value, which must correspond
+                to the type of element used.
+        """
+        if element.type not in [Capacitor, Inductor, Junction, Loop]:
+            raise ValueError("Element type must be one of Capacitor, Inductor, Junction, or Loop.")
+        element.set_value(value, unit)
+        if update_H:
+            self._update_H()
+
+    def update_elements(self,
+                        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
+                        values_units: List[Tuple[float, str]]):
+        """Updates an input list of circuit elements with new scalar parameter
+        values, using the units already specified for that element.
+        Parameters
+        ----------
+            elements:
+                List of circuit elements, which must be of the type ``Capacitor``,
+                ``Inductor``, or ``Junction``.
+            values_units:
+                List of tuples (of the same length as ``elements``) for which
+                the first tuple element is the value to update with, and the
+                second is the unit corresponding to that value.
+        """
+        assert (len(elements) == len(values_units),
+                'Length of elements and values/units arrays must match.')
+        for idx in range(len(elements)):
+            self._update_element(elements[idx],
+                                 values_units[idx][0],
+                                 values_units[idx][1],
+                                 update_H=False)
+        self._update_H()
