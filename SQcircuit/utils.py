@@ -7,9 +7,8 @@ import scipy
 import torch
 
 from SQcircuit.settings import OPTIM_MODE
-from SQcircuit.circuit import Circuit
 
-def _vectorize(circuit: Circuit) -> torch.Tensor:
+def _vectorize(circuit) -> torch.Tensor:
     """Converts an ordered dictionary of element values for a given circuit into Tensor format.
     Parameters
     ----------
@@ -21,7 +20,7 @@ def _vectorize(circuit: Circuit) -> torch.Tensor:
     element_tensors = torch.stack(element_values)
     return element_tensors
 
-def eigencircuit(circuit: Circuit, num_eigen):
+def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
     eigenvalues and eigenvectors of a circuit.
     Parameters
