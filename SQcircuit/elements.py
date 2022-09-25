@@ -10,7 +10,7 @@ import numpy as np
 from scipy.special import kn
 
 import SQcircuit.units as unt
-from SQcircuit.utils import *
+from SQcircuit.utils import qnormal
 
 class Element:
     def __init__(self, value: float = 0):
