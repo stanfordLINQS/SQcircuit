@@ -20,6 +20,7 @@ from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC
+from SQcircuit.utils import *
 
 
 class Circuit:
@@ -1609,7 +1610,7 @@ class Circuit:
         state1 = self._evecs[states[0]]
         state2 = self._evecs[states[1]]
 
-        omega = np.abs(omega2 - omega1)
+        omega = qabs(omega2 - omega1)
 
         decay = 0
 
@@ -1620,8 +1621,8 @@ class Circuit:
             up = 0
         else:
             alpha = unt.hbar * omega / (unt.k_B * ENV["T"])
-            down = (1 + 1 / np.tanh(alpha / 2))
-            up = down * np.exp(-alpha)
+            down = (1 + 1 / qtanh(alpha / 2))
+            up = down * qexp(-alpha)
 
         # for temperature dependent loss
         if not total:
@@ -1640,7 +1641,7 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.value() / cap.Q(omega) * np.abs(
+                        decay += tempS * cap.value() / cap.Q(omega) * qabs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
@@ -1649,14 +1650,14 @@ class Circuit:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 x = 1 / el.value()
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) * x * np.abs(
+                    decay += tempS / el.Q(omega, ENV["T"]) * x * qabs(
                         (state1.dag() * op * state2).data[0, 0]) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
                 decay += tempS * el.Y(omega, ENV["T"]) * omega * el.value() \
-                         * unt.hbar * np.abs(
+                         * unt.hbar * qabs(
                     (state1.dag() * op * state2).data[0, 0]) ** 2
 
         elif dec_type == "charge":
@@ -1666,9 +1667,9 @@ class Circuit:
                 if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / np.sqrt(unt.hbar))
-                    partial_omega = np.abs((state2.dag()*op*state2 -
-                                            state1.dag()*op*state1).data[0, 0])
+                               / qsqrt(unt.hbar))
+                    partial_omega = qabs((state2.dag() * op * state2 -
+                                            state1.dag() * op * state1).data[0, 0])
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
