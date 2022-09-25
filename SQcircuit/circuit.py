@@ -59,7 +59,7 @@ class Circuit:
 
     def __init__(
             self,
-            elements: OrderedDict[Tuple[int, int],
+            elements: Dict[Tuple[int, int],
                            List[Union[Capacitor, Inductor, Junction]]],
             flux_dist: str = 'junctions',
             random: bool = False
