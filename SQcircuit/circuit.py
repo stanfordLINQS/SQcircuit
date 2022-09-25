@@ -13,6 +13,8 @@ from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermite
 
+from torch import Tensor
+
 import SQcircuit.units as unt
 
 from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
@@ -206,7 +208,7 @@ class Circuit:
 
         return w[1:]
 
-    def _edge_matrix_rep(self, edge: Tuple[int, int]) -> ndarray:
+    def _edge_matrix_rep(self, edge: Tuple[int, int]) -> Union[ndarray, Tensor]:
 
         """Special form of matrix representation for an edge of a graph.
         This helps to construct the capacitance and susceptance matrices.
@@ -217,7 +219,7 @@ class Circuit:
                 Tuple of int which specifies an edge.
         """
 
-        A = np.zeros((self.n, self.n))
+        A = qzeros((self.n, self.n))
 
         if 0 in edge:
             i = edge[0] + edge[1] - 1
@@ -244,14 +246,14 @@ class Circuit:
             in the JJ cosine (n_J,self.n)
         """
 
-        cMat = np.zeros((self.n, self.n))
-        lMat = np.zeros((self.n, self.n))
+        cMat = qzeros((self.n, self.n))
+        lMat = qzeros((self.n, self.n))
         wMat = []
-        bMat = np.array([])
+        bMat = qarray([])
 
-        partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
+        partial_cMats: Dict[Tuple[Capacitor, Union[ndarray, Tensor]]] = {}
 
-        partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
+        partial_lMats: Dict[Tuple[Inductor, Union[ndarray, Tensor]]] = {}
 
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
@@ -356,7 +358,7 @@ class Circuit:
             cap = sum(list(map(lambda c: c.value(self.random), edge_caps)))
 
             # summation of the one over inductor values.
-            x = np.sum(1 / np.array(list(map(lambda l: l.value(self.random),
+            x = qsum(1 / qarray(list(map(lambda l: l.value(self.random),
                                              edge_inds))))
 
             cMat += cap * edge_mat
@@ -1495,7 +1497,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = qt.Qobj()
+        op = qinit_op(self._memory_ops["Q"][0].full().shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1505,7 +1507,7 @@ class Circuit:
             node = node1 + node2
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = np.linalg.inv(self.C) @ self.R
+                K = qmat_inv(self.C) @ self.R
                 for i in range(self.n):
                     op += K[node - 1, i] * self._memory_ops["Q"][i]
             if ctype == "inductive":
@@ -1516,7 +1518,7 @@ class Circuit:
         else:
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = np.linalg.inv(self.C) @ self.R
+                K = qmat_inv(self.C) @ self.R
                 for i in range(self.n):
                     op += (K[node2 - 1, i] - K[node1 - 1, i]) * \
                           self._memory_ops["Q"][i]
