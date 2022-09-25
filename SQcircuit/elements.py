@@ -10,7 +10,7 @@ import numpy as np
 from scipy.special import kn
 
 import SQcircuit.units as unt
-from SQcircuit.utils import qnormal
+import SQcircuit.utils as utils
 
 class Element:
     def __init__(self, value: float = 0):
@@ -19,7 +19,7 @@ class Element:
     def set_value(self,
                      value: float,
                      unit: Optional[str] = None):
-        self.value = qabs(qcast(value))
+        self.value = utils.qabs(utils.qcast(value))
         if unit is not None:
             self.unit = unit
 
@@ -118,7 +118,7 @@ class Capacitor(Element):
         if not random:
             return cMean
         else:
-            return qnormal(cMean, cMean * self.error / 100)
+            return utils.qnormal(cMean, cMean * self.error / 100)
 
     def get_unit_scale(self):
         return unt.farad_list[self.unit]
@@ -269,7 +269,7 @@ class Inductor(Element):
         if not random:
             return lMean
         else:
-            return qnormal(lMean, lMean * self.error / 100)
+            return utils.qnormal(lMean, lMean * self.error / 100)
 
     def get_unit_scale(self):
         return unt.henry_list[self.unit]
@@ -409,7 +409,7 @@ class Junction(Element):
         if not random:
             return jMean
         else:
-            return qnormal(jMean, jMean * self.error / 100)
+            return utils.qnormal(jMean, jMean * self.error / 100)
 
     def get_unit_scale(self):
         return unt.freq_list[self.unit]
@@ -468,7 +468,7 @@ class Loop(Element):
         if not random:
             return self.value
         else:
-            return qnormal(self.value, self.A)
+            return utils.qnormal(self.value, self.A)
 
     def set_flux(self, value: float) -> None:
         """
