@@ -86,62 +86,62 @@ def eigencircuit(circuit, num_eigen):
 
     return tensor_list, EigenvalueSolver, EigenvectorSolver
 
-def qabs(x, *args):
+def qabs(x):
     if OPTIM_MODE:
-        return torch.abs(x, args)
-    return np.abs(x, args)
+        return torch.abs(x)
+    return np.abs(x)
 
-def qtanh(x, *args):
+def qtanh(x):
     if OPTIM_MODE:
-        return torch.tanh(x, args)
-    return np.tanh(x, args)
+        return torch.tanh(x)
+    return np.tanh(x)
 
-def qexp(x, *args):
+def qexp(x):
     if OPTIM_MODE:
-        return torch.exp(x, args)
-    return np.exp(x, args)
+        return torch.exp(x)
+    return np.exp(x)
 
-def qsqrt(x, *args):
+def qsqrt(x):
     if OPTIM_MODE:
-        return torch.sqrt(x, args)
-    return np.sqrt(x, args)
+        return torch.sqrt(x)
+    return np.sqrt(x)
 
-def qmat_inv(A, *args):
+def qmat_inv(A):
     if OPTIM_MODE:
-        return torch.linalg.inv(A, args)
-    return np.linalg.inv(A, args)
+        return torch.linalg.inv(A)
+    return np.linalg.inv(A)
 
-def qinit_op(shape, *args):
+def qinit_op(shape):
     if OPTIM_MODE:
-        return torch.zeros(shape, args)
+        return torch.zeros(shape)
     return qt.Qobj()
 
-def qzeros(shape, *args):
+def qzeros(shape):
     if OPTIM_MODE:
-        return torch.zeros(shape, args)
-    return np.zeros(shape, args)
+        return torch.zeros(shape)
+    return np.zeros(shape)
 
-def qarray(object, *args):
+def qarray(object):
     if OPTIM_MODE:
-        return torch.array(object, args)
-    return np.array(object, args)
+        return torch.array(object)
+    return np.array(object)
 
-def qsum(a, *args):
+def qsum(a):
     if OPTIM_MODE:
-        return torch.sum(a, args)
-    return np.sum(a, args)
+        return torch.sum(a)
+    return np.sum(a)
 
-def qsort(a, *args):
+def qsort(a):
     if OPTIM_MODE:
-        return torch.sort(a, args)
-    return np.sort(a, args)
+        return torch.sort(a)
+    return np.sort(a)
 
 def qcast(value):
     if OPTIM_MODE:
         return torch.Tensor(value, requires_grad = True)
     return value
 
-def qnormal(mean, var, *args):
+def qnormal(mean, var):
     if OPTIM_MODE:
-        return torch.normal(mean, var, *args)
+        return torch.normal(mean, var)
     return np.random.normal(mean, var, 1)[0]
