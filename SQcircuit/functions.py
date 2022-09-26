@@ -163,14 +163,32 @@ def numpy(input):
             return input.detach().numpy()
     return input
 
+def dag(state):
+    if get_optim_mode():
+        if len(state.size()) == 1:
+            return torch.conj(state)
+        return torch.conj(torch.transpose(state))
+    return state.dag()
+
 def copy(x):
     if get_optim_mode():
         return x.clone()
     return x.copy()
 
+def unwrap(x):
+    if get_optim_mode():
+        return x
+    return x.data[0, 0]
+
 def mat_mul(A, B):
     if get_optim_mode():
-        return torch.mm(torch.as_tensor(A, dtype=torch.float32), torch.as_tensor(B, dtype=torch.float32))
+        if isinstance(A, qt.Qobj):
+            A = A.full()
+        if isinstance(B, qt.Qobj):
+            B = B.full()
+        return torch.matmul(torch.as_tensor(A, dtype=torch.float32), torch.as_tensor(B, dtype=torch.float32))
+    if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
+        return A * B
     return A @ B
 
 def sparse_csr_to_tensor(S):

@@ -1582,7 +1582,7 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
-        return (sqf.sparse_mul(sqf.sparse_mul(state1.dag(), op), state2)).data[0, 0]
+        return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
 
     @staticmethod
     def _dephasing(A: float, partial_omega: float) -> float:
