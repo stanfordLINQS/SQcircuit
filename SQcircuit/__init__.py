@@ -7,3 +7,5 @@ from SQcircuit.sweep import *
 from SQcircuit.storage import *
 from SQcircuit.units import *
 from SQcircuit.systems import *
+
+from SQcircuit.settings import set_optim_mode

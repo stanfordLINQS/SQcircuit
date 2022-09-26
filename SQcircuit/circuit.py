@@ -19,7 +19,7 @@ from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
                                 VerySmallCap, VeryLargeCap)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
-from SQcircuit.settings import ACC, OPTIM_MODE
+from SQcircuit.settings import ACC, get_optim_mode
 
 
 class Circuit:

@@ -16,7 +16,7 @@ from SQcircuit.logs import UNIT_ERROR
 
 
 def test_capacitor_error_massages():
-    with pytest.raises(ValueError, match=UNIT_ERROR):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Capacitor(10, "H")
 
 
@@ -64,7 +64,7 @@ def test_capacitor_unit():
 
 
 def test_inductor_error_massages():
-    with pytest.raises(ValueError, match=UNIT_ERROR):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Inductor(10, "F")
 
 
@@ -113,7 +113,7 @@ def test_inductor_unit():
 ###############################################################################
 
 def test_junction_error_massages():
-    with pytest.raises(ValueError, match=UNIT_ERROR):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Junction(10, "F")
 
 

@@ -4,13 +4,16 @@ capacitors, inductors, and josephson junctions.
 
 from typing import List, Any, Optional, Union, Callable
 
+import torch
 import numpy as np
 
 from scipy.special import kn
+from torch import Tensor
 
 import SQcircuit.units as unt
 
-from SQcircuit.logs import UNIT_ERROR
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed
+from SQcircuit.settings import get_optim_mode
 
 
 class Element:
@@ -21,29 +24,63 @@ class Element:
     _value = None
 
     @property
-    def unit(self):
+    def unit(self) -> str:
         return self._unit
 
     @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, v):
-        self._value = v
-
-    @property
-    def error(self):
+    def error(self) -> float:
         return self._error
 
     @error.setter
-    def error(self, e):
+    def error(self, e: float) -> None:
         self._error = e
+
+    @property
+    def requires_grad(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self._value.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, f: bool) -> None:
+
+        raise_optim_error_if_needed()
+
+        self._value.requires_grad = f
+
+    def set_value_with_error(self, mean, error):
+
+        mean_th = torch.as_tensor(mean, dtype=float)
+        error_th = torch.as_tensor(error, dtype=float)
+
+        self._value = torch.normal(mean_th, mean_th*error_th/100)
+
+        if not get_optim_mode():
+            self._value = float(self._value.detach().cpu().numpy())
+
+    def get_value(self):
+        pass
+
+    @staticmethod
+    def get_default_id_str(s: str, v: float, u: str) -> str:
+        """Get the default string ID for the element.
+
+        Parameters
+        ----------
+        s:
+            The initial string of the id_string.
+        v:
+            The value of the element as float number.
+        u:
+            The unit of the element as string.
+        """
+        assert isinstance(s, str), "The input must have string format."
+
+        return (s + "_{}_{}").format(v, u)
 
 
 class Capacitor(Element):
-    """
-    Class that contains the capacitor properties.
+    """Class that contains the capacitor properties.
 
     Parameters
     ----------
@@ -54,6 +91,9 @@ class Capacitor(Element):
         the value specifies the charging energy of the capacitor. If ``unit``
         is "fF", "pF", and ,etc., the value specifies the capacitance in
         farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
+    requires_grad:
+        A boolean variable specifies if the autograd should record operation
+        on this element.
     Q:
         Quality factor of the dielectric of the capacitor which is one over
         tangent loss. It can be either a float number or a Python function of
@@ -68,6 +108,7 @@ class Capacitor(Element):
         self,
         value: float,
         unit: Optional[str] = None,
+        requires_grad: bool = False,
         Q: Union[Any, Callable[[float], float]] = "default",
         error: float = 0,
         id_str: Optional[str] = None,
@@ -76,26 +117,34 @@ class Capacitor(Element):
         self.set_value(value, unit, error)
         self.type = type(self)
 
+        if requires_grad:
+            self.requires_grad = requires_grad
+
         if Q == "default":
-            self.Q = lambda omega: 1e6 * (
-                    2 * np.pi * 6e9 / np.abs(omega)) ** 0.7
+            self.Q = self._default_Q_cap
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega: Q
         else:
             self.Q = Q
 
         if id_str is None:
-            self.id_str = "C_{}_{}".format(value, self.unit)
+            self.id_str = self.get_default_id_str("C", value, unit)
         else:
             self.id_str = id_str
 
-    @Element.unit.setter
-    def unit(self, u: Optional[str]) -> None:
+    @staticmethod
+    def _check_unit_format(u):
+        """Check if the unit input has the correct format."""
 
         if (u not in unt.freq_list and
                 u not in unt.farad_list and
                 u is not None):
-            raise ValueError(UNIT_ERROR)
+            raise_unit_error()
+
+    @Element.unit.setter
+    def unit(self, u: Optional[str]) -> None:
+
+        self._check_unit_format(u)
 
         if u is None:
             self._unit = unt.get_unit_cap()
@@ -123,12 +172,9 @@ class Capacitor(Element):
             E_c = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = unt.e ** 2 / 2 / E_c
 
-        if self.error == 0:
-            self.value = mean
-        else:
-            self.value = np.random.normal(mean, mean*self.error/100, 1)[0]
+        self.set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "F") -> float:
+    def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
 
         Parameters
@@ -138,14 +184,20 @@ class Capacitor(Element):
         """
 
         if u in unt.farad_list:
-            return self.value / unt.farad_list[u]
+            return self._value / unt.farad_list[u]
 
         elif u in unt.freq_list:
-            E_c = unt.e**2/2/self.value/(2*np.pi*unt.hbar)/unt.freq_list[u]
+            E_c = unt.e**2/2/self._value/(2*np.pi*unt.hbar)/unt.freq_list[u]
             return E_c
 
         else:
-            raise ValueError(UNIT_ERROR)
+            raise_unit_error()
+
+    @staticmethod
+    def _default_Q_cap(omega):
+        """Default function for capacitor quality factor."""
+
+        return 1e6 * (2 * np.pi * 6e9 / np.abs(omega))**0.7
 
 
 class VerySmallCap(Capacitor):
@@ -172,6 +224,9 @@ class Inductor(Element):
         the value specifies the inductive energy of the inductor. If ``unit``
         is "fH", "pH", and ,etc., the value specifies the inductance in henry.
         If ``unit`` is ``None``, the default unit of inductor is "GHz".
+    requires_grad:
+        A boolean variable specifies if the autograd should record operation
+        on this element.
     loops:
         List of loops in which the inductor resides.
     cap:
@@ -191,6 +246,7 @@ class Inductor(Element):
             self,
             value: float,
             unit: str = None,
+            requires_grad: bool = False,
             cap: Optional["Capacitor"] = None,
             Q: Union[Any, Callable[[float, float], float]] = "default",
             error: float = 0,
@@ -200,7 +256,9 @@ class Inductor(Element):
 
         self.set_value(value, unit, error)
         self.type = type(self)
-        self.id_str = id_str
+
+        if requires_grad:
+            self.requires_grad = requires_grad
 
         if cap is None:
             self.cap = VerySmallCap()
@@ -212,32 +270,31 @@ class Inductor(Element):
         else:
             self.loops = loops
 
-        def qInd(omega, T):
-            alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
-            beta = unt.hbar * omega / (2 * unt.k_B * T)
-
-            return 500e6 * (kn(0, alpha) * np.sinh(alpha)) / (
-                    kn(0, beta) * np.sinh(beta))
-
         if Q == "default":
-            self.Q = qInd
+            self.Q = self._default_Q_ind
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega, T: Q
         else:
             self.Q = Q
 
         if id_str is None:
-            self.id_str = "L_{}_{}".format(value, self.unit)
+            self.id_str = self.get_default_id_str("L", value, unit)
         else:
             self.id_str = id_str
 
-    @Element.unit.setter
-    def unit(self, u: Optional[str]) -> None:
+    @staticmethod
+    def _check_unit_format(u):
+        """Check if the unit input has the correct format."""
 
         if (u not in unt.freq_list and
                 u not in unt.henry_list and
                 u is not None):
-            raise ValueError(UNIT_ERROR)
+            raise_unit_error()
+
+    @Element.unit.setter
+    def unit(self, u: Optional[str]) -> None:
+
+        self._check_unit_format(u)
 
         if u is None:
             self._unit = unt.get_unit_ind()
@@ -265,10 +322,7 @@ class Inductor(Element):
             E_l = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = (unt.Phi0/2/np.pi)**2 / E_l
 
-        if self.error == 0.0:
-            self.value = mean
-        else:
-            self.value = np.random.normal(mean, mean*self.error/100, 1)[0]
+        self.set_value_with_error(mean, e)
 
     def get_value(self, u: str = "H") -> float:
         """Return the value of the element in specified unit.
@@ -280,15 +334,24 @@ class Inductor(Element):
         """
 
         if u in unt.henry_list:
-            return self.value / unt.henry_list[u]
+            return self._value / unt.henry_list[u]
 
         elif u in unt.freq_list:
-            l = self.value
+            l = self._value
             E_l = (unt.Phi0/2/np.pi)**2/l/(2*np.pi*unt.hbar)/unt.freq_list[u]
             return E_l
 
         else:
-            raise ValueError(UNIT_ERROR)
+            raise_unit_error()
+
+    @staticmethod
+    def _default_Q_ind(omega, T):
+        """Default function for inductor quality factor."""
+
+        alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
+        beta = unt.hbar * omega / (2 * unt.k_B * T)
+
+        return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
 
 
 class Junction(Element):
@@ -302,6 +365,9 @@ class Junction(Element):
         The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc.,
         that specifies the junction energy of the inductor. If ``unit`` is
         ``None``, the default unit of junction is "GHz".
+    requires_grad:
+        A boolean variable specifies if the autograd should record operation
+        on this element.
     loops:
         List of loops in which the Josephson junction reside.
     cap:
@@ -325,6 +391,7 @@ class Junction(Element):
         self,
         value: float,
         unit: Optional[str] = None,
+        requires_grad: bool = False,
         cap: Optional[str] = None,
         A: float = 1e-7,
         x: float = 3e-06,
@@ -338,7 +405,9 @@ class Junction(Element):
         self.set_value(value, unit, error)
         self.type = type(self)
         self.A = A
-        self.id_str = id_str
+
+        if requires_grad:
+            self.requires_grad = requires_grad
 
         if cap is None:
             self.cap = VerySmallCap()
@@ -350,29 +419,27 @@ class Junction(Element):
         else:
             self.loops = loops
 
-        def yQP(omega, T):
-            alpha = unt.hbar * omega / (2 * unt.k_B * T)
-            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
-                    unt.hbar * 2 * np.pi / unt.e ** 2)) \
-                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
-            return y
-
         if Y == "default":
-            self.Y = yQP
+            self.Y = self._get_default_Y_func(delta, x)
         else:
             self.Y = Y
 
         if id_str is None:
-            self.id_str = "JJ_{}_{}".format(value, self.unit)
+            self.id_str = self.get_default_id_str("JJ", value, unit)
         else:
             self.id_str = id_str
+
+    @staticmethod
+    def _check_unit_format(u):
+        """Check if the unit input has the correct format."""
+
+        if u not in unt.freq_list and u is not None:
+            raise_unit_error()
 
     @Element.unit.setter
     def unit(self, u: Optional[str]) -> None:
 
-        if u not in unt.freq_list and u is not None:
-            raise ValueError(UNIT_ERROR)
+        self._check_unit_format(u)
 
         if u is None:
             self._unit = unt.get_unit_JJ()
@@ -396,10 +463,7 @@ class Junction(Element):
 
         mean = v * unt.freq_list[self.unit] * 2 * np.pi
 
-        if self.error == 0.0:
-            self.value = mean
-        else:
-            self.value = np.random.normal(mean, mean*self.error/100, 1)[0]
+        self.set_value_with_error(mean, e)
 
     def get_value(self, u: str = "Hz") -> float:
         """Return the value of the element in specified unit.
@@ -411,10 +475,32 @@ class Junction(Element):
         """
 
         if u in unt.freq_list:
-            return self.value / unt.freq_list[u]
+            return self._value / unt.freq_list[u]
 
         else:
-            raise ValueError(UNIT_ERROR)
+            raise_unit_error()
+
+    @staticmethod
+    def _get_default_Y_func(
+        delta: float,
+        x: float
+    ) -> Callable[Union[float, Tensor], float]:
+
+        def _default_Y_junc(
+            omega: Union[float, Tensor],
+            T: float
+        ) -> Union[float, Tensor]:
+            """Default function for junction admittance."""
+
+            alpha = unt.hbar * omega / (2 * unt.k_B * T)
+
+            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
+                    unt.hbar * 2 * np.pi / unt.e ** 2)) \
+                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
+                * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
+            return y
+
+        return _default_Y_junc
 
 
 class Loop:
@@ -471,8 +557,7 @@ class Loop:
             return np.random.normal(self.lpValue, self.A, 1)[0]
 
     def set_flux(self, value: float) -> None:
-        """
-        Set the external flux associated to the loop.
+        """Set the external flux associated to the loop.
 
         Parameters
         ----------
