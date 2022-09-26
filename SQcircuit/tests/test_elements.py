@@ -8,7 +8,7 @@ import numpy as np
 import SQcircuit as sq
 
 from SQcircuit.elements import Capacitor, Inductor, Junction
-
+from SQcircuit.logs import UNIT_ERROR
 
 ###############################################################################
 # Capacitor Tests
@@ -16,25 +16,19 @@ from SQcircuit.elements import Capacitor, Inductor, Junction
 
 
 def test_capacitor_error_massages():
-    error = "The input unit for the capacitor is not correct. " \
-            "Look at the documentation for the correct input format."
-    with pytest.raises(ValueError, match=error):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Capacitor(10, "H")
 
 
 def test_capacitor_energy():
     cap = Capacitor(10, "GHz")
-    assert cap.energy() == 10
-    # change the default frequency of the SQcirucit
-    sq.set_unit_freq("MHz")
-    # check back the energy
-    assert cap.energy() == 10 * 1000
-    # set back the default frequency back to GHz
-    sq.set_unit_freq("GHz")
-    # check the energy functionality from setting the value
+    assert cap.get_value("GHz") == 10
+
+    assert cap.get_value("MHz") == 10 * 1000
+
     val = cap.get_value()
     cap2 = Capacitor(val, "F")
-    assert cap2.energy() == 10
+    assert cap2.get_value("GHz") == 10
 
 
 def test_capacitor_Q():
@@ -56,12 +50,11 @@ def test_capacitor_Q():
 def test_capacitor_unit():
     cap = Capacitor(10)
     val = cap.get_value()
-    assert cap.energy() == 10
     assert cap.unit == "GHz"
 
     sq.set_unit_cap("F")
     cap = Capacitor(val)
-    assert cap.energy() == 10
+    assert cap.get_value("GHz") == 10
     assert cap.unit == "F"
 
 
@@ -71,25 +64,17 @@ def test_capacitor_unit():
 
 
 def test_inductor_error_massages():
-    error = "The input unit for the inductor is not correct. " \
-            "Look at the documentation for the correct input format."
-    with pytest.raises(ValueError, match=error):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Inductor(10, "F")
 
 
 def test_inductor_energy():
     ind = Inductor(10, "GHz")
-    assert ind.energy() == 10
-    # change the default frequency of the SQcirucit
-    sq.set_unit_freq("MHz")
-    # check back the energy
-    assert ind.energy() == 10 * 1000
-    # set back the default frequency back to GHz
-    sq.set_unit_freq("GHz")
-    # check the energy functionality from setting the value
+    assert ind.get_value("GHz") == 10
+
     val = ind.get_value()
     ind2 = Inductor(val, "H")
-    assert ind2.energy() == 10
+    assert ind2.get_value("GHz") == 10
 
 
 def test_inductor_Q():
@@ -115,12 +100,11 @@ def test_inductor_Q():
 def test_inductor_unit():
     ind = Inductor(10)
     val = ind.get_value()
-    assert ind.energy() == 10
     assert ind.unit == "GHz"
 
     sq.set_unit_ind("H")
     ind = Inductor(val)
-    assert ind.energy() == 10
+    assert ind.get_value("GHz") == 10
     assert ind.unit == "H"
 
 
@@ -129,9 +113,7 @@ def test_inductor_unit():
 ###############################################################################
 
 def test_junction_error_massages():
-    error = "The input unit for the Josephson Junction is not correct. " \
-            "Look at the documentation for the correct input format."
-    with pytest.raises(ValueError, match=error):
+    with pytest.raises(TypeError, match=UNIT_ERROR):
         Junction(10, "F")
 
 

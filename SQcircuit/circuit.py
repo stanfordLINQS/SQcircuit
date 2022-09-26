@@ -26,6 +26,7 @@ from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 import SQcircuit.functions as sqf
 
+
 class Circuit:
     """Class that contains the circuit properties and uses the theory discussed
     in the original paper of the SQcircuit to calculate:
@@ -109,7 +110,7 @@ class Circuit:
         (self.C, self.L, self.W, self.B,
          self.partial_C, self.partial_L) = self._get_LCWB()
 
-        # initialize the transformation matrix for charge and flux operators.
+        # initialize the transformation matrices for charge and flux operators.
         self.R, self.S = np.eye(self.n), np.eye(self.n)
 
         # initialize transformed susceptance, inverse capacitance, and W matrix.
@@ -358,11 +359,10 @@ class Circuit:
                 countJJnoInd += 1
 
             # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.get_value(self.random), edge_caps)))
+            cap = sum(list(map(lambda c: c.get_value(), edge_caps)))
 
             # summation of the one over inductor values.
-            x = sqf.sum(1 / sqf.array(list(map(lambda l: l.get_value(self.random),
-                                               edge_inds))))
+            x = sqf.sum(1 / sqf.array(list(map(lambda l: l.get_value(), edge_inds))))
 
             cMat += cap * edge_mat
 
@@ -744,7 +744,7 @@ class Circuit:
             # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
             if np.sum(np.abs(B[B_idx, :])) == 0:
                 continue
-            ELLst.append(el.energy())
+            ELLst.append(el.get_value("GHz"))
             indTxt = txt.El(i + 1) + "("
             if 0 in edge:
                 w = S[edge[0] + edge[1] - 1, :]
@@ -994,7 +994,7 @@ class Circuit:
         """
 
         if self._is_charge_mode(i):
-            ng = self.charge_islands[i].get_value()
+            ng = self.charge_islands[i].value()
             op = (2*unt.e/np.sqrt(unt.hbar)) * (qt.charge((self.m[i]-1)/2)-ng)
 
         else:
@@ -1217,7 +1217,7 @@ class Circuit:
         """
         phi_ext = 0.0
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.get_value(self.random) * self.B[B_idx, i]
+            phi_ext += loop.get_value() * self.B[B_idx, i]
 
         return phi_ext
 
@@ -1231,7 +1231,7 @@ class Circuit:
             phi = self._get_external_flux_at_element(B_idx)
 
             # summation of the 1 over inductor values.
-            x = 1 / el.get_value(self.random)
+            x = 1 / el.get_value()
             op = self.coupling_op("inductive", edge)
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
@@ -1243,7 +1243,7 @@ class Circuit:
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
-            EJ = sqf.numpy(el.get_value(self.random))
+            EJ = sqf.numpy(el.get_value())
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1703,7 +1703,7 @@ class Circuit:
             for el, B_idx in self._memory_ops['cos']:
                 partial_omega = self._get_partial_omega_mn(el, states=states,
                                                            _B_idx=B_idx)
-                A = el.A * el.get_value(self.random)
+                A = el.A * el.get_value()
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":

@@ -18,7 +18,7 @@ def _vectorize(circuit) -> torch.Tensor:
             A circuit to vectorize.
     """
     elements = list(circuit.elements.values())[0]
-    element_values = [element.get_value(element_units=False) for element in elements]
+    element_values = [element.get_value() for element in elements]
     element_tensors = torch.stack(element_values)
     return element_tensors
 
@@ -32,7 +32,7 @@ def eigencircuit(circuit, num_eigen):
     """
 
     elements = list(circuit.elements.values())[0]
-    initial_element_vals = [element.get_value(element_units=False) for element in elements]
+    initial_element_vals = [element.get_value() for element in elements]
 
     tensor_list = _vectorize(circuit)
 
@@ -65,7 +65,7 @@ def eigencircuit(circuit, num_eigen):
         @staticmethod
         def forward(ctx, element_tensors):
             elements = list(circuit.elements.values())[0]
-            values_units = [(element_tensors[idx].numpy() / elements[idx].get_unit_scale(), elements[idx].unit)
+            values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
                             for idx in range(len(element_tensors))]
             circuit.update_elements(elements, values_units=values_units)
             _, eigenvectors = circuit.diag_np(n_eig=num_eigen)
