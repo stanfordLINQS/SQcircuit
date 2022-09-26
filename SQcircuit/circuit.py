@@ -23,9 +23,8 @@ from SQcircuit.elements import (Capacitor, Inductor, Junction, Loop, Charge,
                                 VerySmallCap, VeryLargeCap)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
-from SQcircuit.settings import ACC
-from SQcircuit.utils import *
-
+from SQcircuit.settings import ACC, get_optim_mode
+import SQcircuit.functions as sqf
 
 class Circuit:
     """Class that contains the circuit properties and uses the theory discussed
@@ -114,8 +113,8 @@ class Circuit:
         self.R, self.S = np.eye(self.n), np.eye(self.n)
 
         # initialize transformed susceptance, inverse capacitance, and W matrix.
-        self.cInvTrans, self.lTrans, self.wTrans = (np.linalg.inv(self.C),
-                                                    self.L.copy(),
+        self.cInvTrans, self.lTrans, self.wTrans = (np.linalg.inv(sqf.numpy(self.C)),
+                                                    sqf.numpy(self.L).copy(),
                                                     self.W.copy())
 
         # natural angular frequencies of the circuit for each mode as a numpy
@@ -157,7 +156,7 @@ class Circuit:
         self._LC_hamil = qt.Qobj()
 
         # eigenvalues of the circuit
-        self._efreqs = qarray([])
+        self._efreqs = sqf.array([])
         # eigenvectors of the circuit
         self._evecs = []
 
@@ -223,7 +222,7 @@ class Circuit:
                 Tuple of int which specifies an edge.
         """
 
-        A = qzeros((self.n, self.n))
+        A = sqf.zeros((self.n, self.n))
 
         if 0 in edge:
             i = edge[0] + edge[1] - 1
@@ -250,10 +249,10 @@ class Circuit:
             in the JJ cosine (n_J,self.n)
         """
 
-        cMat = qzeros((self.n, self.n))
-        lMat = qzeros((self.n, self.n))
+        cMat = sqf.zeros((self.n, self.n))
+        lMat = sqf.zeros((self.n, self.n))
         wMat = []
-        bMat = qarray([])
+        bMat = sqf.array([])
 
         partial_cMats: Dict[Tuple[Capacitor, Union[ndarray, Tensor]]] = {}
 
@@ -320,16 +319,16 @@ class Circuit:
                     K1.append(edge_w)
 
                     if self.flux_dist == 'all':
-                        cEd.append(el.cap.value())
+                        cEd.append(el.cap.get_value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(VeryLargeCap().value())
+                        cEd.append(VeryLargeCap().get_value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(VerySmallCap().value())
+                        cEd.append(VerySmallCap().get_value())
 
                     if el in partial_lMats:
-                        partial_lMats[el] += edge_mat / el.value()**2
+                        partial_lMats[el] += edge_mat / el.get_value()**2
                     else:
-                        partial_lMats[el] = edge_mat / el.value()**2
+                        partial_lMats[el] = edge_mat / el.get_value()**2
 
                 elif isinstance(el, Junction):
                     # if el.loops:
@@ -349,21 +348,21 @@ class Circuit:
                     K1.append(edge_w)
 
                     if self.flux_dist == 'all':
-                        cEd.append(el.cap.value())
+                        cEd.append(el.cap.get_value())
                     elif self.flux_dist == "junctions":
-                        cEd.append(VerySmallCap().value())
+                        cEd.append(VerySmallCap().get_value())
                     elif self.flux_dist == "inductors":
-                        cEd.append(VeryLargeCap().value())
+                        cEd.append(VeryLargeCap().get_value())
 
             if len(edge_inds) == 0 and len(edge_JJs) != 0:
                 countJJnoInd += 1
 
             # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.value(self.random), edge_caps)))
+            cap = sum(list(map(lambda c: c.get_value(self.random), edge_caps)))
 
             # summation of the one over inductor values.
-            x = qsum(1 / qarray(list(map(lambda l: l.value(self.random),
-                                             edge_inds))))
+            x = sqf.sum(1 / sqf.array(list(map(lambda l: l.get_value(self.random),
+                                               edge_inds))))
 
             cMat += cap * edge_mat
 
@@ -384,7 +383,7 @@ class Circuit:
             if K1.shape[0] == K1.shape[1]:
                 K1 = K1[:, 0:-1]
 
-            X = K1.T @ np.diag(cEd)
+            X = K1.T @ np.diag(sqf.numpy(cEd))
             for loop in self.loops:
                 p = np.zeros((1, B_idx))
                 p[0, loop.indices] = loop.getP()
@@ -444,9 +443,12 @@ class Circuit:
         simultaneously diagonalizes the capacitance and susceptance matrices.
         """
 
-        cMatRoot = sqrtm(self.C)
+        C = sqf.numpy(self.C)
+        L = sqf.numpy(self.L)
+
+        cMatRoot = sqrtm(C)
         cMatRootInv = np.linalg.inv(cMatRoot)
-        lMatRoot = sqrtm(self.L)
+        lMatRoot = sqrtm(L)
 
         V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
 
@@ -456,7 +458,7 @@ class Circuit:
             singLoc = list(range(0, self.n))
         else:
             # find the number of singularity in the circuit
-            lEig, _ = np.linalg.eig(self.L)
+            lEig, _ = np.linalg.eig(L)
             numSing = len(lEig[lEig / np.max(lEig) < ACC["sing_mode_detect"]])
             singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
@@ -728,7 +730,7 @@ class Circuit:
         indHamilTxt = ""
 
         for i, (edge, el, B_idx, W_idx) in enumerate(self.junction_keys):
-            EJLst.append(el.value() / 2 / np.pi / unt.get_unit_freq())
+            EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
@@ -777,7 +779,7 @@ class Circuit:
             modeTxt += '\n'
         for i in range(chDim):
             modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].value(), 3)
+            ng = np.round(self.charge_islands[harDim + i].get_value(), 3)
             modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
             modeTxt += '\n'
 
@@ -810,7 +812,7 @@ class Circuit:
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
+            phiExt = self.loops[i].get_value() / 2 / np.pi
             loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
                 phiExt) + txt.tab()
 
@@ -964,7 +966,7 @@ class Circuit:
 
         self.charge_islands[mode - 1].setNoise(A)
 
-    def _squeeze_op(self, op: Qobj) -> Qobj:
+    def _squeeze_op(self, op: Qobj, tensor=False) -> Qobj:
         """
         Return the same Quantum operator with squeezed dimensions.
 
@@ -992,7 +994,7 @@ class Circuit:
         """
 
         if self._is_charge_mode(i):
-            ng = self.charge_islands[i].value()
+            ng = self.charge_islands[i].get_value()
             op = (2*unt.e/np.sqrt(unt.hbar)) * (qt.charge((self.m[i]-1)/2)-ng)
 
         else:
@@ -1215,7 +1217,7 @@ class Circuit:
         """
         phi_ext = 0.0
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.value(self.random) * self.B[B_idx, i]
+            phi_ext += loop.get_value(self.random) * self.B[B_idx, i]
 
         return phi_ext
 
@@ -1229,7 +1231,7 @@ class Circuit:
             phi = self._get_external_flux_at_element(B_idx)
 
             # summation of the 1 over inductor values.
-            x = 1 / el.value(self.random)
+            x = 1 / el.get_value(self.random)
             op = self.coupling_op("inductive", edge)
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
@@ -1241,7 +1243,7 @@ class Circuit:
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
-            EJ = el.value(self.random)
+            EJ = sqf.numpy(el.get_value(self.random))
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1326,7 +1328,8 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def diag_torch(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
-        tensor_list, EigenvalueSolver, EigenvectorSolver = eigencircuit(self, num_eigen = n_eig)
+        print("diag Torch")
+        tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
         eigenvalues = EigenvalueSolver.apply(tensor_list)
         eigenvectors = EigenvectorSolver.apply(tensor_list)
         self._efreqs = eigenvalues
@@ -1354,7 +1357,7 @@ class Circuit:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on optimization mode.
         """
-        if OPTIM_MODE:
+        if get_optim_mode():
             return self.diag_torch(n_eig)
         else:
             return self.diag_np(n_eig)
@@ -1517,7 +1520,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = qinit_op(self._memory_ops["Q"][0].full().shape)
+        op = sqf.init_sparse(self._memory_ops["Q"][0].full().shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1527,27 +1530,28 @@ class Circuit:
             node = node1 + node2
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = qmat_inv(self.C) @ self.R
+                K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
-                    op += K[node - 1, i] * self._memory_ops["Q"][i]
+                    op += K[node - 1, i] * sqf.cast(self._memory_ops["Q"][i])
             if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
-                    op += K[node - 1, i] * self._memory_ops["phi"][i]
+                    op += K[node - 1, i] * sqf.cast(self._memory_ops["phi"][i])
 
         else:
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = qmat_inv(self.C) @ self.R
+                K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
                     op += (K[node2 - 1, i] - K[node1 - 1, i]) * \
-                          self._memory_ops["Q"][i]
+                          sqf.cast(self._memory_ops["Q"][i])
             if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
                     op += ((K[node1 - 1, i] - K[node2 - 1, i])
-                           * self._memory_ops["phi"][i])
-
+                           * sqf.cast(self._memory_ops["phi"][i]))
+        if get_optim_mode():
+            return op
         return self._squeeze_op(op)
 
     def matrix_elements(
@@ -1578,7 +1582,7 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
-        return (state1.dag() * op * state2).data[0, 0]
+        return (sqf.sparse_mul(sqf.sparse_mul(state1.dag(), op), state2)).data[0, 0]
 
     @staticmethod
     def _dephasing(A: float, partial_omega: float) -> float:
@@ -1632,7 +1636,7 @@ class Circuit:
         state1 = self._evecs[states[0]]
         state2 = self._evecs[states[1]]
 
-        omega = qabs(omega2 - omega1)
+        omega = sqf.abs(omega2 - omega1)
 
         decay = 0
 
@@ -1643,8 +1647,8 @@ class Circuit:
             up = 0
         else:
             alpha = unt.hbar * omega / (unt.k_B * ENV["T"])
-            down = (1 + 1 / qtanh(alpha / 2))
-            up = down * qexp(-alpha)
+            down = (1 + 1 / sqf.tanh(alpha / 2))
+            up = down * sqf.exp(-alpha)
 
         # for temperature dependent loss
         if not total:
@@ -1663,23 +1667,23 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.value() / cap.Q(omega) * qabs(
+                        decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
-                x = 1 / el.value()
+                x = 1 / el.get_value()
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) * x * qabs(
+                    decay += tempS / el.Q(omega, ENV["T"]) * x * sqf.abs(
                         (state1.dag() * op * state2).data[0, 0]) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.value() \
-                         * unt.hbar * qabs(
+                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
+                         * unt.hbar * sqf.abs(
                     (state1.dag() * op * state2).data[0, 0]) ** 2
 
         elif dec_type == "charge":
@@ -1689,9 +1693,9 @@ class Circuit:
                 if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / qsqrt(unt.hbar))
-                    partial_omega = qabs((state2.dag() * op * state2 -
-                                            state1.dag() * op * state1).data[0, 0])
+                               / sqf.sqrt(unt.hbar))
+                    partial_omega = sqf.abs((state2.dag() * op * state2 -
+                                             state1.dag() * op * state1).data[0, 0])
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
@@ -1699,7 +1703,7 @@ class Circuit:
             for el, B_idx in self._memory_ops['cos']:
                 partial_omega = self._get_partial_omega_mn(el, states=states,
                                                            _B_idx=B_idx)
-                A = el.A * el.value(self.random)
+                A = el.A * el.get_value(self.random)
                 decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
@@ -1798,7 +1802,7 @@ class Circuit:
                     phi = self._get_external_flux_at_element(B_idx)
 
                     partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / el.value()**2 / np.sqrt(unt.hbar)
+                                   / el.get_value()**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
         elif isinstance(el, Loop):
@@ -1808,11 +1812,11 @@ class Circuit:
             for edge, el_ind, B_idx in self.inductor_keys:
                 partial_H += (self.B[B_idx, loop_idx]
                               * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / el_ind.value() * unt.Phi0 / np.sqrt(unt.hbar)
+                              / el_ind.get_value() * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
             for edge, el_JJ, B_idx, W_idx in self.junction_keys:
-                partial_H += (self.B[B_idx, loop_idx] * el_JJ.value()
+                partial_H += (self.B[B_idx, loop_idx] * el_JJ.get_value()
                               * self._memory_ops['sin'][(el_JJ, B_idx)])
 
         elif isinstance(el, Junction):

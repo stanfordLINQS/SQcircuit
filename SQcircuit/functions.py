@@ -6,7 +6,9 @@ import qutip as qt
 import scipy
 import torch
 
-from SQcircuit.settings import OPTIM_MODE
+from collections.abc import Iterable
+
+from SQcircuit.settings import get_optim_mode
 
 def _vectorize(circuit) -> torch.Tensor:
     """Converts an ordered dictionary of element values for a given circuit into Tensor format.
@@ -86,62 +88,107 @@ def eigencircuit(circuit, num_eigen):
 
     return tensor_list, EigenvalueSolver, EigenvectorSolver
 
-def qabs(x):
-    if OPTIM_MODE:
+def abs(x):
+    if get_optim_mode():
         return torch.abs(x)
     return np.abs(x)
 
-def qtanh(x):
-    if OPTIM_MODE:
+def tanh(x):
+    if get_optim_mode():
         return torch.tanh(x)
     return np.tanh(x)
 
-def qexp(x):
-    if OPTIM_MODE:
+def exp(x):
+    if get_optim_mode():
         return torch.exp(x)
     return np.exp(x)
 
-def qsqrt(x):
-    if OPTIM_MODE:
+def sqrt(x):
+    if get_optim_mode():
         return torch.sqrt(x)
     return np.sqrt(x)
 
-def qmat_inv(A):
-    if OPTIM_MODE:
+def mat_inv(A):
+    if get_optim_mode():
         return torch.linalg.inv(A)
     return np.linalg.inv(A)
 
-def qinit_op(shape):
-    if OPTIM_MODE:
-        return torch.zeros(shape)
+def init_sparse(shape):
+    if get_optim_mode():
+        return torch.sparse_coo_tensor(size=shape)
     return qt.Qobj()
 
-def qzeros(shape):
-    if OPTIM_MODE:
+def init_op():
+    if get_optim_mode():
+        return torch.sparse_coo_tensor()
+    return qt.Qobj()
+
+def zeros(shape):
+    if get_optim_mode():
         return torch.zeros(shape)
     return np.zeros(shape)
 
-def qarray(object):
-    if OPTIM_MODE:
-        return torch.array(object)
+def array(object):
+    if get_optim_mode():
+        return torch.as_tensor(object)
     return np.array(object)
 
-def qsum(a):
-    if OPTIM_MODE:
+def sum(a):
+    if get_optim_mode():
         return torch.sum(a)
     return np.sum(a)
 
-def qsort(a):
-    if OPTIM_MODE:
+def sort(a):
+    if get_optim_mode():
         return torch.sort(a)
     return np.sort(a)
 
-def qcast(value):
-    if OPTIM_MODE:
-        return torch.Tensor(value, requires_grad = True)
+def cast(value):
+    if get_optim_mode():
+        if isinstance(value, qt.Qobj):
+            return sparse_csr_to_tensor(value.data)
+        return torch.tensor(value, requires_grad = True)
     return value
 
-def qnormal(mean, var):
-    if OPTIM_MODE:
+def normal(mean, var):
+    if get_optim_mode():
         return torch.normal(mean, var)
     return np.random.normal(mean, var, 1)[0]
+
+def numpy(input):
+    if get_optim_mode():
+        if isinstance(input, list):
+            return [value.detach().numpy() for value in input]
+        else:
+            return input.detach().numpy()
+    return input
+
+def copy(x):
+    if get_optim_mode():
+        return x.clone()
+    return x.copy()
+
+def mat_mul(A, B):
+    if get_optim_mode():
+        return torch.mm(torch.as_tensor(A, dtype=torch.float32), torch.as_tensor(B, dtype=torch.float32))
+    return A @ B
+
+def sparse_csr_to_tensor(S):
+    S = S.tocoo()
+    values = S.data
+    indices = np.vstack((S.row, S.col))
+
+    i = torch.LongTensor(indices)
+    v = torch.FloatTensor(values)
+    shape = S.shape
+
+    return torch.sparse.FloatTensor(i, v, torch.Size(shape))
+
+def sparse_mul(S, T):
+    if get_optim_mode():
+        if isinstance(S, qt.Qobj):
+            S = sparse_csr_to_tensor(S.data)
+        if isinstance(T, qt.Qobj):
+            T = sparse_csr_to_tensor(T.data)
+        return torch.sparse.mm(S, T)
+    return S * T
