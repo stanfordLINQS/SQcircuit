@@ -353,6 +353,28 @@ class Inductor(Element):
 
         return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
 
+    def get_key(self, edge, B_idx, *_):
+        """Return the inductor key.
+
+        Parameters
+        ----------
+            edge:
+                Edge that element is part of.
+            B_idx:
+                The inductive element index
+        """
+
+        return edge, self, B_idx
+
+    def get_cap_for_flux_dist(self, flux_dist):
+
+        if flux_dist == 'all':
+            return self.cap.get_value()
+        elif flux_dist == "junctions":
+            return VeryLargeCap().get_value()
+        elif flux_dist == "inductors":
+            return VerySmallCap().get_value()
+
 
 class Junction(Element):
     """Class that contains the Josephson junction properties.
@@ -479,6 +501,30 @@ class Junction(Element):
 
         else:
             raise_unit_error()
+
+    def get_key(self, edge, B_idx, W_idx, *_):
+        """Return the junction key.
+
+        Parameters
+        ----------
+            edge:
+                Edge that element is part of.
+            B_idx:
+                The inductive element index
+            W_idx:
+                The JJ index
+        """
+
+        return edge, self, B_idx, W_idx
+
+    def get_cap_for_flux_dist(self, flux_dist):
+
+        if flux_dist == 'all':
+            return self.cap.get_value()
+        elif flux_dist == "junctions":
+            return VerySmallCap().get_value()
+        elif flux_dist == "inductors":
+            return VeryLargeCap().get_value()
 
     @staticmethod
     def _get_default_Y_func(
