@@ -1582,6 +1582,8 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
+        # TODO: Check operator format/dtype, compare to using states from numpy solver directly
+
         return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
 
     @staticmethod
@@ -1667,6 +1669,7 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
+                        print(f"tempS: {tempS}, cap: {cap.get_value()}, cap.Q: {cap.Q(omega)}, mat: {sqf.abs(self.matrix_elements('capacitive', edge, states))}")
                         decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2

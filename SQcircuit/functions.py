@@ -9,6 +9,7 @@ import torch
 from collections.abc import Iterable
 
 from SQcircuit.settings import get_optim_mode
+import SQcircuit.units as unt
 
 def _vectorize(circuit) -> torch.Tensor:
     """Converts an ordered dictionary of element values for a given circuit into Tensor format.
@@ -40,12 +41,8 @@ def eigencircuit(circuit, num_eigen):
     class EigenvalueSolver(torch.autograd.Function):
         @staticmethod
         def forward(ctx, element_tensors):
-            elements = list(circuit.elements.values())[0]
-            values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
-                            for idx in range(len(element_tensors))]
-            circuit.update_elements(elements, values_units=values_units)
             eigenvalues, _ = circuit.diag_np(n_eig=num_eigen)
-            eigenvalues = [eigenvalue * 2 * np.pi for eigenvalue in eigenvalues]
+            eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for eigenvalue in eigenvalues]
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
             return torch.stack(eigenvalue_tensors)
 
@@ -64,10 +61,6 @@ def eigencircuit(circuit, num_eigen):
     class EigenvectorSolver(torch.autograd.Function):
         @staticmethod
         def forward(ctx, element_tensors):
-            elements = list(circuit.elements.values())[0]
-            values_units = [(element_tensors[idx].numpy(), elements[idx].unit)
-                            for idx in range(len(element_tensors))]
-            circuit.update_elements(elements, values_units=values_units)
             _, eigenvectors = circuit.diag_np(n_eig=num_eigen)
             eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for eigenvector in eigenvectors]
             return torch.squeeze(torch.stack(eigenvector_tensors))
@@ -115,7 +108,7 @@ def mat_inv(A):
 
 def init_sparse(shape):
     if get_optim_mode():
-        return torch.sparse_coo_tensor(size=shape)
+        return torch.sparse_coo_tensor(size=shape, dtype=torch.complex128)
     return qt.Qobj()
 
 def init_op():
@@ -183,10 +176,10 @@ def unwrap(x):
 def mat_mul(A, B):
     if get_optim_mode():
         if isinstance(A, qt.Qobj):
-            A = A.full()
+            A = A.to_dense()
         if isinstance(B, qt.Qobj):
-            B = B.full()
-        return torch.matmul(torch.as_tensor(A, dtype=torch.float32), torch.as_tensor(B, dtype=torch.float32))
+            B = B.to_dense()
+        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128), torch.as_tensor(B, dtype=torch.complex128))
     if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
         return A * B
     return A @ B
