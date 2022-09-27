@@ -5,10 +5,20 @@ functionalities.
 import pytest
 import numpy as np
 
+from torch import Tensor
+
 import SQcircuit as sq
 
 from SQcircuit.elements import Capacitor, Inductor, Junction
-from SQcircuit.logs import UNIT_ERROR
+from SQcircuit.logs import UNIT_ERROR, OPTIM_ERROR
+
+
+def float_torch_to_python(x: Tensor) -> float:
+    """Helper function to transform the torch float variable to python float
+    variable."""
+
+    return float(x.detach().cpu().numpy())
+
 
 ###############################################################################
 # Capacitor Tests
@@ -56,6 +66,26 @@ def test_capacitor_unit():
     cap = Capacitor(val)
     assert cap.get_value("GHz") == 10
     assert cap.unit == "F"
+
+
+def test_capacitor_grad():
+
+    # First check error massages
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        Capacitor(10, requires_grad=True)
+
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        assert not Capacitor(10).requires_grad
+
+    cap_value_no_grad = Capacitor(10).get_value()
+
+    sq.set_optim_mode(True)
+
+    cap_value_with_grad = Capacitor(10, requires_grad=True).get_value()
+
+    assert cap_value_no_grad == float_torch_to_python(cap_value_with_grad)
+
+    sq.set_optim_mode(False)
 
 
 ###############################################################################
@@ -108,9 +138,29 @@ def test_inductor_unit():
     assert ind.unit == "H"
 
 
+def test_inductor_grad():
+
+    # First check error massages
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        Inductor(10, requires_grad=True)
+
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        assert not Inductor(10).requires_grad
+
+    ind_value_no_grad = Inductor(10).get_value()
+
+    sq.set_optim_mode(True)
+
+    ind_value_with_grad = Inductor(10, requires_grad=True).get_value()
+
+    assert ind_value_no_grad == float_torch_to_python(ind_value_with_grad)
+
+    sq.set_optim_mode(False)
+
 ###############################################################################
 # Josephson Junction Tests
 ###############################################################################
+
 
 def test_junction_error_massages():
     with pytest.raises(TypeError, match=UNIT_ERROR):
@@ -118,7 +168,7 @@ def test_junction_error_massages():
 
 
 def test_junction_Y():
-    y_func = lambda omega, T: omega*T
+    y_func = lambda omega, T: omega * T
     JJ = Junction(10, "GHz", Y=y_func)
     assert JJ.Y(10, 2) == 20
 
@@ -130,3 +180,23 @@ def test_junction_unit():
     sq.set_unit_JJ("MHz")
     JJ = Junction(10)
     assert JJ.unit == "MHz"
+
+
+def test_junction_grad():
+
+    # First check error massages
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        Junction(10, requires_grad=True)
+
+    with pytest.raises(ValueError, match=OPTIM_ERROR):
+        assert not Junction(10).requires_grad
+
+    junc_value_no_grad = Junction(10).get_value()
+
+    sq.set_optim_mode(True)
+
+    junc_value_with_grad = Junction(10, requires_grad=True).get_value()
+
+    assert junc_value_no_grad == float_torch_to_python(junc_value_with_grad)
+
+    sq.set_optim_mode(False)
