@@ -604,6 +604,7 @@ class Loop:
 
     def set_flux(self, value: float) -> None:
         """Set the external flux associated to the loop.
+        
         Parameters
         ----------
             value:
