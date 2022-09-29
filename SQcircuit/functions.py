@@ -70,7 +70,7 @@ def eigencircuit(circuit, num_eigen):
         def backward(ctx, grad_output):
             cr_elements = list(circuit.elements.values())[0]
             m, n, l = tensor_list.shape[0], *grad_output.shape
-            partial_eigenvec = torch.zeros([m, n, l])
+            partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
             for el_idx in range(m):
                 for eigen_idx in range(n):
                     partial_tensor = torch.squeeze(
