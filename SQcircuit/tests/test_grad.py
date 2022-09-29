@@ -8,7 +8,7 @@ from SQcircuit.settings import set_optim_mode
 from SQcircuit.circuit import Circuit
 
 def test_T1_linearization():
-    optim = False
+    optim = True
     set_optim_mode(optim)
 
     # Define the circuit elements
@@ -28,4 +28,5 @@ def test_T1_linearization():
     T1_inv = cr_transmon.dec_rate('capacitive', (0, 1))
 
     T1_inv.backward()
+    print(f"Grad: {T1_inv.grad}")
     set_optim_mode(False)
