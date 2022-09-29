@@ -2087,8 +2087,6 @@ class Circuit:
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
 
-            A = (state_n.dag()
-                              * (partial_H * state_m)) * state_n
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
 
