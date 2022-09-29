@@ -1680,7 +1680,6 @@ class Circuit:
             node = node1 + node2
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                print(f"Cinv: {sqf.mat_inv(self.C)}, R: {self.R}")
                 K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
                     op += K[node - 1, i] * sqf.cast(self._memory_ops["Q"][i])
@@ -1819,7 +1818,6 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        print(f"tempS: {tempS}, cap: {cap.get_value()}, cap.Q: {cap.Q(omega)}, mat: {sqf.abs(self.matrix_elements('capacitive', edge, states))}")
                         decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
@@ -2091,7 +2089,6 @@ class Circuit:
 
             A = (state_n.dag()
                               * (partial_H * state_m)) * state_n
-            print(f"A: {type(A)}, B: {type(delta_omega)}")
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
 

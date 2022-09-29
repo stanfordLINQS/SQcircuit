@@ -28,5 +28,6 @@ def test_T1_linearization():
     T1_inv = cr_transmon.dec_rate('capacitive', (0, 1))
 
     T1_inv.backward()
-    print(f"Grad: {T1_inv.grad}")
+    print(f"Grad: {C.get_value().grad}")
+    assert False
     set_optim_mode(False)
