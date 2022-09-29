@@ -10,8 +10,6 @@ ACC = {
 # General flag which states that SQcircuit is in optimization mode.
 _OPTIM_MODE = False
 
-def get_optim_mode() -> bool:
-    return OPTIM_MODE
 
 def set_optim_mode(s: bool) -> None:
     """Set the optimization mode for SQcircuit.

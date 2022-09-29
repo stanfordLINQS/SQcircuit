@@ -64,6 +64,7 @@ class Element:
     @staticmethod
     def get_default_id_str(s: str, v: float, u: str) -> str:
         """Get the default string ID for the element.
+        
         Parameters
         ----------
         s:
@@ -80,6 +81,7 @@ class Element:
 
 class Capacitor(Element):
     """Class that contains the capacitor properties.
+    
     Parameters
     ----------
     value:
@@ -151,6 +153,7 @@ class Capacitor(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the capacitor.
+        
         Parameters
         ----------
             v:
@@ -173,6 +176,7 @@ class Capacitor(Element):
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
+        
         Parameters
         ----------
             u:
@@ -210,6 +214,7 @@ class VeryLargeCap(Capacitor):
 
 class Inductor(Element):
     """Class that contains the inductor properties.
+    
     Parameters
     ----------
     value:
@@ -298,6 +303,7 @@ class Inductor(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the element.
+        
         Parameters
         ----------
             v:
@@ -320,6 +326,7 @@ class Inductor(Element):
 
     def get_value(self, u: str = "H") -> float:
         """Return the value of the element in specified unit.
+        
         Parameters
         ----------
             u:
@@ -346,9 +353,32 @@ class Inductor(Element):
 
         return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
 
+    def get_key(self, edge, B_idx, *_):
+        """Return the inductor key.
+
+        Parameters
+        ----------
+            edge:
+                Edge that element is part of.
+            B_idx:
+                The inductive element index
+        """
+
+        return edge, self, B_idx
+
+    def get_cap_for_flux_dist(self, flux_dist):
+
+        if flux_dist == 'all':
+            return self.cap.get_value()
+        elif flux_dist == "junctions":
+            return VeryLargeCap().get_value()
+        elif flux_dist == "inductors":
+            return VerySmallCap().get_value()
+
 
 class Junction(Element):
     """Class that contains the Josephson junction properties.
+    
     Parameters
     -----------
     value:
@@ -440,6 +470,7 @@ class Junction(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the element.
+        
         Parameters
         ----------
             v:
@@ -458,6 +489,7 @@ class Junction(Element):
 
     def get_value(self, u: str = "Hz") -> float:
         """Return the value of the element in specified unit.
+        
         Parameters
         ----------
             u:
@@ -469,6 +501,30 @@ class Junction(Element):
 
         else:
             raise_unit_error()
+
+    def get_key(self, edge, B_idx, W_idx, *_):
+        """Return the junction key.
+
+        Parameters
+        ----------
+            edge:
+                Edge that element is part of.
+            B_idx:
+                The inductive element index
+            W_idx:
+                The JJ index
+        """
+
+        return edge, self, B_idx, W_idx
+
+    def get_cap_for_flux_dist(self, flux_dist):
+
+        if flux_dist == 'all':
+            return self.cap.get_value()
+        elif flux_dist == "junctions":
+            return VerySmallCap().get_value()
+        elif flux_dist == "inductors":
+            return VeryLargeCap().get_value()
 
     @staticmethod
     def _get_default_Y_func(
@@ -496,6 +552,7 @@ class Junction(Element):
 class Loop:
     """Class that contains the inductive loop properties, closed path of
     inductive elements.
+    
     Parameters
     ----------
         value:
@@ -533,6 +590,7 @@ class Loop:
         """Return the value of the external flux. If `random` is `True`, it
         samples from a normal distribution with variance defined by the flux
         noise amplitude.
+        
         Parameters
         ----------
             random:
@@ -546,6 +604,7 @@ class Loop:
 
     def set_flux(self, value: float) -> None:
         """Set the external flux associated to the loop.
+        
         Parameters
         ----------
             value:
