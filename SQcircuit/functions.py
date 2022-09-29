@@ -9,6 +9,7 @@ import torch
 from collections.abc import Iterable
 
 from SQcircuit.settings import get_optim_mode
+import SQcircuit.functions as sqf
 import SQcircuit.units as unt
 
 def _vectorize(circuit) -> torch.Tensor:
@@ -111,14 +112,15 @@ def init_sparse(shape):
         return torch.sparse_coo_tensor(size=shape, dtype=torch.complex128)
     return qt.Qobj()
 
-def init_op():
+def init_op(size):
     if get_optim_mode():
-        return torch.sparse_coo_tensor()
+        return torch.empty(size = size, dtype = torch.complex128)
+        # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
 def zeros(shape):
     if get_optim_mode():
-        return torch.zeros(shape)
+        return torch.zeros(shape, dtype=torch.complex128)
     return np.zeros(shape)
 
 def array(object):
@@ -139,8 +141,8 @@ def sort(a):
 def cast(value):
     if get_optim_mode():
         if isinstance(value, qt.Qobj):
-            return sparse_csr_to_tensor(value.data)
-        return torch.tensor(value, requires_grad = True)
+            return qobj_to_tensor(value)
+        return torch.tensor(value, requires_grad = True, dtype=torch.complex128)
     return value
 
 def normal(mean, var):
@@ -158,13 +160,17 @@ def numpy(input):
 
 def dag(state):
     if get_optim_mode():
-        if len(state.size()) == 1:
+        if isinstance(state, np.ndarray) and state.ndim == 1:
+            return np.conj(state)
+        if isinstance(state, torch.Tensor) and state.dim() == 1:
             return torch.conj(state)
         return torch.conj(torch.transpose(state))
     return state.dag()
 
 def copy(x):
     if get_optim_mode():
+        if isinstance(x, qt.Qobj):
+            return x.copy()
         return x.clone()
     return x.copy()
 
@@ -173,33 +179,58 @@ def unwrap(x):
         return x
     return x.data[0, 0]
 
+def dense(obj):
+    if isinstance(obj, qt.Qobj):
+        return obj.data.todense()
+    if isinstance(obj, torch.Tensor) and obj.layout != torch.strided:
+        return obj.to_dense()
+    return obj
+
 def mat_mul(A, B):
     if get_optim_mode():
-        if isinstance(A, qt.Qobj):
-            A = A.to_dense()
-        if isinstance(B, qt.Qobj):
-            B = B.to_dense()
+        A = dense(A)
+        B = dense(B)
         return torch.matmul(torch.as_tensor(A, dtype=torch.complex128), torch.as_tensor(B, dtype=torch.complex128))
     if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
         return A * B
     return A @ B
 
-def sparse_csr_to_tensor(S):
+'''def sparse_csr_to_tensor(S):
     S = S.tocoo()
     values = S.data
     indices = np.vstack((S.row, S.col))
 
     i = torch.LongTensor(indices)
-    v = torch.FloatTensor(values)
+    v = torch.as_tensor(values, dtype=torch.complex128)
     shape = S.shape
 
-    return torch.sparse.FloatTensor(i, v, torch.Size(shape))
+    return torch.sparse.Tensor(i, v, torch.Size(shape), dtype=torch.complex128)'''
 
-def sparse_mul(S, T):
+# Perhaps there is a way to do this without converting to dense
+# Ex. https://github.com/pytorch/pytorch/pull/57125/commits
+'''def sparse_csr_to_tensor(S):
+    D = torch.as_tensor(S.todense(), dtype=torch.complex128)
+    r = torch.real(D)
+    i = torch.imag(D)
+    return torch.complex(r, i).to_sparse()'''
+
+# Currently, use dense form as PyTorch doesn't seem to support complex sparse tensors
+def qobj_to_tensor(S):
+    return torch.as_tensor(S.full(), dtype=torch.complex128)
+
+def mul(S, T):
     if get_optim_mode():
         if isinstance(S, qt.Qobj):
-            S = sparse_csr_to_tensor(S.data)
+            S = qobj_to_tensor(S)
         if isinstance(T, qt.Qobj):
-            T = sparse_csr_to_tensor(T.data)
-        return torch.sparse.mm(S, T)
+            T = qobj_to_tensor(T)
+        # return torch.sparse.mm(S, T)
+        return torch.matmul(S, T)
     return S * T
+
+def qutip(input):
+    if get_optim_mode():
+        if isinstance(input, torch.Tensor):
+            return qt.Qobj(inpt=input.detach().numpy())
+        return input
+    return input

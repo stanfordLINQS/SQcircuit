@@ -255,9 +255,9 @@ class Circuit:
         wMat = []
         bMat = sqf.array([])
 
-        partial_cMats: Dict[Tuple[Capacitor, Union[ndarray, Tensor]]] = {}
+        partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
 
-        partial_lMats: Dict[Tuple[Inductor, Union[ndarray, Tensor]]] = {}
+        partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
 
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
@@ -298,9 +298,9 @@ class Circuit:
                     edge_caps.append(el)
 
                     if el in partial_cMats:
-                        partial_cMats[el] += edge_mat
+                        partial_cMats[el] += sqf.numpy(edge_mat)
                     else:
-                        partial_cMats[el] = edge_mat
+                        partial_cMats[el] = sqf.numpy(edge_mat)
 
                 elif isinstance(el, Inductor):
                     # if el.loops:
@@ -327,9 +327,9 @@ class Circuit:
                         cEd.append(VerySmallCap().get_value())
 
                     if el in partial_lMats:
-                        partial_lMats[el] += edge_mat / el.get_value()**2
+                        partial_lMats[el] += sqf.numpy(edge_mat / el.get_value()**2)
                     else:
-                        partial_lMats[el] = edge_mat / el.get_value()**2
+                        partial_lMats[el] = sqf.numpy(edge_mat / el.get_value()**2)
 
                 elif isinstance(el, Junction):
                     # if el.loops:
@@ -779,7 +779,7 @@ class Circuit:
             modeTxt += '\n'
         for i in range(chDim):
             modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].get_value(), 3)
+            ng = np.round(self.charge_islands[harDim + i].value(), 3)
             modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
             modeTxt += '\n'
 
@@ -812,7 +812,7 @@ class Circuit:
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):
-            phiExt = self.loops[i].get_value() / 2 / np.pi
+            phiExt = self.loops[i].value() / 2 / np.pi
             loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
                 phiExt) + txt.tab()
 
@@ -976,7 +976,7 @@ class Circuit:
                 Any quantum operator in qutip.Qobj format
         """
 
-        op_sq = op.copy()
+        op_sq = sqf.copy(op)
 
         op_sq.dims = [self.ms, self.ms]
 
@@ -1217,7 +1217,7 @@ class Circuit:
         """
         phi_ext = 0.0
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.get_value() * self.B[B_idx, i]
+            phi_ext += loop.value() * self.B[B_idx, i]
 
         return phi_ext
 
@@ -1505,7 +1505,6 @@ class Circuit:
         """
         Return the capacitive or inductive coupling operator related to the
         specified nodes. The output has the `qutip.Qobj` format.
-
         Parameters
         ----------
             ctype:
@@ -1520,7 +1519,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = sqf.init_sparse(self._memory_ops["Q"][0].full().shape)
+        op = sqf.init_op(size = self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1530,6 +1529,7 @@ class Circuit:
             node = node1 + node2
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
+                print(f"Cinv: {sqf.mat_inv(self.C)}, R: {self.R}")
                 K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
                     op += K[node - 1, i] * sqf.cast(self._memory_ops["Q"][i])
@@ -1550,8 +1550,7 @@ class Circuit:
                 for i in range(self.n):
                     op += ((K[node1 - 1, i] - K[node2 - 1, i])
                            * sqf.cast(self._memory_ops["phi"][i]))
-        if get_optim_mode():
-            return op
+
         return self._squeeze_op(op)
 
     def matrix_elements(
@@ -1772,7 +1771,6 @@ class Circuit:
         """
         return the gradient of the Hamiltonian with respect to elements or
         loop as ``qutip.Qobj`` format.
-
         Parameters
         ----------
             el:
@@ -1790,7 +1788,7 @@ class Circuit:
 
         if isinstance(el, Capacitor):
 
-            cInv = np.linalg.inv(self.C)
+            cInv = np.linalg.inv(sqf.numpy(self.C))
             A = -self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
             partial_H += self._get_quadratic_Q(A)
 
@@ -1805,7 +1803,7 @@ class Circuit:
                     phi = self._get_external_flux_at_element(B_idx)
 
                     partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / el.get_value()**2 / np.sqrt(unt.hbar)
+                                   / sqf.numpy(el.get_value())**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
         elif isinstance(el, Loop):
@@ -1815,11 +1813,11 @@ class Circuit:
             for edge, el_ind, B_idx in self.inductor_keys:
                 partial_H += (self.B[B_idx, loop_idx]
                               * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / el_ind.get_value() * unt.Phi0 / np.sqrt(unt.hbar)
+                              / sqf.numpy(el_ind.get_value()) * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
             for edge, el_JJ, B_idx, W_idx in self.junction_keys:
-                partial_H += (self.B[B_idx, loop_idx] * el_JJ.get_value()
+                partial_H += (self.B[B_idx, loop_idx] * sqf.numpy(el_JJ.get_value())
                               * self._memory_ops['sin'][(el_JJ, B_idx)])
 
         elif isinstance(el, Junction):
@@ -1861,7 +1859,7 @@ class Circuit:
 
         """
 
-        state_m = self._evecs[m]
+        state_m = sqf.qutip(self._evecs[m])
 
         partial_H = self._get_partial_H(el, _B_idx)
 
@@ -1869,7 +1867,7 @@ class Circuit:
 
         if subtract_ground:
 
-            state_0 = self._evecs[0]
+            state_0 = sqf.qutip(self._evecs[0])
 
             partial_omega_0 = state_0.dag() * (partial_H * state_0)
 
@@ -1912,7 +1910,6 @@ class Circuit:
     def _get_partial_vec(self, el, m):
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
-
         Parameters
         ----------
             el:
@@ -1923,7 +1920,7 @@ class Circuit:
                 the ground state and ``m=1`` specifies the first excited state.
         """
 
-        state_m = self._evecs[m]
+        state_m = sqf.qutip(self._evecs[m])
 
         #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
 
@@ -1937,10 +1934,13 @@ class Circuit:
             if n == m:
                 continue
 
-            state_n = self._evecs[n]
+            state_n = sqf.qutip(self._evecs[n])
 
-            delta_omega = (self._efreqs[m] - self._efreqs[n])
+            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
 
+            A = (state_n.dag()
+                              * (partial_H * state_m)) * state_n
+            print(f"A: {type(A)}, B: {type(delta_omega)}")
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
 
