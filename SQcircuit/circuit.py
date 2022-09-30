@@ -2,6 +2,7 @@
 """
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
+from collections import defaultdict
 
 import numpy as np
 import qutip as qt
@@ -15,8 +16,14 @@ from scipy.special import eval_hermite
 
 import SQcircuit.units as unt
 
-from SQcircuit.elements import (Element, Capacitor, Inductor, Junction, Loop,
-                                Charge, VerySmallCap, VeryLargeCap)
+from SQcircuit.elements import (
+    Element,
+    Capacitor,
+    Inductor,
+    Junction,
+    Loop,
+    Charge
+)
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
@@ -28,7 +35,7 @@ class CircuitEdge:
     Parameters
     ----------
         circ:
-            Circuit that edge is part of
+            Circuit that edge is part of.
         edge:
             The tuple represent the edge in the circuit.
         edge_elems:
@@ -36,33 +43,37 @@ class CircuitEdge:
         edge_idx:
             Index of the edge.
         n_node:
-            Number of nodes
+            Number of nodes.
     """
 
     def __init__(
         self,
         circ: "Circuit",
         edge: Tuple[int, int],
-        edge_elems: List[Element],
-        edge_idx: int,
     ) -> None:
 
         self.circ = circ
         self.edge = edge
-        self.edge_elems = edge_elems
-        self.edge_idx = edge_idx
 
-        self.loops = []
+        self.w = self._set_w_at_edge()
+        self.mat_rep = self._set_matrix_rep()
 
-        self.get_edge_properties()
+        self.edge_elems_by_type = {
+            Capacitor: [],
+            Inductor: [],
+            Junction: []
+        }
 
-    def w_at_edge(self) -> list:
+        # check if edge is processed
+        self.processed = False
+
+    def _set_w_at_edge(self) -> list:
         """Get the w_k vector as list at the edge."""
 
         # i1 and i2 are the nodes of the edge
         i1, i2 = self.edge
 
-        w = (self.circ.n_node + 1) * [0]
+        w = (self.circ.n + 1) * [0]
 
         if i1 == 0 or i2 == 0:
             w[i1 + i2] += 1
@@ -72,19 +83,19 @@ class CircuitEdge:
 
         return w[1:]
 
-    def matrix_rep(self) -> ndarray:
+    def _set_matrix_rep(self) -> ndarray:
         """Special form of matrix representation for an edge of a graph.
         This helps to construct the capacitance and susceptance matrices.
         """
 
-        A = np.zeros((self.circ.n_node, self.circ.n_node))
+        A = np.zeros((self.circ.n, self.circ.n))
 
-        if 0 in edge:
-            i = edge[0] + edge[1] - 1
+        if 0 in self.edge:
+            i = self.edge[0] + self.edge[1] - 1
             A[i, i] = 1
         else:
-            i = edge[0] - 1
-            j = edge[1] - 1
+            i = self.edge[0] - 1
+            j = self.edge[1] - 1
 
             A[i, i] = 1
             A[j, j] = 1
@@ -93,85 +104,120 @@ class CircuitEdge:
 
         return A
 
-    # def get_edge_properties(self, B_idx, W_idx, K1, cEd):
-    #
-    #     edge_elems_by_type = {
-    #         Capacitor: [],
-    #         Inductor: [],
-    #         Junction: []
-    #     }
-    #
-    #     for el in self.edge_elems:
-    #
-    #         edge_elems_by_type[el.type].append(el)
-    #
-    #         # if we have inductive element
-    #         if hasattr(el, "loop"):
-    #
-    #             self.circ.elem_keys[el.type].append(
-    #                 el.get_key(edge, B_idx, W_idx))
-    #
-    #             edge_elems_by_type[Capacitor].append(el.cap)
-    #
-    #             for loop in el.loops:
-    #                 self.circ.add_loop(loop)
-    #                 loop.add_index(B_idx)
-    #                 loop.addK1(edge_w)
-    #
-    #             cEd.append(el.get_cap_for_flux_dist(self.flux_dist))
-    #             B_idx += 1
-    #             K1.append(edge_w)
-    #
-    #         if isinstance(el, Capacitor):
-    #             edge_elems_by_type[Capacitor].append(el)
-    #
-    #             if el in partial_cMats:
-    #                 partial_cMats[el] += edge_mat
-    #             else:
-    #                 partial_cMats[el] = edge_mat
-    #
-    #         elif isinstance(el, Inductor):
-    #
-    #             self.circ.elem_keys[el.type].append(
-    #                 el.get_key(edge, B_idx, W_idx))
-    #
-    #             #     self.inductor_keys.append((edge, el, None))
-    #             edge_elems_by_type[Inductor].append(el)
-    #             # capacitor of inductor
-    #             edge_elems_by_type[Capacitor].append(el.cap)
-    #
-    #             for loop in el.loops:
-    #                 self.circ.add_loop(loop)
-    #                 loop.add_index(B_idx)
-    #                 loop.addK1(edge_w)
-    #
-    #             B_idx += 1
-    #             K1.append(edge_w)
-    #
-    #             cEd.append(el.get_cap_for_flux_dist(self.flux_dist))
-    #
-    #             if el in partial_lMats:
-    #                 partial_lMats[el] += edge_mat / el.get_value() ** 2
-    #             else:
-    #                 partial_lMats[el] = edge_mat / el.get_value() ** 2
-    #
-    #         elif isinstance(el, Junction):
-    #
-    #             elf.circ.elem_keys[el.type].append(
-    #                 el.get_key(edge, B_idx, W_idx))
-    #
-    #             edge_elems_by_type[Inductor].append(el)
-    #             edge_elems_by_type[Capacitor].append(el.cap)
-    #
-    #             for loop in el.loops:
-    #                 self.circ.add_loop(loop)
-    #                 loop.add_index(B_idx)
-    #                 loop.addK1(edge_w)
-    #
-    #             B_idx += 1
-    #             K1.append(edge_w)
-    #
-    #             cEd.append(el.get_cap_for_flux_dist(self.flux_dist))
+    def update_circuit_loop_from_element(
+        self,
+        el: Union[Inductor, Junction],
+        B_idx: int,
+    ) -> None:
+        """Update loop properties related to circuit from element in the edge
+        with its inductive index (B_idx).
+
+        Parameters
+        ----------
+            el:
+                Inductive element.
+            B_idx:
+                Inductive index.
+        """
+
+        for loop in el.loops:
+            self.circ.add_loop(loop)
+            loop.add_index(B_idx)
+            loop.addK1(self.w)
+
+    def process_edge_and_update_circ(
+        self,
+        B_idx: int,
+        W_idx: int,
+        K1: list,
+        c_edge_mat: list,
+    ) -> Tuple[int, list, list]:
+        """Process the edge and update the related circuit properties.
+
+        Parameters
+        ----------
+            B_idx:
+                Point to each row of B matrix of the circuit.
+            W_idx:
+                Point to each row of W matrix of the circuit.
+            K1:
+                Matrix related to loop calculation
+            c_edge_mat:
+                edge capacitance matrix
+        """
+
+        for el in self.circ.elements[self.edge]:
+
+            self.edge_elems_by_type[el.type].append(el)
+
+            # Case of inductive element
+            if hasattr(el, "loops"):
+
+                self.edge_elems_by_type[Capacitor].append(el.cap)
+
+                self.circ.elem_keys[el.type].append(
+                    el.get_key(self.edge, B_idx, W_idx)
+                )
+
+                self.update_circuit_loop_from_element(el, B_idx)
+
+                B_idx += 1
+
+                K1.append(self.w)
+
+                c_edge_mat.append(el.get_cap_for_flux_dist(self.circ.flux_dist))
+
+            # Case of L and C
+            if hasattr(el, "partial_mat"):
+
+                self.circ.partial_mats[el] += el.partial_mat(self.mat_rep)
+
+        self.processed = True
+
+        return B_idx, K1, c_edge_mat
+
+    def _check_if_edge_is_processed(self) -> None:
+
+        assert self.processed, "Edge is not processed yet!"
+
+    def get_eff_cap_value(self) -> float:
+        """Return effective capacitor value of the edge."""
+
+        self._check_if_edge_is_processed()
+
+        return sum(list(map(
+            lambda c: c.get_value(),
+            self.edge_elems_by_type[Capacitor]
+        )))
+
+    def get_eff_ind_value(self) -> float:
+        """Return effective inductor value of the edge."""
+
+        self._check_if_edge_is_processed()
+
+        return np.sum(1/np.array(list(map(
+            lambda l: l.get_value(),
+            self.edge_elems_by_type[Inductor]
+        ))))
+
+    def is_JJ_in_this_edge(self) -> bool:
+        """Check if the edge contains any JJ."""
+
+        self._check_if_edge_is_processed()
+
+        return len(self.edge_elems_by_type[Junction]) != 0
+
+    def is_JJ_without_ind(self) -> bool:
+        """Check if the edge only has JJ and no inductor."""
+
+        self._check_if_edge_is_processed()
+
+        flag = (
+            len(self.edge_elems_by_type[Junction]) != 0
+            and len(self.edge_elems_by_type[Inductor]) == 0
+        )
+
+        return flag
 
 
 class Circuit:
@@ -227,23 +273,21 @@ class Circuit:
         # circuit inductive loops
         self.loops: List[Loop] = []
 
-        # # charge islands of the circuit
-        # self.charge_islands: Dict[int, Charge] = {}
-
         # number of nodes without ground
         self.n: int = max(max(self.elements))
 
         # number of branches that contain JJ without parallel inductor.
         self.countJJnoInd: int = 0
 
-        # inductor element keys: (edge, el, B_idx) B_idx point to
-        # each row of B matrix (external flux distribution of that element)
-        self.inductor_keys: List[tuple, Inductor, int] = []
-
-        # junction element keys: (edge, el, B_idx, W_idx) B_idx point to
-        # each row of B matrix (external flux distribution of that element)
-        # and W_idx point to each row of W matrix
-        self.junction_keys: List[tuple, Junction, int, int] = []
+        self.elem_keys = {
+            # inductor element keys: (edge, el, B_idx) B_idx point to
+            # each row of B matrix (external flux distribution of that element)
+            Inductor: [],
+            # junction element keys: (edge, el, B_idx, W_idx) B_idx point to
+            # each row of B matrix (external flux distribution of that element)
+            # and W_idx point to each row of W matrix
+            Junction: [],
+        }
 
         #######################################################################
         # Transformation related attributes
@@ -251,17 +295,18 @@ class Circuit:
 
         # get the capacitance matrix, sudo-inductance matrix, W matrix,
         # and B matrix (loop distribution over inductive elements)
-        (self.C, self.L, self.W, self.B,
-         self.partial_C, self.partial_L) = self._get_LCWB()
+        self.C, self.L, self.W, self.B = self._get_LCWB()
 
         # initialize the transformation matrices for charge and flux operators.
         self.R, self.S = np.eye(self.n), np.eye(self.n)
 
         # initialize transformed susceptance, inverse capacitance,
         # and W matrices.
-        self.cInvTrans, self.lTrans, self.wTrans = (np.linalg.inv(self.C),
-                                                    self.L.copy(),
-                                                    self.W.copy())
+        self.cInvTrans, self.lTrans, self.wTrans = (
+            np.linalg.inv(self.C),
+            self.L.copy(),
+            self.W.copy()
+        )
 
         # natural angular frequencies of the circuit for each mode as a numpy
         # array (zero for charge modes)
@@ -271,8 +316,10 @@ class Circuit:
         self._transform_hamil()
 
         # charge islands of the circuit
-        self.charge_islands = {i: Charge() for i in range(self.n) if
-                               self._is_charge_mode(i)}
+        self.charge_islands = {
+            i: Charge() for i in range(self.n) if
+            self._is_charge_mode(i)
+        }
 
         #######################################################################
         # Operator and diagonalization related attributes
@@ -335,55 +382,6 @@ class Circuit:
             loop.reset()
             self.loops.append(loop)
 
-    def _get_w_at_edge(self, edge: Tuple[int, int]) -> list:
-        """Get the w_k vector as list at the edge.
-
-        Parameters
-        ----------
-            edge:
-                Tuple of int which specifies an edge.
-        """
-
-        # i1 and i2 are the nodes of the edge
-        i1, i2 = edge
-
-        w = (self.n + 1) * [0]
-
-        if i1 == 0 or i2 == 0:
-            w[i1 + i2] += 1
-        else:
-            w[i1] += 1
-            w[i2] -= 1
-
-        return w[1:]
-
-    def _edge_matrix_rep(self, edge: Tuple[int, int]) -> ndarray:
-
-        """Special form of matrix representation for an edge of a graph.
-        This helps to construct the capacitance and susceptance matrices.
-
-        Parameters
-        ----------
-            edge:
-                Tuple of int which specifies an edge.
-        """
-
-        A = np.zeros((self.n, self.n))
-
-        if 0 in edge:
-            i = edge[0] + edge[1] - 1
-            A[i, i] = 1
-        else:
-            i = edge[0] - 1
-            j = edge[1] - 1
-
-            A[i, i] = 1
-            A[j, j] = 1
-            A[i, j] = -1
-            A[j, i] = -1
-
-        return A
-
     def _get_LCWB(self):
         """
         calculate the capacitance matrix, inductance matrix, W matrix,
@@ -400,9 +398,7 @@ class Circuit:
         wMat = []
         bMat = np.array([])
 
-        partial_cMats: Dict[Tuple[Capacitor, ndarray]] = {}
-
-        partial_lMats: Dict[Tuple[Inductor, ndarray]] = {}
+        self.partial_mats = defaultdict(lambda: 0)
 
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
@@ -420,101 +416,28 @@ class Circuit:
         K1 = []
 
         # capacitor at each inductive elements
-        cEd = []
+        c_edge_mat = []
 
         for edge in self.elements.keys():
 
-            # w vector at the edge
-            edge_w = self._get_w_at_edge(edge)
+            circ_edge = CircuitEdge(self, edge)
 
-            # matrix representation of an edge
-            edge_mat = self._edge_matrix_rep(edge)
+            B_idx, K1, c_edge_mat = circ_edge.process_edge_and_update_circ(
+                B_idx,
+                W_idx,
+                K1,
+                c_edge_mat
+            )
 
-            # list of capacitors of the edge.
-            edge_caps = []
-            # list of inductors of the edge
-            edge_inds = []
-            # list of Josephson Junction of the edge.
-            edge_JJs = []
-
-            for el in self.elements[edge]:
-
-                if isinstance(el, Capacitor):
-                    edge_caps.append(el)
-
-                    if el in partial_cMats:
-                        partial_cMats[el] += edge_mat
-                    else:
-                        partial_cMats[el] = edge_mat
-
-                elif isinstance(el, Inductor):
-                    # if el.loops:
-                    self.inductor_keys.append((edge, el, B_idx))
-                    # else:
-                    #     self.inductor_keys.append((edge, el, None))
-                    edge_inds.append(el)
-                    # capacitor of inductor
-                    edge_caps.append(el.cap)
-
-                    for loop in el.loops:
-                        self.add_loop(loop)
-                        loop.add_index(B_idx)
-                        loop.addK1(edge_w)
-
-                    B_idx += 1
-                    K1.append(edge_w)
-
-                    if self.flux_dist == 'all':
-                        cEd.append(el.cap.get_value())
-                    elif self.flux_dist == "junctions":
-                        cEd.append(VeryLargeCap().get_value())
-                    elif self.flux_dist == "inductors":
-                        cEd.append(VerySmallCap().get_value())
-
-                    if el in partial_lMats:
-                        partial_lMats[el] += edge_mat / el.get_value()**2
-                    else:
-                        partial_lMats[el] = edge_mat / el.get_value()**2
-
-                elif isinstance(el, Junction):
-                    # if el.loops:
-                    self.junction_keys.append((edge, el, B_idx, W_idx))
-                    # else:
-                    #     self.junction_keys.append((edge, el, None, W_idx))
-                    edge_JJs.append(el)
-                    # capacitor of JJ
-                    edge_caps.append(el.cap)
-
-                    for loop in el.loops:
-                        self.add_loop(loop)
-                        loop.add_index(B_idx)
-                        loop.addK1(edge_w)
-
-                    B_idx += 1
-                    K1.append(edge_w)
-
-                    if self.flux_dist == 'all':
-                        cEd.append(el.cap.get_value())
-                    elif self.flux_dist == "junctions":
-                        cEd.append(VerySmallCap().get_value())
-                    elif self.flux_dist == "inductors":
-                        cEd.append(VeryLargeCap().get_value())
-
-            if len(edge_inds) == 0 and len(edge_JJs) != 0:
+            if circ_edge.is_JJ_without_ind():
                 countJJnoInd += 1
 
-            # summation of the capacitor values.
-            cap = sum(list(map(lambda c: c.get_value(), edge_caps)))
+            cMat += np.array(circ_edge.get_eff_cap_value()) * circ_edge.mat_rep
 
-            # summation of the one over inductor values.
-            x = np.sum(1 / np.array(list(map(lambda l: l.get_value(), edge_inds))))
+            lMat += np.array(circ_edge.get_eff_ind_value()) * circ_edge.mat_rep
 
-            cMat += cap * edge_mat
-
-            lMat += x * edge_mat
-
-            if len(edge_JJs) != 0:
-                wMat.append(edge_w)
+            if circ_edge.is_JJ_in_this_edge():
+                wMat.append(circ_edge.w)
                 W_idx += 1
 
         wMat = np.array(wMat)
@@ -528,7 +451,7 @@ class Circuit:
             if K1.shape[0] == K1.shape[1]:
                 K1 = K1[:, 0:-1]
 
-            X = K1.T @ np.diag(cEd)
+            X = K1.T @ np.diag(c_edge_mat)
             for loop in self.loops:
                 p = np.zeros((1, B_idx))
                 p[0, loop.indices] = loop.getP()
@@ -550,7 +473,7 @@ class Circuit:
 
         self.countJJnoInd = countJJnoInd
 
-        return cMat, lMat, wMat, bMat, partial_cMats, partial_lMats
+        return cMat, lMat, wMat, bMat
 
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
@@ -854,7 +777,8 @@ class Circuit:
         if self.loops:
             B = np.round(self.B, 2)
         else:
-            B = np.zeros((len(self.junction_keys) + len(self.inductor_keys), 1))
+            B = np.zeros((len(self.elem_keys[Junction])
+                          + len(self.elem_keys[Inductor]), 1))
         EJLst = []
         ELLst = []
 
@@ -871,7 +795,7 @@ class Circuit:
         JJHamilTxt = ""
         indHamilTxt = ""
 
-        for i, (edge, el, B_idx, W_idx) in enumerate(self.junction_keys):
+        for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
             EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
@@ -881,7 +805,7 @@ class Circuit:
             #     junTxt += txt.linear(txt.phi, W[W_idx, :])
             JJHamilTxt += junTxt + ")" + txt.p()
 
-        for i, (edge, el, B_idx) in enumerate(self.inductor_keys):
+        for i, (edge, el, B_idx) in enumerate(self.elem_keys[Inductor]):
 
             # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
             if np.sum(np.abs(B[B_idx, :])) == 0:
@@ -979,8 +903,8 @@ class Circuit:
 
         # maximum length of element ID strings
         nr = max(
-            [len(el.id_str) for _, el, _, _ in self.junction_keys]
-            + [len(el.id_str) for _, el, _ in self.inductor_keys]
+            [len(el.id_str) for _, el, _, _ in self.elem_keys[Junction]]
+            + [len(el.id_str) for _, el, _ in self.elem_keys[Inductor]]
         )
 
         # maximum length of loop ID strings
@@ -1007,10 +931,10 @@ class Circuit:
         for i in range(self.B.shape[0]):
 
             el = None
-            for _, el_ind, B_idx in self.inductor_keys:
+            for _, el_ind, B_idx in self.elem_keys[Inductor]:
                 if i == B_idx:
                     el = el_ind
-            for _, el_ind, B_idx, W_idx in self.junction_keys:
+            for _, el_ind, B_idx, W_idx in self.elem_keys[Junction]:
                 if i == B_idx:
                     el = el_ind
 
@@ -1367,7 +1291,7 @@ class Circuit:
 
         H = qt.Qobj()
 
-        for edge, el, B_idx in self.inductor_keys:
+        for edge, el, B_idx in self.elem_keys[Inductor]:
             # phi = 0
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
@@ -1380,7 +1304,7 @@ class Circuit:
             # save the operators for loss calculation
             self._memory_ops["ind_hamil"][(el, B_idx)] = op
 
-        for _, el, B_idx, W_idx in self.junction_keys:
+        for _, el, B_idx, W_idx in self.elem_keys[Junction]:
             # phi = 0
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
@@ -1912,15 +1836,15 @@ class Circuit:
         if isinstance(el, Capacitor):
 
             cInv = np.linalg.inv(self.C)
-            A = -self.R.T @ cInv @ self.partial_C[el] @ cInv @ self.R
+            A = -self.R.T @ cInv @ self.partial_mats[el] @ cInv @ self.R
             partial_H += self._get_quadratic_Q(A)
 
         elif isinstance(el, Inductor):
 
-            A = -self.S.T @ self.partial_L[el]  @ self.S
+            A = -self.S.T @ self.partial_mats[el]  @ self.S
             partial_H += self._get_quadratic_phi(A)
 
-            for edge, el_ind, B_idx in self.inductor_keys:
+            for edge, el_ind, B_idx in self.elem_keys[Inductor]:
                 if el == el_ind:
 
                     phi = self._get_external_flux_at_element(B_idx)
@@ -1933,19 +1857,19 @@ class Circuit:
 
             loop_idx = self.loops.index(el)
 
-            for edge, el_ind, B_idx in self.inductor_keys:
+            for edge, el_ind, B_idx in self.elem_keys[Inductor]:
                 partial_H += (self.B[B_idx, loop_idx]
                               * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
                               / el_ind.get_value() * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
-            for edge, el_JJ, B_idx, W_idx in self.junction_keys:
+            for edge, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
                 partial_H += (self.B[B_idx, loop_idx] * el_JJ.get_value()
                               * self._memory_ops['sin'][(el_JJ, B_idx)])
 
         elif isinstance(el, Junction):
 
-            for _, el_JJ, B_idx, W_idx in self.junction_keys:
+            for _, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
 
                 if el == el_JJ and _B_idx is None:
                     partial_H += -self._memory_ops['cos'][(el, B_idx)]
@@ -1955,7 +1879,7 @@ class Circuit:
 
         return partial_H
 
-    def _get_partial_omega(
+    def get_partial_omega(
             self,
             el: Union[Capacitor, Inductor, Junction, Loop],
             m: int,
@@ -1973,6 +1897,9 @@ class Circuit:
             m:
                 Integer specifies the eigenvalue. for example ``m=0`` specifies
                 the ground state and ``m=1`` specifies the first excited state.
+            subtract_ground:
+                If ``True``, it subtracts the ground state frequency from the
+                desired frequency.
             _B_idx:
                 Optional integer point to each row of B matrix (external flux
                 distribution of that element). This uses to specify that
@@ -2030,7 +1957,7 @@ class Circuit:
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
 
-    def _get_partial_vec(self, el, m):
+    def get_partial_vec(self, el: Union[Element, Loop], m: int):
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
 

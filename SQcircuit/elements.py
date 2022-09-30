@@ -9,6 +9,7 @@ import numpy as np
 
 from scipy.special import kn
 from torch import Tensor
+from numpy import ndarray
 
 import SQcircuit.units as unt
 
@@ -48,7 +49,7 @@ class Element:
 
         self._value.requires_grad = f
 
-    def set_value_with_error(self, mean, error):
+    def set_value_with_error(self, mean: float, error: float) -> None:
 
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
@@ -192,6 +193,11 @@ class Capacitor(Element):
 
         else:
             raise_unit_error()
+
+    @staticmethod
+    def partial_mat(edge_mat):
+
+        return edge_mat
 
     @staticmethod
     def _default_Q_cap(omega):
@@ -374,6 +380,17 @@ class Inductor(Element):
             return VeryLargeCap().get_value()
         elif flux_dist == "inductors":
             return VerySmallCap().get_value()
+
+    def partial_mat(self, edge_mat: ndarray):
+        """Get the partial_mat based on input edge_mat.
+
+        Parameters
+        ----------
+            edge_mat:
+                Matrix representation of the edge that element is part of.
+        """
+
+        return edge_mat / np.array(self.get_value()**2)
 
 
 class Junction(Element):
