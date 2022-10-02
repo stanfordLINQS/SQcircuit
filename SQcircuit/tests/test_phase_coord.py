@@ -12,9 +12,7 @@ DATADIR = os.path.join(TESTDIR, "data/phase_coord")
 # zeropi phase coord representation test
 ###############################################################################
 
-
 def test_phase_coord_zeropi():
-
     loop1 = sq.Loop()
 
     C = sq.Capacitor(0.15, "GHz")
@@ -49,7 +47,7 @@ def test_phase_coord_zeropi():
     with open(DATADIR + '/zeropi_0', 'rb') as inp:
         state0_data = pickle.load(inp)
 
-    assert np.allclose(state0, state0_data, rtol=1e-4, atol=1e-3)
+    assert np.allclose(np.abs(state0), np.abs(state0_data), rtol=1e-4, atol=1e-3)
 
     # the first excited state
     state1 = zrpi.eig_phase_coord(1, grid=[phi1, phi2, phi3])
@@ -57,4 +55,4 @@ def test_phase_coord_zeropi():
     with open(DATADIR + '/zeropi_1', 'rb') as inp:
         state1_data = pickle.load(inp)
 
-    assert np.allclose(state1, state1_data, rtol=1e-4, atol=1e-3)
+    assert np.allclose(np.abs(state1), np.abs(state1_data), rtol=1e-4, atol=1e-3)

@@ -65,7 +65,7 @@ class Element:
     @staticmethod
     def get_default_id_str(s: str, v: float, u: str) -> str:
         """Get the default string ID for the element.
-
+        
         Parameters
         ----------
         s:
@@ -82,7 +82,7 @@ class Element:
 
 class Capacitor(Element):
     """Class that contains the capacitor properties.
-
+    
     Parameters
     ----------
     value:
@@ -154,7 +154,7 @@ class Capacitor(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the capacitor.
-
+        
         Parameters
         ----------
             v:
@@ -177,7 +177,7 @@ class Capacitor(Element):
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
-
+        
         Parameters
         ----------
             u:
@@ -220,7 +220,7 @@ class VeryLargeCap(Capacitor):
 
 class Inductor(Element):
     """Class that contains the inductor properties.
-
+    
     Parameters
     ----------
     value:
@@ -309,7 +309,7 @@ class Inductor(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the element.
-
+        
         Parameters
         ----------
             v:
@@ -332,7 +332,7 @@ class Inductor(Element):
 
     def get_value(self, u: str = "H") -> float:
         """Return the value of the element in specified unit.
-
+        
         Parameters
         ----------
             u:
@@ -395,7 +395,7 @@ class Inductor(Element):
 
 class Junction(Element):
     """Class that contains the Josephson junction properties.
-
+    
     Parameters
     -----------
     value:
@@ -487,7 +487,7 @@ class Junction(Element):
 
     def set_value(self, v: float, u: str, e: float = 0.0) -> None:
         """Set the value for the element.
-
+        
         Parameters
         ----------
             v:
@@ -506,7 +506,7 @@ class Junction(Element):
 
     def get_value(self, u: str = "Hz") -> float:
         """Return the value of the element in specified unit.
-
+        
         Parameters
         ----------
             u:
@@ -547,7 +547,7 @@ class Junction(Element):
     def _get_default_Y_func(
         delta: float,
         x: float
-    ) -> Callable[Union[float, Tensor], float]:
+    ) -> Callable[[Union[float, Tensor]], float]:
 
         def _default_Y_junc(
             omega: Union[float, Tensor],
@@ -569,7 +569,7 @@ class Junction(Element):
 class Loop:
     """Class that contains the inductive loop properties, closed path of
     inductive elements.
-
+    
     Parameters
     ----------
         value:
@@ -607,7 +607,7 @@ class Loop:
         """Return the value of the external flux. If `random` is `True`, it
         samples from a normal distribution with variance defined by the flux
         noise amplitude.
-
+        
         Parameters
         ----------
             random:
@@ -621,7 +621,7 @@ class Loop:
 
     def set_flux(self, value: float) -> None:
         """Set the external flux associated to the loop.
-
+        
         Parameters
         ----------
             value:

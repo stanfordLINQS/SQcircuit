@@ -179,8 +179,8 @@ def test_junction_unit():
 
     sq.set_unit_JJ("MHz")
     JJ = Junction(10)
-    assert JJ.unit == "MHz"
 
+    assert JJ.unit == "MHz"
 
 def test_junction_grad():
 
@@ -200,3 +200,4 @@ def test_junction_grad():
     assert junc_value_no_grad == float_torch_to_python(junc_value_with_grad)
 
     sq.set_optim_mode(False)
+

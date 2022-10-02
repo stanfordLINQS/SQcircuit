@@ -1,6 +1,8 @@
 """circuit.py contains the classes for the circuit and their properties
 """
 
+from collections import OrderedDict
+
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
 
@@ -13,6 +15,8 @@ from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermite
+
+from torch import Tensor
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
@@ -269,7 +273,9 @@ class Circuit:
         # General circuit attributes
         #######################################################################
 
-        self.elements = elements
+        self.elements = OrderedDict(
+            [(key, elements[key]) for key in elements.keys()]
+        )
 
         error = ("flux_dist option must be either \"junctions\", "
                  "\"inductors\", or \"all\"")
@@ -310,6 +316,7 @@ class Circuit:
 
         # initialize the transformation matrices for charge and flux operators.
         self.R, self.S = np.eye(self.n), np.eye(self.n)
+
 
         # initialize transformed susceptance, inverse capacitance,
         # and W matrices.
@@ -360,7 +367,7 @@ class Circuit:
         self._LC_hamil = qt.Qobj()
 
         # eigenvalues of the circuit
-        self._efreqs = np.array([])
+        self._efreqs = sqf.array([])
         # eigenvectors of the circuit
         self._evecs = []
 
@@ -384,11 +391,10 @@ class Circuit:
 
         assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
 
-        return self._efreqs / (2*np.pi*unt.get_unit_freq())
+        return self._efreqs / (2 * np.pi * unt.get_unit_freq())
 
     @property
     def parameters(self):
-
         raise_optim_error_if_needed()
 
         return list(self._parameters.values())
@@ -415,7 +421,7 @@ class Circuit:
         cMat = sqf.zeros((self.n, self.n))
         lMat = sqf.zeros((self.n, self.n))
         wMat = []
-        bMat = np.array([])
+        bMat = sqf.array([])
 
         self.partial_mats = defaultdict(lambda: 0)
 
@@ -472,7 +478,7 @@ class Circuit:
             if K1.shape[0] == K1.shape[1]:
                 K1 = K1[:, 0:-1]
 
-            X = K1.T @ np.diag(c_edge_mat)
+            X = K1.T @ np.diag(sqf.numpy(c_edge_mat))
             for loop in self.loops:
                 p = np.zeros((1, B_idx))
                 p[0, loop.indices] = loop.getP()
@@ -544,6 +550,7 @@ class Circuit:
             singLoc = list(range(0, self.n))
         else:
             # find the number of singularity in the circuit
+
             lEig, _ = np.linalg.eig(sqf.numpy(self.L))
             numSing = len(lEig[lEig / np.max(lEig) < ACC["sing_mode_detect"]])
             singLoc = list(range(self.n - numSing, self.n))
@@ -1053,7 +1060,7 @@ class Circuit:
 
         self.charge_islands[mode - 1].setNoise(A)
 
-    def _squeeze_op(self, op: Qobj) -> Qobj:
+    def _squeeze_op(self, op: Qobj, tensor=False) -> Qobj:
         """
         Return the same Quantum operator with squeezed dimensions.
 
@@ -1063,7 +1070,7 @@ class Circuit:
                 Any quantum operator in qutip.Qobj format
         """
 
-        op_sq = op.copy()
+        op_sq = sqf.copy(op)
 
         op_sq.dims = [self.ms, self.ms]
 
@@ -1330,7 +1337,7 @@ class Circuit:
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
-            EJ = el.get_value()
+            EJ = sqf.numpy(el.get_value())
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1385,25 +1392,7 @@ class Circuit:
 
             return qt.Qobj(Q_eig)
 
-    def diag(self, n_eig: int) -> Tuple[ndarray, List[Qobj]]:
-        """
-        Diagonalize the Hamiltonian of the circuit and return the
-        eigenfrequencies and eigenvectors of the circuit up to specified
-        number of eigenvalues.
-
-        Parameters
-        ----------
-            n_eig:
-                Number of eigenvalues to output. The lower ``n_eig``, the
-                faster ``SQcircuit`` finds the eigenvalues.
-        Returns
-        ----------
-            efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit
-                (gigahertz by default)
-            evecs:
-                List of eigenvectors in qutip.Qobj format.
-        """
+    def diag_np(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         error1 = "Please specify the truncation number for each mode."
         assert len(self.m) != 0, error1
         error2 = "n_eig (number of eigenvalues) should be an integer."
@@ -1430,7 +1419,42 @@ class Circuit:
         self._efreqs = efreqs_sorted
         self._evecs = evecs_sorted
 
-        return efreqs_sorted / (2*np.pi*unt.get_unit_freq()), evecs_sorted
+        return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
+
+    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
+        print("diag Torch")
+        tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
+        eigenvalues = EigenvalueSolver.apply(tensor_list)
+        eigenvectors = EigenvectorSolver.apply(tensor_list)
+        self._efreqs = eigenvalues
+        self._evecs = eigenvectors
+
+        return tensor_list, eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+
+    def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+        """
+        Diagonalize the Hamiltonian of the circuit and return the
+        eigenfrequencies and eigenvectors of the circuit up to specified
+        number of eigenvalues.
+
+        Parameters
+        ----------
+            n_eig:
+                Number of eigenvalues to output. The lower ``n_eig``, the
+                faster ``SQcircuit`` finds the eigenvalues.
+        Returns
+        ----------
+            efreq:
+                ndarray of eigenfrequencies in frequency unit of SQcircuit
+                (gigahertz by default)
+            evecs:
+                List of eigenvectors in qutip.Qobj or Tensor format, depending
+                on optimization mode.
+        """
+        if get_optim_mode():
+            return self.diag_torch(n_eig)
+        else:
+            return self.diag_np(n_eig)
 
     ###########################################################################
     # Methods that calculate circuit properties
@@ -1575,7 +1599,6 @@ class Circuit:
         """
         Return the capacitive or inductive coupling operator related to the
         specified nodes. The output has the `qutip.Qobj` format.
-
         Parameters
         ----------
             ctype:
@@ -1590,7 +1613,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = qt.Qobj()
+        op = sqf.init_op(size = self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1600,26 +1623,26 @@ class Circuit:
             node = node1 + node2
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = np.linalg.inv(self.C) @ self.R
+                K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
-                    op += K[node - 1, i] * self._memory_ops["Q"][i]
+                    op += K[node - 1, i] * sqf.cast(self._memory_ops["Q"][i])
             if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
-                    op += K[node - 1, i] * self._memory_ops["phi"][i]
+                    op += K[node - 1, i] * sqf.cast(self._memory_ops["phi"][i])
 
         else:
             if ctype == "capacitive":
                 # K = np.linalg.inv(self.getMatC()) @ self.R
-                K = np.linalg.inv(self.C) @ self.R
+                K = sqf.mat_mul(sqf.mat_inv(self.C), self.R)
                 for i in range(self.n):
                     op += (K[node2 - 1, i] - K[node1 - 1, i]) * \
-                          self._memory_ops["Q"][i]
+                          sqf.cast(self._memory_ops["Q"][i])
             if ctype == "inductive":
                 K = self.S
                 for i in range(self.n):
                     op += ((K[node1 - 1, i] - K[node2 - 1, i])
-                           * self._memory_ops["phi"][i])
+                           * sqf.cast(self._memory_ops["phi"][i]))
 
         return self._squeeze_op(op)
 
@@ -1651,7 +1674,8 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
-        return (state1.dag() * op * state2).data[0, 0]
+        # TODO: Check operator format/dtype, compare to using states from numpy solver directly
+        return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
 
     @staticmethod
     def _dephasing(A: float, partial_omega: float) -> float:
@@ -1705,7 +1729,7 @@ class Circuit:
         state1 = self._evecs[states[0]]
         state2 = self._evecs[states[1]]
 
-        omega = np.abs(omega2 - omega1)
+        omega = sqf.abs(omega2 - omega1)
 
         decay = 0
 
@@ -1716,8 +1740,8 @@ class Circuit:
             up = 0
         else:
             alpha = unt.hbar * omega / (unt.k_B * ENV["T"])
-            down = (1 + 1 / np.tanh(alpha / 2))
-            up = down * np.exp(-alpha)
+            down = (1 + 1 / sqf.tanh(alpha / 2))
+            up = down * sqf.exp(-alpha)
 
         # for temperature dependent loss
         if not total:
@@ -1736,7 +1760,7 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.get_value() / cap.Q(omega) * np.abs(
+                        decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
@@ -1745,14 +1769,14 @@ class Circuit:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 x = 1 / el.get_value()
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) * x * np.abs(
+                    decay += tempS / el.Q(omega, ENV["T"]) * x * sqf.abs(
                         (state1.dag() * op * state2).data[0, 0]) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
                 decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                         * unt.hbar * np.abs(
+                         * unt.hbar * sqf.abs(
                     (state1.dag() * op * state2).data[0, 0]) ** 2
 
         elif dec_type == "charge":
@@ -1762,9 +1786,9 @@ class Circuit:
                 if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / np.sqrt(unt.hbar))
-                    partial_omega = np.abs((state2.dag()*op*state2 -
-                                            state1.dag()*op*state1).data[0, 0])
+                               / sqf.sqrt(unt.hbar))
+                    partial_omega = sqf.abs((state2.dag() * op * state2 -
+                                             state1.dag() * op * state1).data[0, 0])
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
@@ -1838,7 +1862,6 @@ class Circuit:
         """
         return the gradient of the Hamiltonian with respect to elements or
         loop as ``qutip.Qobj`` format.
-
         Parameters
         ----------
             el:
@@ -1855,8 +1878,7 @@ class Circuit:
         partial_H = qt.Qobj()
 
         if isinstance(el, Capacitor):
-
-            cInv = np.linalg.inv(self.C)
+            cInv = np.linalg.inv(sqf.numpy(self.C))
             A = -self.R.T @ cInv @ self.partial_mats[el] @ cInv @ self.R
             partial_H += self._get_quadratic_Q(A)
 
@@ -1871,7 +1893,7 @@ class Circuit:
                     phi = self._get_external_flux_at_element(B_idx)
 
                     partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / el.get_value()**2 / np.sqrt(unt.hbar)
+                                   / sqf.numpy(el.get_value())**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
         elif isinstance(el, Loop):
@@ -1881,11 +1903,11 @@ class Circuit:
             for edge, el_ind, B_idx in self.elem_keys[Inductor]:
                 partial_H += (self.B[B_idx, loop_idx]
                               * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / el_ind.get_value() * unt.Phi0 / np.sqrt(unt.hbar)
+                              / sqf.numpy(el_ind.get_value()) * unt.Phi0 / np.sqrt(unt.hbar)
                               / 2 / np.pi)
 
             for edge, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
-                partial_H += (self.B[B_idx, loop_idx] * el_JJ.get_value()
+                partial_H += (self.B[B_idx, loop_idx] * sqf.numpy(el_JJ.get_value())
                               * self._memory_ops['sin'][(el_JJ, B_idx)])
 
         elif isinstance(el, Junction):
@@ -1930,7 +1952,7 @@ class Circuit:
 
         """
 
-        state_m = self._evecs[m]
+        state_m = sqf.qutip(self._evecs[m])
 
         partial_H = self._get_partial_H(el, _B_idx)
 
@@ -1938,7 +1960,7 @@ class Circuit:
 
         if subtract_ground:
 
-            state_0 = self._evecs[0]
+            state_0 = sqf.qutip(self._evecs[0])
 
             partial_omega_0 = state_0.dag() * (partial_H * state_0)
 
@@ -1981,7 +2003,6 @@ class Circuit:
     def get_partial_vec(self, el: Union[Element, Loop], m: int):
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
-
         Parameters
         ----------
             el:
@@ -1992,7 +2013,7 @@ class Circuit:
                 the ground state and ``m=1`` specifies the first excited state.
         """
 
-        state_m = self._evecs[m]
+        state_m = sqf.qutip(self._evecs[m])
 
         #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
 
@@ -2006,11 +2027,70 @@ class Circuit:
             if n == m:
                 continue
 
-            state_n = self._evecs[n]
+            state_n = sqf.qutip(self._evecs[n])
 
-            delta_omega = (self._efreqs[m] - self._efreqs[n])
+            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
 
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
 
         return partial_state
+
+    def _update_H(self):
+        """Update the circuit Hamiltonian to reflect changes made to the
+        scalar values used for circuit elements (ex. C, L, J...)."""
+        (self.C, self.L, self.W, self.B,
+         self.partial_C, self.partial_L) = self._get_LCWB()
+        self._transform_hamil()
+        self._build_op_memory()
+        self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
+
+    def _update_element(
+            self,
+            element: Union[Capacitor, Inductor, Junction, Loop],
+            value: float,
+            unit: str,
+            update_H: bool = True
+    ) -> None:
+        """Update a single circuit element with a given element value and unit.
+        If the unit is `None` (not specified), the element's units will not be
+        altered.
+        Parameters
+        ----------
+            value:
+                The scalar value to set for a given element, which can be the
+                capacitance, inductance, Josephson energy, or loop flux.
+            unit:
+                The units corresponding to the input value, which must correspond
+                to the type of element used.
+        """
+        if element.type not in [Capacitor, Inductor, Junction, Loop]:
+            raise ValueError("Element type must be one of Capacitor, Inductor, Junction, or Loop.")
+        element.set_value(value, unit)
+        if update_H:
+            self._update_H()
+
+    def update_elements(self,
+                        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
+                        values_units: List[Tuple[float, str]]):
+        """Updates an input list of circuit elements with new scalar parameter
+        values, using the units already specified for that element.
+        Parameters
+        ----------
+            elements:
+                List of circuit elements, which must be of the type ``Capacitor``,
+                ``Inductor``, or ``Junction``.
+            values_units:
+                List of tuples (of the same length as ``elements``) for which
+                the first tuple element is the value to update with, and the
+                second is the unit corresponding to that value.
+        """
+        assert (len(elements) == len(values_units),
+                'Length of elements and values/units arrays must match.')
+        for idx in range(len(elements)):
+            self._update_element(elements[idx],
+                                 values_units[idx][0],
+                                 values_units[idx][1],
+                                 update_H=False)
+        self._update_H()

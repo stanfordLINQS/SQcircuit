@@ -1,15 +1,14 @@
 """utils.py module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
 
-from collections.abc import Iterable
 
 import numpy as np
 import qutip as qt
 import scipy
 import torch
 
+
 from SQcircuit.settings import get_optim_mode
-import SQcircuit.functions as sqf
 import SQcircuit.units as unt
 
 
@@ -76,14 +75,13 @@ def eigencircuit(circuit, num_eigen):
             for el_idx in range(m):
                 for eigen_idx in range(n):
                     partial_tensor = torch.squeeze(
-                        torch.as_tensor(circuit._get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
+                        torch.as_tensor(circuit.get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor * initial_element_vals[
                         el_idx]  # rescale gradient based on initial value
             return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)) +
                               torch.sum(torch.conj(partial_eigenvec) * grad_output, axis=(-1, -2)))
 
     return tensor_list, EigenvalueSolver, EigenvectorSolver
-
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #
@@ -135,7 +133,7 @@ def init_sparse(shape):
 
 def init_op(size):
     if get_optim_mode():
-        return torch.empty(size=size, dtype=torch.complex128)
+        return torch.zeros(size = size, dtype = torch.complex128)
         # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
@@ -237,9 +235,11 @@ def mat_mul(A, B):
     S = S.tocoo()
     values = S.data
     indices = np.vstack((S.row, S.col))
+
     i = torch.LongTensor(indices)
     v = torch.as_tensor(values, dtype=torch.complex128)
     shape = S.shape
+
     return torch.sparse.Tensor(i, v, torch.Size(shape), dtype=torch.complex128)'''
 
 # Perhaps there is a way to do this without converting to dense
