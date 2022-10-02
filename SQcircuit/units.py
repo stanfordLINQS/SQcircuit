@@ -40,8 +40,7 @@ _unit_JJ = "GHz"
 
 
 def set_unit_freq(unit: str) -> None:
-    """
-    Change the main frequency unit of the SQcircuit.
+    """Change the main frequency unit of the SQcircuit.
 
     Parameters
     ----------
@@ -56,8 +55,7 @@ def set_unit_freq(unit: str) -> None:
 
 
 def get_unit_freq() -> float:
-    """
-    get current frequency unit of the SQcircuit.
+    """Get current frequency unit of the SQcircuit.
 
     Returns
     ----------
@@ -69,8 +67,7 @@ def get_unit_freq() -> float:
 
 
 def set_unit_cap(unit: str) -> None:
-    """
-    Change the default unit for capacitors
+    """Change the default unit for capacitors
 
     Parameters
     ----------
@@ -89,8 +86,7 @@ def set_unit_cap(unit: str) -> None:
 
 
 def get_unit_cap() -> str:
-    """
-    Get current unit of capacitor
+    """Get current unit of capacitor
 
     Returns
     ----------
@@ -102,8 +98,7 @@ def get_unit_cap() -> str:
 
 
 def set_unit_ind(unit: str) -> None:
-    """
-    Change the default unit for inductors
+    """Change the default unit for inductors
 
     Parameters
     ----------
@@ -122,8 +117,7 @@ def set_unit_ind(unit: str) -> None:
 
 
 def get_unit_ind() -> str:
-    """
-    Get current unit of inductor
+    """Get current unit of inductor
 
     Returns
     ----------
@@ -135,8 +129,7 @@ def get_unit_ind() -> str:
 
 
 def set_unit_JJ(unit: str) -> None:
-    """
-    Change the default unit for Josephson junctions.
+    """Change the default unit for Josephson junctions.
 
     Parameters
     ----------
@@ -152,8 +145,7 @@ def set_unit_JJ(unit: str) -> None:
 
 
 def get_unit_JJ() -> str:
-    """
-    Get current unit of Josephson junction unit
+    """Get current unit of Josephson junction unit
 
     Returns
     ----------

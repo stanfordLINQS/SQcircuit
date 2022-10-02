@@ -1,16 +1,16 @@
 """utils.py module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
 
+
 import numpy as np
 import qutip as qt
 import scipy
 import torch
 
-from collections.abc import Iterable
 
 from SQcircuit.settings import get_optim_mode
-import SQcircuit.functions as sqf
 import SQcircuit.units as unt
+
 
 def _vectorize(circuit) -> torch.Tensor:
     """Converts an ordered dictionary of element values for a given circuit into Tensor format.
@@ -23,6 +23,7 @@ def _vectorize(circuit) -> torch.Tensor:
     element_values = [element.get_value() for element in elements]
     element_tensors = torch.stack(element_values)
     return element_tensors
+
 
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
@@ -82,35 +83,53 @@ def eigencircuit(circuit, num_eigen):
 
     return tensor_list, EigenvalueSolver, EigenvectorSolver
 
+# func_names = ['abs', 'tanh', 'exp', 'sqrt']
+#
+# func_constructor = """def {0}(x):
+#     if flag:
+#         return torch.{0}(x)
+#     else:
+#         return np.{0}(x)"""
+#
+# for func_name in func_names:
+#     exec(func_constructor.format(func_name))
+
+
 def abs(x):
     if get_optim_mode():
         return torch.abs(x)
     return np.abs(x)
+
 
 def tanh(x):
     if get_optim_mode():
         return torch.tanh(x)
     return np.tanh(x)
 
+
 def exp(x):
     if get_optim_mode():
         return torch.exp(x)
     return np.exp(x)
+
 
 def sqrt(x):
     if get_optim_mode():
         return torch.sqrt(x)
     return np.sqrt(x)
 
+
 def mat_inv(A):
     if get_optim_mode():
         return torch.linalg.inv(A)
     return np.linalg.inv(A)
 
+
 def init_sparse(shape):
     if get_optim_mode():
         return torch.sparse_coo_tensor(size=shape, dtype=torch.complex128)
     return qt.Qobj()
+
 
 def init_op(size):
     if get_optim_mode():
@@ -118,37 +137,48 @@ def init_op(size):
         # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
+
 def zeros(shape):
     if get_optim_mode():
         return torch.zeros(shape, dtype=torch.complex128)
     return np.zeros(shape)
+
 
 def array(object):
     if get_optim_mode():
         return torch.as_tensor(object)
     return np.array(object)
 
+
 def sum(a):
     if get_optim_mode():
         return torch.sum(a)
     return np.sum(a)
+
 
 def sort(a):
     if get_optim_mode():
         return torch.sort(a)
     return np.sort(a)
 
+
 def cast(value):
     if get_optim_mode():
         if isinstance(value, qt.Qobj):
             return qobj_to_tensor(value)
-        return torch.tensor(value, requires_grad = True, dtype=torch.complex128)
+        return torch.tensor(
+            value,
+            requires_grad=True,
+            dtype=torch.complex128
+        )
     return value
+
 
 def normal(mean, var):
     if get_optim_mode():
         return torch.normal(mean, var)
     return np.random.normal(mean, var, 1)[0]
+
 
 def numpy(input):
     if get_optim_mode():
@@ -157,6 +187,7 @@ def numpy(input):
         else:
             return input.detach().numpy()
     return input
+
 
 def dag(state):
     if get_optim_mode():
@@ -167,6 +198,7 @@ def dag(state):
         return torch.conj(torch.transpose(state))
     return state.dag()
 
+
 def copy(x):
     if get_optim_mode():
         if isinstance(x, qt.Qobj):
@@ -174,10 +206,12 @@ def copy(x):
         return x.clone()
     return x.copy()
 
+
 def unwrap(x):
     if get_optim_mode():
         return x
     return x.data[0, 0]
+
 
 def dense(obj):
     if isinstance(obj, qt.Qobj):
@@ -186,14 +220,16 @@ def dense(obj):
         return obj.to_dense()
     return obj
 
+
 def mat_mul(A, B):
     if get_optim_mode():
         A = dense(A)
         B = dense(B)
-        return torch.as_tensor(A, dtype=torch.complex128) @ torch.as_tensor(B, dtype=torch.complex128)
+        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128), torch.as_tensor(B, dtype=torch.complex128))
     if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
         return A * B
     return A @ B
+
 
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()
@@ -214,9 +250,11 @@ def mat_mul(A, B):
     i = torch.imag(D)
     return torch.complex(r, i).to_sparse()'''
 
+
 # Currently, use dense form as PyTorch doesn't seem to support complex sparse tensors
 def qobj_to_tensor(S):
     return torch.as_tensor(S.full(), dtype=torch.complex128)
+
 
 def mul(S, T):
     if get_optim_mode():
@@ -227,6 +265,7 @@ def mul(S, T):
         # return torch.sparse.mm(S, T)
         return torch.matmul(S, T)
     return S * T
+
 
 def qutip(input):
     if get_optim_mode():
