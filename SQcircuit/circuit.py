@@ -15,6 +15,7 @@ from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermite
 
 import SQcircuit.units as unt
+import SQcircuit.functions as sqf
 
 from SQcircuit.elements import (
     Element,
@@ -27,6 +28,7 @@ from SQcircuit.elements import (
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
+from SQcircuit.logs import raise_optim_error_if_needed
 
 
 class CircuitEdge:
@@ -165,12 +167,18 @@ class CircuitEdge:
 
                 K1.append(self.w)
 
-                c_edge_mat.append(el.get_cap_for_flux_dist(self.circ.flux_dist))
+                c_edge_mat.append(
+                    el.get_cap_for_flux_dist(self.circ.flux_dist)
+                )
 
             # Case of L and C
             if hasattr(el, "partial_mat"):
 
                 self.circ.partial_mats[el] += el.partial_mat(self.mat_rep)
+
+            if get_optim_mode():
+
+                self.circ.add_to_parameters(el)
 
         self.processed = True
 
@@ -289,6 +297,9 @@ class Circuit:
             Junction: [],
         }
 
+        # contains the parameters that we want to optimize.
+        self._parameters: Dict[Tuple[Element, Tensor]] = {}
+
         #######################################################################
         # Transformation related attributes
         #######################################################################
@@ -303,8 +314,8 @@ class Circuit:
         # initialize transformed susceptance, inverse capacitance,
         # and W matrices.
         self.cInvTrans, self.lTrans, self.wTrans = (
-            np.linalg.inv(self.C),
-            self.L.copy(),
+            np.linalg.inv(sqf.numpy(self.C)),
+            sqf.numpy(self.L).copy(),
             self.W.copy()
         )
 
@@ -375,6 +386,20 @@ class Circuit:
 
         return self._efreqs / (2*np.pi*unt.get_unit_freq())
 
+    @property
+    def parameters(self):
+
+        raise_optim_error_if_needed()
+
+        return list(self._parameters.values())
+
+    def add_to_parameters(self, el: Element) -> None:
+        """Add elements with ``requires_grad=True`` to parameters.
+        """
+
+        if el.requires_grad:
+            self._parameters[el] = el.get_value()
+
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
         """
@@ -382,19 +407,13 @@ class Circuit:
             loop.reset()
             self.loops.append(loop)
 
-    def _get_LCWB(self):
-        """
-        calculate the capacitance matrix, inductance matrix, W matrix,
-        and the flux distribution over inductive elements B.
-        outputs:
-            -- cMat: capacitance matrix (self.n,self.n)
-            -- lMat: inductance matrix (self.n,self.n)
-            -- wMat:  W matrix(linear combination of the flux node operators
-            in the JJ cosine (n_J,self.n)
+    def _get_LCWB(self) -> Tuple[ndarray, ndarray, ndarray, ndarray]:
+        """Calculate the capacitance matrix, sustenance matrix, W matrix,
+        and the flux distribution over inductive elements B matrix.
         """
 
-        cMat = np.zeros((self.n, self.n))
-        lMat = np.zeros((self.n, self.n))
+        cMat = sqf.zeros((self.n, self.n))
+        lMat = sqf.zeros((self.n, self.n))
         wMat = []
         bMat = np.array([])
 
@@ -432,9 +451,11 @@ class Circuit:
             if circ_edge.is_JJ_without_ind():
                 countJJnoInd += 1
 
-            cMat += np.array(circ_edge.get_eff_cap_value()) * circ_edge.mat_rep
+            cMat += sqf.array(circ_edge.get_eff_cap_value()) * sqf.array(
+                circ_edge.mat_rep)
 
-            lMat += np.array(circ_edge.get_eff_ind_value()) * circ_edge.mat_rep
+            lMat += sqf.array(circ_edge.get_eff_ind_value()) * sqf.array(
+                circ_edge.mat_rep)
 
             if circ_edge.is_JJ_in_this_edge():
                 wMat.append(circ_edge.w)
@@ -511,9 +532,9 @@ class Circuit:
         simultaneously diagonalizes the capacitance and susceptance matrices.
         """
 
-        cMatRoot = sqrtm(self.C)
+        cMatRoot = sqrtm(sqf.numpy(self.C))
         cMatRootInv = np.linalg.inv(cMatRoot)
-        lMatRoot = sqrtm(self.L)
+        lMatRoot = sqrtm(sqf.numpy(self.L))
 
         V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
 
@@ -523,7 +544,7 @@ class Circuit:
             singLoc = list(range(0, self.n))
         else:
             # find the number of singularity in the circuit
-            lEig, _ = np.linalg.eig(self.L)
+            lEig, _ = np.linalg.eig(sqf.numpy(self.L))
             numSing = len(lEig[lEig / np.max(lEig) < ACC["sing_mode_detect"]])
             singLoc = list(range(self.n - numSing, self.n))
             D[singLoc] = np.max(D)
@@ -738,9 +759,9 @@ class Circuit:
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
     def description(
-            self,
-            tp: Optional[str] = None,
-            _test: bool = False,
+        self,
+        tp: Optional[str] = None,
+        _test: bool = False,
     ) -> Optional[str]:
         """
         Print out Hamiltonian and a listing of the modes (whether they are
@@ -1803,7 +1824,7 @@ class Circuit:
                 phi_i = self._memory_ops["phi"][i].copy()
                 phi_j = self._memory_ops["phi"][j].copy()
                 if i == j:
-                    op += 0.5 * A[i, i] * phi_i ** 2
+                    op += 0.5 * A[i, i] * phi_i**2
                 elif j > i:
                     op += A[i, j] * phi_i * phi_j
 
