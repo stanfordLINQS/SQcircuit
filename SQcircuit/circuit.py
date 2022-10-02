@@ -1478,7 +1478,7 @@ class Circuit:
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
-    def diag_torch(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
         print("diag Torch")
         tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
         eigenvalues = EigenvalueSolver.apply(tensor_list)
@@ -1486,7 +1486,7 @@ class Circuit:
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
-        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+        return tensor_list, eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
 
     def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         """
@@ -1732,7 +1732,6 @@ class Circuit:
         op = self.coupling_op(ctype, nodes)
 
         # TODO: Check operator format/dtype, compare to using states from numpy solver directly
-
         return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
 
     @staticmethod

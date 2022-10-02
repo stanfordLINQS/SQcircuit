@@ -114,7 +114,7 @@ def init_sparse(shape):
 
 def init_op(size):
     if get_optim_mode():
-        return torch.empty(size = size, dtype = torch.complex128)
+        return torch.zeros(size = size, dtype = torch.complex128)
         # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
@@ -190,7 +190,7 @@ def mat_mul(A, B):
     if get_optim_mode():
         A = dense(A)
         B = dense(B)
-        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128), torch.as_tensor(B, dtype=torch.complex128))
+        return torch.as_tensor(A, dtype=torch.complex128) @ torch.as_tensor(B, dtype=torch.complex128)
     if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
         return A * B
     return A @ B
