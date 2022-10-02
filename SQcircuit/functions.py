@@ -75,7 +75,7 @@ def eigencircuit(circuit, num_eigen):
             for el_idx in range(m):
                 for eigen_idx in range(n):
                     partial_tensor = torch.squeeze(
-                        torch.as_tensor(circuit._get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
+                        torch.as_tensor(circuit.get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor * initial_element_vals[
                         el_idx]  # rescale gradient based on initial value
             return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)) +
