@@ -1422,7 +1422,6 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
-        print("diag Torch")
         tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
         eigenvalues = EigenvalueSolver.apply(tensor_list)
         eigenvectors = EigenvectorSolver.apply(tensor_list)

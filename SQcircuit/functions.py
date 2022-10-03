@@ -55,10 +55,9 @@ def eigencircuit(circuit, num_eigen):
             partial_omega = torch.zeros([m, n], dtype=float)
             for el_idx in range(m):
                 for eigen_idx in range(n):
-                    partial_omega[el_idx, eigen_idx] = circuit._get_partial_omega(el=cr_elements[el_idx],
-                                                                                 m=eigen_idx, subtract_ground=True) * \
-                                                       initial_element_vals[el_idx]
-            return torch.sum(partial_omega * grad_output, axis=-1)
+                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=cr_elements[el_idx],
+                                                                                 m=eigen_idx, subtract_ground=False)
+            return torch.sum(partial_omega * torch.conj(grad_output), axis=-1)
 
     class EigenvectorSolver(torch.autograd.Function):
         @staticmethod
@@ -76,10 +75,8 @@ def eigencircuit(circuit, num_eigen):
                 for eigen_idx in range(n):
                     partial_tensor = torch.squeeze(
                         torch.as_tensor(circuit.get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
-                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor * initial_element_vals[
-                        el_idx]  # rescale gradient based on initial value
-            return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)) +
-                              torch.sum(torch.conj(partial_eigenvec) * grad_output, axis=(-1, -2)))
+                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
+            return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)))
 
     return tensor_list, EigenvalueSolver, EigenvectorSolver
 
