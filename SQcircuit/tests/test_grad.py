@@ -13,6 +13,7 @@ trunc_num = 60
 eigen_count = 60
 tolerance = 1e-3
 
+
 def test_omega():
     ### Numpy
     # Compute gradient with linear approximation
@@ -86,6 +87,7 @@ def test_omega():
     assert np.abs(domega_dJ_torch / domega_dJ_numpy) > 1 - tolerance
 
     set_optim_mode(False)
+
 
 def test_T1():
     ### Numpy

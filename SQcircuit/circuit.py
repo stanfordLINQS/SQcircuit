@@ -197,17 +197,17 @@ class CircuitEdge:
 
         self._check_if_edge_is_processed()
 
-        return sum(list(map(
+        return sqf.sum(sqf.array(list(map(
             lambda c: c.get_value(),
             self.edge_elems_by_type[Capacitor]
-        )))
+        ))))
 
     def get_eff_ind_value(self) -> float:
         """Return effective inductor value of the edge."""
 
         self._check_if_edge_is_processed()
 
-        return np.sum(1/np.array(list(map(
+        return sqf.sum(1/sqf.array(list(map(
             lambda l: l.get_value(),
             self.edge_elems_by_type[Inductor]
         ))))
@@ -316,7 +316,6 @@ class Circuit:
 
         # initialize the transformation matrices for charge and flux operators.
         self.R, self.S = np.eye(self.n), np.eye(self.n)
-
 
         # initialize transformed susceptance, inverse capacitance,
         # and W matrices.
@@ -1060,7 +1059,7 @@ class Circuit:
 
         self.charge_islands[mode - 1].setNoise(A)
 
-    def _squeeze_op(self, op: Qobj, tensor=False) -> Qobj:
+    def _squeeze_op(self, op: Qobj) -> Qobj:
         """
         Return the same Quantum operator with squeezed dimensions.
 
@@ -1325,8 +1324,9 @@ class Circuit:
             phi = self._get_external_flux_at_element(B_idx)
 
             # summation of the 1 over inductor values.
-            x = 1 / el.get_value()
-            op = self.coupling_op("inductive", edge)
+            x = sqf.numpy(1 / el.get_value())
+            op = sqf.qutip(self.coupling_op("inductive", edge))
+            op = self._squeeze_op(op)
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
@@ -1591,9 +1591,9 @@ class Circuit:
         return state
 
     def coupling_op(
-            self,
-            ctype: str,
-            nodes: Tuple[int, int]
+        self,
+        ctype: str,
+        nodes: Tuple[int, int]
     ) -> Qobj:
         """
         Return the capacitive or inductive coupling operator related to the
@@ -1646,10 +1646,10 @@ class Circuit:
         return self._squeeze_op(op)
 
     def matrix_elements(
-            self,
-            ctype: str,
-            nodes: Tuple[int, int],
-            states: Tuple[int, int],
+        self,
+        ctype: str,
+        nodes: Tuple[int, int],
+        states: Tuple[int, int],
     ) -> float:
         """
         Return the matrix element of two eigenstates for either capacitive
@@ -1694,10 +1694,10 @@ class Circuit:
                 * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
 
     def dec_rate(
-            self,
-            dec_type: str,
-            states: Tuple[int, int],
-            total: bool = True
+        self,
+        dec_type: str,
+        states: Tuple[int, int],
+        total: bool = True
     ) -> float:
         """ Return the decoherence rate in [1/s] between each two eigenstates
         for different types of depolarization and dephasing.
@@ -1854,9 +1854,9 @@ class Circuit:
         return op
 
     def _get_partial_H(
-            self,
-            el: Union[Capacitor, Inductor, Junction, Loop],
-            _B_idx: Optional[int] = None,
+        self,
+        el: Union[Capacitor, Inductor, Junction, Loop],
+        _B_idx: Optional[int] = None,
     ) -> Qobj:
         """
         return the gradient of the Hamiltonian with respect to elements or
@@ -1922,11 +1922,11 @@ class Circuit:
         return partial_H
 
     def get_partial_omega(
-            self,
-            el: Union[Capacitor, Inductor, Junction, Loop],
-            m: int,
-            subtract_ground: bool = True,
-            _B_idx: Optional[int] = None,
+        self,
+        el: Union[Capacitor, Inductor, Junction, Loop],
+        m: int,
+        subtract_ground: bool = True,
+        _B_idx: Optional[int] = None,
     ) -> float:
         """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format.
@@ -1970,10 +1970,10 @@ class Circuit:
             return partial_omega_m.data[0, 0].real
 
     def _get_partial_omega_mn(
-            self,
-            el: Union[Capacitor, Inductor, Junction, Loop],
-            states: Tuple[int, int],
-            _B_idx: Optional[int] = None,
+        self,
+        el: Union[Capacitor, Inductor, Junction, Loop],
+        states: Tuple[int, int],
+        _B_idx: Optional[int] = None,
     ) -> float:
         """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format. Note that if
@@ -2046,11 +2046,11 @@ class Circuit:
         self._build_exp_ops()
 
     def _update_element(
-            self,
-            element: Union[Capacitor, Inductor, Junction, Loop],
-            value: float,
-            unit: str,
-            update_H: bool = True
+        self,
+        element: Union[Capacitor, Inductor, Junction, Loop],
+        value: float,
+        unit: str,
+        update_H: bool = True
     ) -> None:
         """Update a single circuit element with a given element value and unit.
         If the unit is `None` (not specified), the element's units will not be
@@ -2070,9 +2070,11 @@ class Circuit:
         if update_H:
             self._update_H()
 
-    def update_elements(self,
-                        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
-                        values_units: List[Tuple[float, str]]):
+    def update_elements(
+        self,
+        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
+        values_units: List[Tuple[float, str]]
+    ):
         """Updates an input list of circuit elements with new scalar parameter
         values, using the units already specified for that element.
         Parameters
