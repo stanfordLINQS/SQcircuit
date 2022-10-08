@@ -10,6 +10,7 @@ import numpy as np
 import qutip as qt
 import scipy.special
 import scipy.sparse
+import torch
 
 from numpy import ndarray
 from qutip.qobj import Qobj
@@ -1059,6 +1060,16 @@ class Circuit:
 
         self.charge_islands[mode - 1].setNoise(A)
 
+    def _get_op_dims(self) -> List[list]:
+        """Return the operator dims related to ``Qutip.Qobj``."""
+
+        return [self.ms, self.ms]
+
+    def _get_state_dims(self) -> List[list]:
+        """Return the state dims related to ``Qutip.Qobj``."""
+
+        return [self.ms, len(self.ms) * [1]]
+
     def _squeeze_op(self, op: Qobj) -> Qobj:
         """
         Return the same Quantum operator with squeezed dimensions.
@@ -1071,7 +1082,7 @@ class Circuit:
 
         op_sq = sqf.copy(op)
 
-        op_sq.dims = [self.ms, self.ms]
+        op_sq.dims = self._get_op_dims()
 
         return op_sq
 
@@ -1325,8 +1336,10 @@ class Circuit:
 
             # summation of the 1 over inductor values.
             x = sqf.numpy(1 / el.get_value())
-            op = sqf.qutip(self.coupling_op("inductive", edge))
-            op = self._squeeze_op(op)
+            op = sqf.qutip(
+                self.coupling_op("inductive", edge),
+                dims=self._get_op_dims()
+            )
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
@@ -1380,15 +1393,20 @@ class Circuit:
 
         elif basis == "eig":
 
-            # number of eigenvalues
-            n_eig = len(self.efreqs)
+            if get_optim_mode():
 
-            Q_eig = np.zeros((n_eig, n_eig), dtype=complex)
+                mat_evecs = self._evecs.T
 
-            for i in range(n_eig):
-                for j in range(n_eig):
-                    Q_eig[i, j] = (self._evecs[i].dag()
-                                   * Q_FC * self._evecs[j]).data[0, 0]
+                Q = sqf.qobj_to_tensor(Q_FC)
+
+                Q_eig = torch.conj(mat_evecs.T) @ Q @ mat_evecs
+
+                return Q_eig
+
+            mat_evecs = np.concatenate(list(map(
+                lambda v: v.full(), self._evecs)), axis=1)
+
+            Q_eig = np.conj(mat_evecs.T) @ Q_FC.full() @ mat_evecs
 
             return qt.Qobj(Q_eig)
 
@@ -1411,7 +1429,7 @@ class Circuit:
             sort_arg = [sort_arg]
 
         evecs_sorted = [
-            qt.Qobj(evecs[:, ind], dims=[self.ms, len(self.ms) * [1]])
+            qt.Qobj(evecs[:, ind], dims=self._get_state_dims())
             for ind in sort_arg
         ]
 
@@ -1951,15 +1969,15 @@ class Circuit:
 
         """
 
-        state_m = sqf.qutip(self._evecs[m])
+        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H*state_m)
+        partial_omega_m = state_m.dag() * (partial_H * state_m)
 
         if subtract_ground:
 
-            state_0 = sqf.qutip(self._evecs[0])
+            state_0 = sqf.qutip(self._evecs[0], dims=self._get_state_dims())
 
             partial_omega_0 = state_0.dag() * (partial_H * state_0)
 
@@ -2012,7 +2030,7 @@ class Circuit:
                 the ground state and ``m=1`` specifies the first excited state.
         """
 
-        state_m = sqf.qutip(self._evecs[m])
+        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
 
         #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
 
@@ -2026,7 +2044,7 @@ class Circuit:
             if n == m:
                 continue
 
-            state_n = sqf.qutip(self._evecs[n])
+            state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
 
@@ -2065,7 +2083,8 @@ class Circuit:
                 to the type of element used.
         """
         if element.type not in [Capacitor, Inductor, Junction, Loop]:
-            raise ValueError("Element type must be one of Capacitor, Inductor, Junction, or Loop.")
+            raise ValueError("Element type must be one of Capacitor, Inductor, "
+                             "Junction, or Loop.")
         element.set_value(value, unit)
         if update_H:
             self._update_H()
@@ -2087,11 +2106,14 @@ class Circuit:
                 the first tuple element is the value to update with, and the
                 second is the unit corresponding to that value.
         """
-        assert (len(elements) == len(values_units),
-                'Length of elements and values/units arrays must match.')
+
+        error = "Length of elements and values/units arrays must match."
+        assert len(elements) == len(values_units), error
         for idx in range(len(elements)):
-            self._update_element(elements[idx],
-                                 values_units[idx][0],
-                                 values_units[idx][1],
-                                 update_H=False)
+            self._update_element(
+                elements[idx],
+                values_units[idx][0],
+                values_units[idx][1],
+                update_H=False
+            )
         self._update_H()

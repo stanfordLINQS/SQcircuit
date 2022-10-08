@@ -9,9 +9,9 @@ import qutip as qt
 
 from numpy import ndarray
 from qutip.qobj import Qobj
-from scipy.linalg import block_diag
 
 import SQcircuit.units as unt
+import SQcircuit.functions as sqf
 
 from SQcircuit.circuit import Circuit
 from SQcircuit.elements import Capacitor, Inductor, Junction
@@ -164,7 +164,7 @@ class System:
         # list of capacitance matrix for each circuit
         cap_matrices = [circ.C for circ in self.circuits]
 
-        return block_diag(*cap_matrices)
+        return sqf.block_diag(*cap_matrices)
 
     def cap_matrix(self) -> ndarray:
         """Return the capacitance matrix of the entire system as``ndarray``."""
@@ -179,10 +179,10 @@ class System:
 
                 j = self._node_idx_in_sys(couple.circuits[1], couple.attrs[1])
 
-                C[i, i] += couple.el.value()
-                C[j, j] += couple.el.value()
-                C[i, j] -= couple.el.value()
-                C[j, i] -= couple.el.value()
+                C[i, i] += couple.el.get_value()
+                C[j, j] += couple.el.get_value()
+                C[i, j] -= couple.el.get_value()
+                C[j, i] -= couple.el.get_value()
 
         return C
 
@@ -206,9 +206,9 @@ class System:
             if i == sub_idx:
                 op_list.append(sub_op)
             else:
-                op_list.append(qt.qeye(self.trunc_nums[i]))
+                op_list.append(sqf.eye(self.trunc_nums[i]))
 
-        return qt.tensor(*op_list)
+        return sqf.tensor_product(*op_list)
 
     def _op_times_op_in_sys(
             self,
@@ -236,7 +236,7 @@ class System:
 
         # If both operators are in the same subsystems.
         if sub_idx_1 == sub_idx_2:
-            return self._op_in_sys(sub_op_1*sub_op_2, sub_idx_1)
+            return self._op_in_sys(sqf.mat_mul(sub_op_1, sub_op_2), sub_idx_1)
 
         op_list: List[Qobj] = []
 
@@ -247,9 +247,9 @@ class System:
             elif i == sub_idx_2:
                 op_list.append(sub_op_2)
             else:
-                op_list.append(qt.qeye(self.trunc_nums[i]))
+                op_list.append(sqf.eye(self.trunc_nums[i]))
 
-        return qt.tensor(*op_list)
+        return sqf.tensor_product(*op_list)
 
     def _QQ_op(self, m: int, n: int) -> Qobj:
         """Return Q_m*Q_n operator.
@@ -282,7 +282,7 @@ class System:
                 quadratic expression.
         """
 
-        op = qt.Qobj()
+        op = 0
 
         for i in range(self.n_N):
             for j in range(self.n_N):
@@ -298,11 +298,11 @@ class System:
         of SQcircuit as ``Qutip.Qobj`` format.
         """
 
-        op = qt.Qobj()
+        op = 0
 
         for i, circ in enumerate(self.circuits):
 
-            op += self._op_in_sys(qt.Qobj(np.diag(circ.efreqs)), i)
+            op += self._op_in_sys(sqf.mat_to_op(sqf.diag(circ.efreqs)), i)
 
         return op
 
@@ -314,7 +314,7 @@ class System:
         delta_C_inv = (np.linalg.inv(self.cap_matrix())
                        - np.linalg.inv(self._bare_cap_matrix()))
 
-        R = block_diag(*[circ.R for circ in self.circuits])
+        R = sqf.block_diag(*[sqf.array(circ.R) for circ in self.circuits])
 
         return self._quadratic_Q(R.T @ delta_C_inv @ R) / (
                 2*np.pi*unt.get_unit_freq())
