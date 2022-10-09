@@ -1428,7 +1428,7 @@ class Circuit:
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
-        return tensor_list, eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
 
     def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         """
@@ -2038,12 +2038,19 @@ class Circuit:
     def _update_H(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
-        (self.C, self.L, self.W, self.B,
-         self.partial_C, self.partial_L) = self._get_LCWB()
+
+        self.elem_keys = {
+            Inductor: [],
+            Junction: [],
+        }
+
+        self.C, self.L, self.W, self.B = self._get_LCWB()
+        self.cInvTrans, self.lTrans, self.wTrans = (
+            np.linalg.inv(sqf.numpy(self.C)),
+            sqf.numpy(self.L).copy(),
+            self.W.copy()
+        )
         self._transform_hamil()
-        self._build_op_memory()
-        self._LC_hamil = self._get_LC_hamil()
-        self._build_exp_ops()
 
     def _update_element(
             self,
@@ -2085,8 +2092,6 @@ class Circuit:
                 the first tuple element is the value to update with, and the
                 second is the unit corresponding to that value.
         """
-        assert (len(elements) == len(values_units),
-                'Length of elements and values/units arrays must match.')
         for idx in range(len(elements)):
             self._update_element(elements[idx],
                                  values_units[idx][0],

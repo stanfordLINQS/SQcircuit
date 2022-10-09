@@ -13,150 +13,99 @@ trunc_num = 60
 eigen_count = 60
 tolerance = 1e-3
 
-def test_omega():
-    ### Numpy
-    # Compute gradient with linear approximation
+all_units = unt.farad_list | unt.freq_list | unt.henry_list
+
+def update_circuit(circuit):
+    circuit._update_H()
+    circuit.set_trunc_nums([trunc_num, ])
+    circuit.diag(eigen_count)
+    return circuit
+
+def max_ratio(a, b):
+    return np.max([np.abs(b / a), np.abs(a / b)])
+
+
+def function_grad_test(circuit_numpy,
+                       function_numpy,
+                       circuit_torch,
+                       function_torch, delta=1e-4):
     set_optim_mode(False)
-    cap_unit, ind_unit = 'pF', 'GHz'
-    delta = 1e-6
-    C = Capacitor(7.746, cap_unit, Q=1e6)
-    J = Junction(12, ind_unit)
-    elements = {
-        (0, 1): [C, J],
-    }
-
-    # Solve for omega
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    omega = cr_transmon._efreqs[1] - cr_transmon._efreqs[0]
-    print(f"omega numpy: {omega}")
-
-    # Linear gradient of omega vs. C
-    C_delta = Capacitor(7.746 + delta, cap_unit, Q=1e6)
-    elements = {
-        (0, 1): [C_delta, J],
-    }
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    omega_delta_C = cr_transmon._efreqs[1] - cr_transmon._efreqs[0]
-    domega_dC_numpy = (omega_delta_C - omega) / (delta * unt.farad_list[cap_unit])
-    print(f"dw/dC (linear approx): {domega_dC_numpy}")
-
-    # Linear gradient of omega vs. J
-    J_delta = Junction(12 + delta, ind_unit)
-    elements = {
-        (0, 1): [C, J_delta],
-    }
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    omega_delta_J = cr_transmon._efreqs[1] - cr_transmon._efreqs[0]
-    domega_dJ_numpy = (omega_delta_J - omega) / (delta * unt.freq_list[ind_unit])
-    print(f"dw/dJ (linear approx): {domega_dJ_numpy}")
-
-    ### PyTorch
+    circuit_numpy = update_circuit(circuit_numpy)
+    val_init = function_numpy(circuit_numpy)
     set_optim_mode(True)
-    C = Capacitor(7.746, cap_unit, Q=1e6, requires_grad=True)
-    J = Junction(12, ind_unit, requires_grad=True)
+    circuit_torch = update_circuit(circuit_torch)
+    tensor_val = function_torch(circuit_torch)
+    tensor_val.backward()
+    for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
+        for element_idx, element_numpy in enumerate(elements_by_edge):
+            set_optim_mode(False)
+            scale_factor = (1 / (2 * np.pi) if type(element_numpy) is Junction else 1)
+            element_numpy.set_value(scale_factor * element_numpy.get_value() / all_units[element_numpy.unit] + delta, element_numpy.unit)
+            circuit_numpy = update_circuit(circuit_numpy)
+            val_delta = function_numpy(circuit_numpy)
+            grad_numpy = (val_delta - val_init) / (delta * all_units[element_numpy.unit])
+            element_numpy.set_value(element_numpy.get_value() / all_units[element_numpy.unit] - delta, element_numpy.unit)
 
-    elements = {
-        (0, 1): [C, J],
-    }
+            edge_elements_torch = list(circuit_torch.elements.values())[0]
+            grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
+            if type(element_numpy) is Junction:
+                grad_torch *= (2 * np.pi)
+            print(f"grad torch: {grad_torch}")
+            print(f"grad numpy: {grad_numpy}")
+            assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+    assert False
 
-    # Create circuit, backprop
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    tensors, eigenvals, _ = cr_transmon.diag(eigen_count)
-    omega_torch = (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
-    print(f"omega torch: {omega_torch}")
-    omega_torch.backward()
+def test_omega():
+    cap_value, ind_value, Q = 7.746, 12, 1e6
+    cap_unit, ind_unit = 'pF', 'GHz'
+    ## Create numpy circuit
+    set_optim_mode(False)
+    C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
+    J_numpy = Junction(ind_value, ind_unit)
+    cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
+    circuit_numpy = update_circuit(cr_transmon)
 
-    # Read off C grad, J grad
-    domega_dC_torch = C._value.grad
-    print(f"dw/dC (torch): {C._value.grad}")
-    domega_dJ_torch = 2 * np.pi * J._value.grad
-    print(f"dw/dJ (torch): {domega_dJ_torch}")
+    ## Create torch circuit
+    set_optim_mode(True)
+    C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
+    J_torch = Junction(ind_value, ind_unit, requires_grad=True)
+    circuit_torch = Circuit({(0, 1): [C_torch, J_torch]})
+    circuit_torch.set_trunc_nums([trunc_num, ])
 
-    assert np.abs(domega_dC_torch / domega_dC_numpy) < 1 + tolerance
-    assert np.abs(domega_dC_torch / domega_dC_numpy) > 1 - tolerance
-
-    assert np.abs(domega_dJ_torch / domega_dJ_numpy) < 1 + tolerance
-    assert np.abs(domega_dJ_torch / domega_dJ_numpy) > 1 - tolerance
-
+    def first_eigendifference_numpy(circuit):
+        return circuit._efreqs[1] - circuit._efreqs[0]
+    def first_eigendifference_torch(circuit):
+        eigenvals, _ = circuit.diag(eigen_count)
+        return (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
+    function_grad_test(circuit_numpy,
+                       first_eigendifference_numpy,
+                       circuit_torch,
+                       first_eigendifference_torch)
     set_optim_mode(False)
 
 def test_T1():
-    ### Numpy
-    # Compute gradient with linear approximation
-    set_optim_mode(False)
+    cap_value, ind_value, Q = 7.746, 12, 1e6
     cap_unit, ind_unit = 'mF', 'GHz'
-    delta = 1e-6
-    C = Capacitor(7.746, cap_unit, Q=1e6)
-    J = Junction(12, ind_unit)
-    elements = {
-        (0, 1): [C, J],
-    }
+    ## Create numpy circuit
+    set_optim_mode(False)
+    C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
+    J_numpy = Junction(ind_value, ind_unit)
+    cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
+    circuit_numpy = update_circuit(cr_transmon)
 
-    # Solve for T1_inv
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    Gamma1 = cr_transmon.dec_rate('capacitive', (0, 1))
-    print(f"Gamma1 numpy: {Gamma1}")
-
-    # Linear gradient of omega vs. C
-    C_delta = Capacitor(7.746 + delta, cap_unit, Q=1e6)
-    elements = {
-        (0, 1): [C_delta, J],
-    }
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    Gamma1_delta_C = cr_transmon.dec_rate('capacitive', (0, 1))
-    dGamma1_dC_numpy = (Gamma1_delta_C - Gamma1) / (delta * unt.farad_list[cap_unit])
-    print(f"dGamma1/dC (linear approx): {dGamma1_dC_numpy}")
-
-    # Linear gradient of omega vs. J
-    J_delta = Junction(12 + delta, ind_unit)
-    elements = {
-        (0, 1): [C, J_delta],
-    }
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    cr_transmon.diag(eigen_count)
-    Gamma1_delta_J = cr_transmon.dec_rate('capacitive', (0, 1))
-    dGamma1_dJ_numpy = (Gamma1_delta_J - Gamma1) / (delta * unt.freq_list[ind_unit])
-    print(f"dGamma1/dJ (linear approx): {dGamma1_dJ_numpy}")
-
-    ### PyTorch
+    ## Create torch circuit
     set_optim_mode(True)
-    C = Capacitor(7.746, cap_unit, Q=1e6, requires_grad=True)
-    J = Junction(12, ind_unit, requires_grad=True)
+    C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
+    J_torch = Junction(ind_value, ind_unit, requires_grad=True)
+    circuit_torch = Circuit({(0, 1): [C_torch, J_torch]})
+    circuit_torch.set_trunc_nums([trunc_num, ])
 
-    elements = {
-        (0, 1): [C, J],
-    }
+    def T1_inv(circuit):
+        return circuit.dec_rate('capacitive', (0, 1))
 
-    # Create circuit, backprop
-    cr_transmon = Circuit(elements)
-    cr_transmon.set_trunc_nums([trunc_num, ])
-    tensors, eigenvals, _ = cr_transmon.diag(eigen_count)
-    Gamma1_torch = cr_transmon.dec_rate('capacitive', (0, 1))
-    print(f"Gamma1 torch: {Gamma1_torch}")
-    Gamma1_torch.backward()
-
-    # Read off C grad, J grad
-    dGamma1_dC_torch = C._value.grad
-    print(f"dGamma1/dC (torch): {C._value.grad}")
-    dGamma1_dJ_torch = 2 * np.pi * J._value.grad
-    print(f"dGamma1/dJ (torch): {dGamma1_dJ_torch}")
-
-    assert np.abs(dGamma1_dC_torch / dGamma1_dC_numpy) < 1 + tolerance
-    assert np.abs(dGamma1_dC_torch / dGamma1_dC_numpy) > 1 - tolerance
-
-    assert np.abs(dGamma1_dJ_torch / dGamma1_dJ_numpy) < 1 + tolerance
-    assert np.abs(dGamma1_dJ_torch / dGamma1_dJ_numpy) > 1 - tolerance
-
+    function_grad_test(circuit_numpy,
+                       T1_inv,
+                       circuit_torch,
+                       T1_inv,
+                       delta=1e-4)
     set_optim_mode(False)
