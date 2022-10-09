@@ -311,8 +311,8 @@ class System:
         of SQcircuit as ``Qutip.Qobj`` format.
         """
 
-        delta_C_inv = (np.linalg.inv(self.cap_matrix())
-                       - np.linalg.inv(self._bare_cap_matrix()))
+        delta_C_inv = (sqf.mat_inv(self.cap_matrix())
+                       - sqf.mat_inv(self._bare_cap_matrix()))
 
         R = sqf.block_diag(*[sqf.array(circ.R) for circ in self.circuits])
 

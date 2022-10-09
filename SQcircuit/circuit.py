@@ -198,20 +198,20 @@ class CircuitEdge:
 
         self._check_if_edge_is_processed()
 
-        return sqf.sum(sqf.array(list(map(
+        return sum(list(map(
             lambda c: c.get_value(),
             self.edge_elems_by_type[Capacitor]
-        ))))
+        )))
 
     def get_eff_ind_value(self) -> float:
         """Return effective inductor value of the edge."""
 
         self._check_if_edge_is_processed()
 
-        return sqf.sum(1/sqf.array(list(map(
-            lambda l: l.get_value(),
+        return sum(list(map(
+            lambda l: 1/l.get_value(),
             self.edge_elems_by_type[Inductor]
-        ))))
+        )))
 
     def is_JJ_in_this_edge(self) -> bool:
         """Check if the edge contains any JJ."""
