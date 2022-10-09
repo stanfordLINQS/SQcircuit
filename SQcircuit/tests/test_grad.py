@@ -9,9 +9,9 @@ from SQcircuit.circuit import Circuit, unt
 
 import numpy as np
 
-trunc_num = 60
-eigen_count = 60
-tolerance = 1e-3
+trunc_num = 100
+eigen_count = 30
+tolerance = 1e-2
 
 all_units = unt.farad_list | unt.freq_list | unt.henry_list
 
@@ -44,16 +44,19 @@ def function_grad_test(circuit_numpy,
             circuit_numpy = update_circuit(circuit_numpy)
             val_delta = function_numpy(circuit_numpy)
             grad_numpy = (val_delta - val_init) / (delta * all_units[element_numpy.unit])
-            element_numpy.set_value(element_numpy.get_value() / all_units[element_numpy.unit] - delta, element_numpy.unit)
+            element_numpy.set_value(scale_factor * element_numpy.get_value() / all_units[element_numpy.unit] - delta, element_numpy.unit)
 
             edge_elements_torch = list(circuit_torch.elements.values())[0]
             grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
             if type(element_numpy) is Junction:
                 grad_torch *= (2 * np.pi)
+            print(f"Element  value: {element_numpy.get_value()}")
+            print(f"Function value (numpy): {function_numpy(circuit_numpy)}")
+            print(f"partial_omega (numpy): {circuit_numpy._get_partial_omega_mn(element_numpy, (0, 1))}")
             print(f"grad torch: {grad_torch}")
             print(f"grad numpy: {grad_numpy}")
+            print(f"error ratio: {max_ratio(grad_torch, grad_numpy)}")
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
-    assert False
 
 def test_omega():
     cap_value, ind_value, Q = 7.746, 12, 1e6
@@ -84,8 +87,8 @@ def test_omega():
     set_optim_mode(False)
 
 def test_T1():
-    cap_value, ind_value, Q = 7.746, 12, 1e6
-    cap_unit, ind_unit = 'mF', 'GHz'
+    cap_value, ind_value, Q = 7.746, 5, 1e6
+    cap_unit, ind_unit = 'fF', 'GHz'
     ## Create numpy circuit
     set_optim_mode(False)
     C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
@@ -107,5 +110,5 @@ def test_T1():
                        T1_inv,
                        circuit_torch,
                        T1_inv,
-                       delta=1e-4)
+                       delta=1e-6)
     set_optim_mode(False)
