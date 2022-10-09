@@ -12,6 +12,7 @@ DATADIR = os.path.join(TESTDIR, "data/phase_coord")
 # zeropi phase coord representation test
 ###############################################################################
 
+
 def test_phase_coord_zeropi():
     loop1 = sq.Loop()
 
