@@ -1,19 +1,26 @@
 """utils.py module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
 
+from typing import List, Union
 
-import numpy as np
-import qutip as qt
 import scipy
 import torch
 
+import numpy as np
+import qutip as qt
+
+from torch import Tensor
+from numpy import ndarray
+from qutip import Qobj
 
 from SQcircuit.settings import get_optim_mode
 import SQcircuit.units as unt
 
 
 def _vectorize(circuit) -> torch.Tensor:
-    """Converts an ordered dictionary of element values for a given circuit into Tensor format.
+    """Converts an ordered dictionary of element values for a given circuit
+    into Tensor format.
+
     Parameters
     ----------
         circuit:
@@ -28,6 +35,7 @@ def _vectorize(circuit) -> torch.Tensor:
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
     eigenvalues and eigenvectors of a circuit.
+
     Parameters
     ----------
         circuit:
@@ -90,6 +98,60 @@ def eigencircuit(circuit, num_eigen):
 #
 # for func_name in func_names:
 #     exec(func_constructor.format(func_name))
+
+
+def block_diag(*args: Union[ndarray, Tensor]) -> Union[ndarray, Tensor]:
+
+    if get_optim_mode():
+        return torch.block_diag(*args)
+
+    return scipy.linalg.block_diag(*args)
+
+
+def tensor_product_torch(*args: Tensor) -> Tensor:
+    """ Pytorch function similar to ``qutip.tensor``."""
+    op_list = args
+
+    out = torch.tensor([])
+
+    for n, op in enumerate(op_list):
+        if n == 0:
+            out = op
+        else:
+            out = torch.kron(out, op)
+
+    return out
+
+
+def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
+
+    if get_optim_mode():
+        return tensor_product_torch(*args)
+
+    return qt.tensor(*args)
+
+
+def eye(N: int) -> Union[Qobj, Tensor]:
+    """Return identity operator in qutip or torch.
+
+    parameters
+    -----------
+        N:
+            Size of the operator.
+    """
+    if get_optim_mode():
+
+        return torch.eye(N)
+
+    return qt.qeye(N)
+
+
+def diag(v):
+
+    if get_optim_mode():
+        return torch.diag(v)
+
+    return np.diag(x)
 
 
 def abs(x):
@@ -228,6 +290,42 @@ def mat_mul(A, B):
     return A @ B
 
 
+# Currently, use dense form as PyTorch doesn't seem to support complex sparse tensors
+def qobj_to_tensor(S):
+    return torch.as_tensor(S.full(), dtype=torch.complex128)
+
+
+def mul(S, T):
+    if get_optim_mode():
+        if isinstance(S, qt.Qobj):
+            S = qobj_to_tensor(S)
+        if isinstance(T, qt.Qobj):
+            T = qobj_to_tensor(T)
+        # return torch.sparse.mm(S, T)
+        return torch.matmul(S, T)
+    return S * T
+
+
+def qutip(A: Union[Qobj, Tensor], dims=List[list]) -> Qobj:
+    if get_optim_mode():
+        if isinstance(A, torch.Tensor):
+            qobj = qt.Qobj(inpt=A.detach().numpy())
+            qobj.dims = dims
+            return qobj
+        return A
+    return A
+
+
+def mat_to_op(A: Union[ndarray, Tensor]):
+    """Change matrix format to ``qutip.Qobj`` operator."""
+
+    if get_optim_mode():
+
+        return A
+
+    return qt.Qobj(A)
+
+
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()
     values = S.data
@@ -246,27 +344,3 @@ def mat_mul(A, B):
     r = torch.real(D)
     i = torch.imag(D)
     return torch.complex(r, i).to_sparse()'''
-
-
-# Currently, use dense form as PyTorch doesn't seem to support complex sparse tensors
-def qobj_to_tensor(S):
-    return torch.as_tensor(S.full(), dtype=torch.complex128)
-
-
-def mul(S, T):
-    if get_optim_mode():
-        if isinstance(S, qt.Qobj):
-            S = qobj_to_tensor(S)
-        if isinstance(T, qt.Qobj):
-            T = qobj_to_tensor(T)
-        # return torch.sparse.mm(S, T)
-        return torch.matmul(S, T)
-    return S * T
-
-
-def qutip(input):
-    if get_optim_mode():
-        if isinstance(input, torch.Tensor):
-            return qt.Qobj(inpt=input.detach().numpy())
-        return input
-    return input

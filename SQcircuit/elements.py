@@ -12,6 +12,7 @@ from torch import Tensor
 from numpy import ndarray
 
 import SQcircuit.units as unt
+import SQcircuit.functions as sqf
 
 from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed
 from SQcircuit.settings import get_optim_mode
@@ -381,7 +382,7 @@ class Inductor(Element):
         elif flux_dist == "inductors":
             return VerySmallCap().get_value()
 
-    def partial_mat(self, edge_mat: ndarray):
+    def partial_mat(self, edge_mat: ndarray) -> ndarray:
         """Get the partial_mat based on input edge_mat.
 
         Parameters
@@ -390,7 +391,7 @@ class Inductor(Element):
                 Matrix representation of the edge that element is part of.
         """
 
-        return edge_mat / np.array(self.get_value()**2)
+        return edge_mat / sqf.numpy(self.get_value()**2)
 
 
 class Junction(Element):
