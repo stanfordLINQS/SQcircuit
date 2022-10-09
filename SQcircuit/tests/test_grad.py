@@ -9,9 +9,9 @@ from SQcircuit.circuit import Circuit, unt
 
 import numpy as np
 
-trunc_num = 100
-eigen_count = 30
-tolerance = 1e-2
+trunc_num = 120
+eigen_count = 20
+tolerance = 2e-2
 
 all_units = unt.farad_list | unt.freq_list | unt.henry_list
 

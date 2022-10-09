@@ -2029,6 +2029,9 @@ class Circuit:
             state_n = sqf.qutip(self._evecs[n])
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
+            print(f"m: {m}, n: {n}")
+            print(f"omega_m: {self._efreqs[m]}, omega_n: {self._efreqs[n]}")
+            print(f"delta_omega: {delta_omega}")
 
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
