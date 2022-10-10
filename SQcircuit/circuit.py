@@ -1440,13 +1440,13 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
-        tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
-        eigenvalues = EigenvalueSolver.apply(tensor_list)
-        eigenvectors = EigenvectorSolver.apply(tensor_list)
+        EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
+        eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
+        eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
-        return tensor_list, eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
 
     def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         """
@@ -2047,6 +2047,9 @@ class Circuit:
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
+            print(f"m: {m}, n: {n}")
+            print(f"omega_m: {self._efreqs[m]}, omega_n: {self._efreqs[n]}")
+            print(f"delta_omega: {delta_omega}")
 
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
@@ -2056,12 +2059,19 @@ class Circuit:
     def _update_H(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
-        (self.C, self.L, self.W, self.B,
-         self.partial_C, self.partial_L) = self._get_LCWB()
+
+        self.elem_keys = {
+            Inductor: [],
+            Junction: [],
+        }
+
+        self.C, self.L, self.W, self.B = self._get_LCWB()
+        self.cInvTrans, self.lTrans, self.wTrans = (
+            np.linalg.inv(sqf.numpy(self.C)),
+            sqf.numpy(self.L).copy(),
+            self.W.copy()
+        )
         self._transform_hamil()
-        self._build_op_memory()
-        self._LC_hamil = self._get_LC_hamil()
-        self._build_exp_ops()
 
     def _update_element(
         self,
@@ -2106,9 +2116,6 @@ class Circuit:
                 the first tuple element is the value to update with, and the
                 second is the unit corresponding to that value.
         """
-
-        error = "Length of elements and values/units arrays must match."
-        assert len(elements) == len(values_units), error
         for idx in range(len(elements)):
             self._update_element(
                 elements[idx],
