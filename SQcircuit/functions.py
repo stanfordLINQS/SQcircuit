@@ -16,20 +16,6 @@ from qutip import Qobj
 from SQcircuit.settings import get_optim_mode
 import SQcircuit.units as unt
 
-def _vectorize(circuit) -> torch.Tensor:
-    """Converts an ordered dictionary of element values for a given circuit
-    into Tensor format.
-    Parameters
-    ----------
-        circuit:
-            A circuit to vectorize.
-    """
-    elements = list(circuit.elements.values())[0]
-    element_values = [element.get_value() for element in elements]
-    element_tensors = torch.stack(element_values)
-    # return torch.stack(circuit.parameters)
-    return element_tensors
-
 
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
@@ -40,10 +26,6 @@ def eigencircuit(circuit, num_eigen):
         circuit:
             A circuit for which the eigensystem will be solved.
     """
-
-    elements = list(circuit.elements.values())[0]
-
-    tensor_list = _vectorize(circuit)
 
     # TODO: Combine following two methods into one (to avoid calling diag_np twice)
     class EigenvalueSolver(torch.autograd.Function):
@@ -56,14 +38,12 @@ def eigencircuit(circuit, num_eigen):
 
         @staticmethod
         def backward(ctx, grad_output):
-            cr_elements = list(circuit.elements.values())[0]
-            # cr_elements = circuit.parameters
-            m, n = tensor_list.shape[0], num_eigen
-            # m, n = len(cr_elements), num_eigen
+            elements = list(circuit._parameters.keys())
+            m, n = len(elements), num_eigen
             partial_omega = torch.zeros([m, n], dtype=float)
             for el_idx in range(m):
                 for eigen_idx in range(n):
-                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=cr_elements[el_idx],
+                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=elements[el_idx],
                                                                                  m=eigen_idx, subtract_ground=False)
             return torch.sum(partial_omega * torch.conj(grad_output), axis=-1)
 
@@ -76,19 +56,17 @@ def eigencircuit(circuit, num_eigen):
 
         @staticmethod
         def backward(ctx, grad_output):
-            cr_elements = list(circuit.elements.values())[0]
-            # cr_elements = circuit.parameters
-            m, n, l = tensor_list.shape[0], *grad_output.shape
-            # m, n, l = len(circuit.parameters), *grad_output.shape
+            elements = list(circuit._parameters.keys())
+            m, n, l = len(circuit.parameters), *grad_output.shape
             partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
             for el_idx in range(m):
                 for eigen_idx in range(n):
                     partial_tensor = torch.squeeze(
-                        torch.as_tensor(circuit.get_partial_vec(el=cr_elements[el_idx], m=eigen_idx).full()))
+                        torch.as_tensor(circuit.get_partial_vec(el=elements[el_idx], m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
             return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)))
 
-    return tensor_list, EigenvalueSolver, EigenvectorSolver
+    return EigenvalueSolver, EigenvectorSolver
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #

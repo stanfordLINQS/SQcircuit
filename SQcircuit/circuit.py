@@ -164,6 +164,8 @@ class CircuitEdge:
 
                 if get_optim_mode():
                     self.circ.add_to_parameters(el.cap)
+                    if hasattr(el.cap, "partial_mat"):
+                        self.circ.partial_mats[el.cap] += el.cap.partial_mat(self.mat_rep)
 
                 self.circ.elem_keys[el.type].append(
                     el.get_key(self.edge, B_idx, W_idx)
@@ -308,7 +310,7 @@ class Circuit:
         }
 
         # contains the parameters that we want to optimize.
-        self._parameters: Dict[Tuple[Element, Tensor]] = {}
+        self._parameters: OrderedDict[Tuple[Element, Tensor]] = {}
 
         #######################################################################
         # Transformation related attributes
@@ -1443,9 +1445,9 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
-        tensor_list, EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
-        eigenvalues = EigenvalueSolver.apply(tensor_list)
-        eigenvectors = EigenvectorSolver.apply(tensor_list)
+        EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
+        eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
+        eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
