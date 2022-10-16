@@ -3,11 +3,12 @@ test_elements contains the test cases for the SQcircuit elements
 functionalities.
 """
 
-from SQcircuit.elements import Capacitor, Junction
+from SQcircuit.elements import Capacitor, Junction, Inductor
 from SQcircuit.settings import set_optim_mode
 from SQcircuit.circuit import Circuit, unt
 
 import numpy as np
+import torch
 
 trunc_num = 120
 eigen_count = 20
@@ -18,7 +19,6 @@ all_units = unt.farad_list | unt.freq_list | unt.henry_list
 def update_circuit(circuit):
     circuit._update_H()
     circuit.set_trunc_nums([trunc_num, ])
-    circuit.diag(eigen_count)
     return circuit
 
 def max_ratio(a, b):
@@ -31,9 +31,11 @@ def function_grad_test(circuit_numpy,
                        function_torch, delta=1e-4):
     set_optim_mode(False)
     circuit_numpy = update_circuit(circuit_numpy)
+    circuit_numpy.diag(eigen_count)
     val_init = function_numpy(circuit_numpy)
     set_optim_mode(True)
     circuit_torch = update_circuit(circuit_torch)
+    circuit_torch.diag(eigen_count)
     tensor_val = function_torch(circuit_torch)
     tensor_val.backward()
     for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
@@ -42,6 +44,7 @@ def function_grad_test(circuit_numpy,
             scale_factor = (1 / (2 * np.pi) if type(element_numpy) is Junction else 1)
             element_numpy.set_value(scale_factor * element_numpy.get_value() / all_units[element_numpy.unit] + delta, element_numpy.unit)
             circuit_numpy = update_circuit(circuit_numpy)
+            circuit_numpy.diag(eigen_count)
             val_delta = function_numpy(circuit_numpy)
             grad_numpy = (val_delta - val_init) / (delta * all_units[element_numpy.unit])
             element_numpy.set_value(scale_factor * element_numpy.get_value() / all_units[element_numpy.unit] - delta, element_numpy.unit)
@@ -67,6 +70,7 @@ def test_omega():
     J_numpy = Junction(ind_value, ind_unit)
     cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
     circuit_numpy = update_circuit(cr_transmon)
+    circuit_numpy.diag(eigen_count)
 
     ## Create torch circuit
     set_optim_mode(True)
@@ -95,6 +99,7 @@ def test_T1():
     J_numpy = Junction(ind_value, ind_unit)
     cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
     circuit_numpy = update_circuit(cr_transmon)
+    circuit_numpy.diag(2)
 
     ## Create torch circuit
     set_optim_mode(True)
@@ -112,3 +117,60 @@ def test_T1():
                        T1_inv,
                        delta=1e-6)
     set_optim_mode(False)
+
+def test_grad_multiple_steps():
+    set_optim_mode(True)
+    cap_unit, ind_unit = 'pF', 'uH'
+
+    ## Test C differentiation
+    C = Capacitor(7.746, cap_unit, Q=1e6, requires_grad=True)
+    L = Inductor(81.67, ind_unit)
+    elements = {
+        (0, 1): [C, L],
+    }
+    cr = Circuit(elements)
+    cr.set_trunc_nums([10, ])
+    eigenvalues, _ = cr.diag(2)
+    optimizer = torch.optim.SGD(cr.parameters, lr=1)
+    omega_target = 20e6 / (1e9) # convert to GHz
+    N = 10
+    for idx in range(N):
+        print(
+            f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
+        optimizer.zero_grad()
+        cr = update_circuit(cr)
+        eigenvalues, _ = cr.diag(2)
+        omega = (eigenvalues[1] - eigenvalues[0])
+        loss = (omega - omega_target) ** 2 / omega_target ** 2
+        loss.backward()
+        C._value.grad *= (C._value)**2
+        optimizer.step()
+    assert loss <= 6e-3
+
+    ## Test L differentiation
+    C = Capacitor(7.746, cap_unit, Q=1e6)
+    L = Inductor(81.67, ind_unit, requires_grad=True)
+    elements = {
+        (0, 1): [C, L],
+    }
+    cr = Circuit(elements)
+    cr.set_trunc_nums([10, ])
+    eigenvalues, _ = cr.diag(2)
+    optimizer = torch.optim.SGD(cr.parameters, lr=1)
+    omega_target = 20e6 / (1e9)  # convert to GHz
+    N = 10
+    for idx in range(N):
+        print(
+            f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
+        optimizer.zero_grad()
+        cr = update_circuit(cr)
+        eigenvalues, _ = cr.diag(2)
+        omega = (eigenvalues[1] - eigenvalues[0])
+        loss = (omega - omega_target) ** 2 / omega_target ** 2
+        loss.backward()
+        L._value.grad *= (L._value) ** 2
+        optimizer.step()
+    assert loss <= 6e-3
+    set_optim_mode(False)
+
+def test_grad_fluxonium():

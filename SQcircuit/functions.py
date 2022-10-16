@@ -16,6 +16,19 @@ from qutip import Qobj
 from SQcircuit.settings import get_optim_mode
 import SQcircuit.units as unt
 
+def _vectorize(circuit) -> torch.Tensor:
+    """Converts an ordered dictionary of element values for a given circuit
+    into Tensor format.
+    Parameters
+    ----------
+        circuit:
+            A circuit to vectorize.
+    """
+    elements = list(circuit.elements.values())[0]
+    element_values = [element.get_value() for element in elements]
+    element_tensors = torch.stack(element_values)
+    return element_tensors
+
 
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
@@ -27,10 +40,10 @@ def eigencircuit(circuit, num_eigen):
             A circuit for which the eigensystem will be solved.
     """
 
-    # elements = list(circuit.elements.values())[0]
-    # initial_element_vals = [element.get_value() for element in elements]
+    elements = list(circuit.elements.values())[0]
+    initial_element_vals = [element.get_value() for element in elements]
 
-    tensor_list = torch.stack(circuit.parameters)
+    tensor_list = _vectorize(circuit)
 
     # TODO: Combine following two methods into one (to avoid calling diag_np twice)
     class EigenvalueSolver(torch.autograd.Function):
@@ -71,7 +84,7 @@ def eigencircuit(circuit, num_eigen):
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
             return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)))
 
-    return EigenvalueSolver, EigenvectorSolver
+    return tensor_list, EigenvalueSolver, EigenvectorSolver
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #
