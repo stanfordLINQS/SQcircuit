@@ -3,7 +3,7 @@ test_elements contains the test cases for the SQcircuit elements
 functionalities.
 """
 
-from SQcircuit.elements import Capacitor, Junction, Inductor
+from SQcircuit.elements import Capacitor, Junction, Inductor, Loop
 from SQcircuit.settings import set_optim_mode
 from SQcircuit.circuit import Circuit, unt
 
@@ -174,3 +174,39 @@ def test_grad_multiple_steps():
     set_optim_mode(False)
 
 def test_grad_fluxonium():
+    set_optim_mode(True)
+    loop1 = Loop()
+    C = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=False)
+    L = Inductor(0.46, 'GHz', Q=500e6, loops=[loop1], requires_grad=True)
+    JJ = Junction(10.2, 'GHz', cap=C, A=1e-7, x=3e-06, loops=[loop1], requires_grad=True)
+
+    # define the circuit
+    elements = {
+        (0, 1): [L, JJ]
+    }
+    cr = Circuit(elements, flux_dist='all')
+    cr.set_trunc_nums([60])
+    loop1.set_flux(0)
+    eigenvalues, _ = cr.diag(2)
+    print(f"omega initial: {eigenvalues[1] - eigenvalues[0]}")
+    optimizer = torch.optim.SGD(cr.parameters, lr=1e-1)
+    omega_target = 2e9 / (1e9)  # convert to GHz
+    N = 10
+    for idx in range(N):
+        print(
+            f"Parameter values (C [F], L [H], JJ [Hz]): {C.get_value().detach().numpy(), L.get_value().detach().numpy() ,JJ.get_value().detach().numpy()}\n")
+        optimizer.zero_grad()
+        cr = update_circuit(cr)
+        eigenvalues, _ = cr.diag(2)
+        omega = (eigenvalues[1] - eigenvalues[0])
+        loss = (omega - omega_target) ** 2 / omega_target ** 2
+        print(f"idx: {idx}")
+        print(f"loss: {loss}")
+        loss.backward()
+        # C._value.grad *= (C._value) ** 2
+        L._value.grad *= (L._value) ** 2
+        JJ._value.grad *= (JJ._value) ** 2
+        print(f"Grads; C: {C._value.grad}, L: {L._value.grad}, JJ: {JJ._value.grad}")
+        optimizer.step()
+    assert loss <= 4e-3
+    set_optim_mode(False)

@@ -162,6 +162,9 @@ class CircuitEdge:
 
                 self.edge_elems_by_type[Capacitor].append(el.cap)
 
+                if get_optim_mode():
+                    self.circ.add_to_parameters(el.cap)
+
                 self.circ.elem_keys[el.type].append(
                     el.get_key(self.edge, B_idx, W_idx)
                 )
@@ -2064,6 +2067,7 @@ class Circuit:
             Inductor: [],
             Junction: [],
         }
+        self.loops: List[Loop] = []
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
         self.cInvTrans, self.lTrans, self.wTrans = (

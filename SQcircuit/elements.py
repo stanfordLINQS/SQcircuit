@@ -646,6 +646,8 @@ class Loop:
             K1 = K1[:, 0:-1]
         b = np.zeros((1, K1.shape[0]))
         b[0, 0] = 1
+        x = np.concatenate((b, K1.T), axis=0)
+        print(f"DIMS: {x.shape}")
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
 

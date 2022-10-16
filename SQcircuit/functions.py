@@ -27,6 +27,7 @@ def _vectorize(circuit) -> torch.Tensor:
     elements = list(circuit.elements.values())[0]
     element_values = [element.get_value() for element in elements]
     element_tensors = torch.stack(element_values)
+    # return torch.stack(circuit.parameters)
     return element_tensors
 
 
@@ -41,7 +42,6 @@ def eigencircuit(circuit, num_eigen):
     """
 
     elements = list(circuit.elements.values())[0]
-    initial_element_vals = [element.get_value() for element in elements]
 
     tensor_list = _vectorize(circuit)
 
@@ -57,7 +57,9 @@ def eigencircuit(circuit, num_eigen):
         @staticmethod
         def backward(ctx, grad_output):
             cr_elements = list(circuit.elements.values())[0]
+            # cr_elements = circuit.parameters
             m, n = tensor_list.shape[0], num_eigen
+            # m, n = len(cr_elements), num_eigen
             partial_omega = torch.zeros([m, n], dtype=float)
             for el_idx in range(m):
                 for eigen_idx in range(n):
@@ -75,7 +77,9 @@ def eigencircuit(circuit, num_eigen):
         @staticmethod
         def backward(ctx, grad_output):
             cr_elements = list(circuit.elements.values())[0]
+            # cr_elements = circuit.parameters
             m, n, l = tensor_list.shape[0], *grad_output.shape
+            # m, n, l = len(circuit.parameters), *grad_output.shape
             partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
             for el_idx in range(m):
                 for eigen_idx in range(n):
