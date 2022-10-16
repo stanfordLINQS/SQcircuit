@@ -19,7 +19,7 @@ import SQcircuit.units as unt
 
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
-    eigenvalues and eigenvectors of a circuit.
+    concatenated tensor including both eigenvalues and eigenvectors of a circuit.
 
     Parameters
     ----------
@@ -27,46 +27,45 @@ def eigencircuit(circuit, num_eigen):
             A circuit for which the eigensystem will be solved.
     """
 
-    # TODO: Combine following two methods into one (to avoid calling diag_np twice)
-    class EigenvalueSolver(torch.autograd.Function):
+    class EigenSolver(torch.autograd.Function):
         @staticmethod
         def forward(ctx, element_tensors):
-            eigenvalues, _ = circuit.diag_np(n_eig=num_eigen)
+            # Compute forward pass for eigenvalues
+            eigenvalues, eigenvectors = circuit.diag_np(n_eig=num_eigen)
             eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for eigenvalue in eigenvalues]
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
-            return torch.stack(eigenvalue_tensors)
-
-        @staticmethod
-        def backward(ctx, grad_output):
-            elements = list(circuit._parameters.keys())
-            m, n = len(elements), num_eigen
-            partial_omega = torch.zeros([m, n], dtype=float)
-            for el_idx in range(m):
-                for eigen_idx in range(n):
-                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=elements[el_idx],
-                                                                                 m=eigen_idx, subtract_ground=False)
-            return torch.sum(partial_omega * torch.conj(grad_output), axis=-1)
-
-    class EigenvectorSolver(torch.autograd.Function):
-        @staticmethod
-        def forward(ctx, element_tensors):
-            _, eigenvectors = circuit.diag_np(n_eig=num_eigen)
+            eigenvalue_tensor = torch.stack(eigenvalue_tensors)
+            eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
+            print(f"raw EV type: {eigenvalue_tensor.dtype}")
+            # Compute forward pass for eigenvectors
             eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for eigenvector in eigenvectors]
-            return torch.squeeze(torch.stack(eigenvector_tensors))
+            eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
+            return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
         @staticmethod
         def backward(ctx, grad_output):
+            # Break grad_output into eigenvalue subtensor and eigenvector subtensor
             elements = list(circuit._parameters.keys())
-            m, n, l = len(circuit.parameters), *grad_output.shape
+            m, n, l = len(circuit.parameters), num_eigen, (grad_output.shape[1] - 1) # grad_output.shape[1] == n + 1
+            grad_output_eigenvalue = grad_output[:, 0]
+            grad_output_eigenvector = grad_output[:, 1:]
+
+            partial_omega = torch.zeros([m, n], dtype=float)
             partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
             for el_idx in range(m):
                 for eigen_idx in range(n):
+                    # Compute backward pass for eigenvalues
+                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=elements[el_idx],
+                                                                                 m=eigen_idx, subtract_ground=False)
+                    # Compute backward pass for eigenvectors
                     partial_tensor = torch.squeeze(
                         torch.as_tensor(circuit.get_partial_vec(el=elements[el_idx], m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
-            return torch.real(torch.sum(partial_eigenvec * torch.conj(grad_output), axis=(-1, -2)))
+            eigenvalue_grad = torch.sum(partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
+            eigenvector_grad = torch.sum(partial_eigenvec * torch.conj(grad_output_eigenvector), axis=(-1, -2))
+            return torch.real(eigenvalue_grad + eigenvector_grad)
 
-    return EigenvalueSolver, EigenvectorSolver
+    return EigenSolver
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #
