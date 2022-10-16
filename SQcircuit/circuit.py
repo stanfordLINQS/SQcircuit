@@ -1452,8 +1452,6 @@ class Circuit:
         eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
-        print(f"eigenvals: {eigenvalues.dtype}")
-        print(f"eigenvecs: {eigenvectors.dtype}")
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
@@ -1718,9 +1716,8 @@ class Circuit:
                 The derivatives of angular frequency with respect to the
                 noisy parameter
         """
-
-        return (np.abs(partial_omega * A)
-                * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
+        return (sqf.abs(partial_omega * A)
+                * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"]))))
 
     def dec_rate(
         self,
@@ -1759,7 +1756,7 @@ class Circuit:
 
         omega = sqf.abs(omega2 - omega1)
 
-        decay = 0
+        decay = sqf.cast(0, dtype=torch.float32)
 
         # prevent the exponential overflow(exp(709) is the biggest number
         # that numpy can calculate
@@ -1795,17 +1792,16 @@ class Circuit:
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
-                x = 1 / el.get_value()
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) * x * sqf.abs(
-                        (state1.dag() * op * state2).data[0, 0]) ** 2
+                    decay += tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
+                        sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
                 decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
                          * unt.hbar * sqf.abs(
-                    (state1.dag() * op * state2).data[0, 0]) ** 2
+                    sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1815,8 +1811,9 @@ class Circuit:
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
                                / sqf.sqrt(unt.hbar))
-                    partial_omega = sqf.abs((state2.dag() * op * state2 -
-                                             state1.dag() * op * state1).data[0, 0])
+                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
+                                                                   sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
+                                                                               state1))))
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
@@ -2058,9 +2055,6 @@ class Circuit:
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
-            print(f"m: {m}, n: {n}")
-            print(f"omega_m: {self._efreqs[m]}, omega_n: {self._efreqs[n]}")
-            print(f"delta_omega: {delta_omega}")
 
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega

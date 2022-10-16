@@ -36,7 +36,6 @@ def eigencircuit(circuit, num_eigen):
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
             eigenvalue_tensor = torch.stack(eigenvalue_tensors)
             eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
-            print(f"raw EV type: {eigenvalue_tensor.dtype}")
             # Compute forward pass for eigenvectors
             eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for eigenvector in eigenvectors]
             eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
@@ -66,6 +65,22 @@ def eigencircuit(circuit, num_eigen):
             return torch.real(eigenvalue_grad + eigenvector_grad)
 
     return EigenSolver
+
+def get_kn_solver(n: int):
+    class kn(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, x):
+            ctx.save_for_backward(x)
+            x = numpy(x)
+            print("forward")
+            return torch.as_tensor(scipy.special.kn(n, x))
+
+        @staticmethod
+        def backward(ctx, grad_output):
+            print("backward")
+            z,  = ctx.saved_tensors
+            return grad_output * scipy.special.kvp(n, z)
+    return kn
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #
@@ -182,6 +197,11 @@ def zeros(shape):
     return np.zeros(shape)
 
 
+def log(x):
+    if get_optim_mode():
+        return torch.log(x)
+    return np.log(x)
+
 def array(object):
     if get_optim_mode():
         return torch.as_tensor(object)
@@ -194,20 +214,36 @@ def sum(a):
     return np.sum(a)
 
 
+def sinh(x):
+    if get_optim_mode():
+        return torch.sinh(x)
+    return np.sinh(x)
+
+def cosh(x):
+    if get_optim_mode():
+        return torch.cosh(x)
+    return np.cosh(x)
+
+def tanh(x):
+    if get_optim_mode():
+        return torch.tanh(x)
+    return np.tanh(x)
+
+
 def sort(a):
     if get_optim_mode():
         return torch.sort(a)
     return np.sort(a)
 
 
-def cast(value):
+def cast(value, dtype=torch.complex128):
     if get_optim_mode():
         if isinstance(value, qt.Qobj):
             return qobj_to_tensor(value)
         return torch.tensor(
             value,
             requires_grad=True,
-            dtype=torch.complex128
+            dtype=dtype
         )
     return value
 

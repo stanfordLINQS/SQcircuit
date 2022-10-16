@@ -557,11 +557,11 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-
+            kn_solver = sqf.get_kn_solver(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
+                * x * sqf.sqrt(alpha) * kn_solver.apply(alpha) * sqf.sinh(alpha)
             return y
 
         return _default_Y_junc
@@ -646,8 +646,6 @@ class Loop:
             K1 = K1[:, 0:-1]
         b = np.zeros((1, K1.shape[0]))
         b[0, 0] = 1
-        x = np.concatenate((b, K1.T), axis=0)
-        print(f"DIMS: {x.shape}")
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
 
