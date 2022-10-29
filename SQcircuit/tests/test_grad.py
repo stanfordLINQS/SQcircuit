@@ -15,11 +15,13 @@ tolerance = 2e-2
 
 all_units = unt.farad_list | unt.freq_list | unt.henry_list
 
+
 def update_circuit(circuit):
     circuit._update_H()
     circuit.set_trunc_nums([trunc_num, ])
     circuit.diag(eigen_count)
     return circuit
+
 
 def max_ratio(a, b):
     return np.max([np.abs(b / a), np.abs(a / b)])
@@ -58,17 +60,18 @@ def function_grad_test(circuit_numpy,
             print(f"error ratio: {max_ratio(grad_torch, grad_numpy)}")
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
 
+
 def test_omega():
     cap_value, ind_value, Q = 7.746, 12, 1e6
     cap_unit, ind_unit = 'pF', 'GHz'
-    ## Create numpy circuit
+    # Create numpy circuit
     set_optim_mode(False)
     C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
     J_numpy = Junction(ind_value, ind_unit)
     cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
     circuit_numpy = update_circuit(cr_transmon)
 
-    ## Create torch circuit
+    # Create torch circuit
     set_optim_mode(True)
     C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
     J_torch = Junction(ind_value, ind_unit, requires_grad=True)
@@ -77,6 +80,7 @@ def test_omega():
 
     def first_eigendifference_numpy(circuit):
         return circuit._efreqs[1] - circuit._efreqs[0]
+
     def first_eigendifference_torch(circuit):
         eigenvals, _ = circuit.diag(eigen_count)
         return (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
@@ -86,17 +90,18 @@ def test_omega():
                        first_eigendifference_torch)
     set_optim_mode(False)
 
+
 def test_T1():
     cap_value, ind_value, Q = 7.746, 5, 1e6
     cap_unit, ind_unit = 'fF', 'GHz'
-    ## Create numpy circuit
+    # Create numpy circuit
     set_optim_mode(False)
     C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
     J_numpy = Junction(ind_value, ind_unit)
     cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
     circuit_numpy = update_circuit(cr_transmon)
 
-    ## Create torch circuit
+    # Create torch circuit
     set_optim_mode(True)
     C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
     J_torch = Junction(ind_value, ind_unit, requires_grad=True)
