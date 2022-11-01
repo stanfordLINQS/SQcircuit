@@ -833,7 +833,7 @@ class Circuit:
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
-                      txt.linear(txt.phiExt, B[B_idx, :], st=False)
+                txt.linear(txt.phiExt, B[B_idx, :], st=False)
             # else:
             #     junTxt += txt.linear(txt.phi, W[W_idx, :])
             JJHamilTxt += junTxt + ")" + txt.p()
@@ -852,7 +852,7 @@ class Circuit:
             w = np.round(w[:harDim], 3)
 
             indTxt += txt.linear(txt.phi, w) + ")(" + \
-                      txt.linear(txt.phiExt, B[B_idx, :])
+                txt.linear(txt.phiExt, B[B_idx, :])
             indHamilTxt += indTxt + ")" + txt.p()
 
         hamilTxt += indHamilTxt + JJHamilTxt
@@ -865,7 +865,7 @@ class Circuit:
             modeTxt += txt.mode(i + 1) + txt.tab() + txt.har()
 
             modeTxt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
-                       + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
+                + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
 
             omega = np.round(self.omega[i] / 2 / np.pi / unt.get_unit_freq(), 5)
             zp = 2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
@@ -1446,7 +1446,7 @@ class Circuit:
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
         # EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
-        EigenSolver = sqf.eigencircuit(self, num_eigen = n_eig)
+        EigenSolver = sqf.eigencircuit(self, num_eigen=n_eig)
         # eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
         # eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
         eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
@@ -1602,7 +1602,7 @@ class Circuit:
 
                     term *= coef * np.exp(
                         -(phi_list[mode]*unt.Phi0/x0)**2/2) * \
-                            eval_hermite(n, phi_list[mode] * unt.Phi0 / x0)
+                        eval_hermite(n, phi_list[mode] * unt.Phi0 / x0)
 
             state += term
 
@@ -1639,7 +1639,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = sqf.init_op(size = self._memory_ops["Q"][0].shape)
+        op = sqf.init_op(size=self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1800,7 +1800,7 @@ class Circuit:
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
                 decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                         * unt.hbar * sqf.abs(
+                    * unt.hbar * sqf.abs(
                     sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         elif dec_type == "charge":
@@ -1893,11 +1893,9 @@ class Circuit:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             _B_idx:
-                Optional integer point to each row of B matrix (external flux
-                distribution of that element). This uses to specify that
-                gradient is calculated based on which JJ of the circuit
-                specifically (we use this option for critical current noise
-                calculation)
+                Optional integer to indicate which row of the B matrix (per-element
+                external flux distribution) to use. This specifies which JJ of the
+                circuit to consider specifically (ex. for critical current noise calculation).
         """
 
         partial_H = qt.Qobj()
@@ -1969,11 +1967,9 @@ class Circuit:
                 If ``True``, it subtracts the ground state frequency from the
                 desired frequency.
             _B_idx:
-                Optional integer point to each row of B matrix (external flux
-                distribution of that element). This uses to specify that
-                gradient is calculated based on which JJ of the circuit
-                specifically (we use this option for critical current noise
-                calculation)
+                Optional integer to indicate which row of the B matrix (per-element
+                external flux distribution) to use. This specifies which JJ of the
+                circuit to consider specifically (ex. for critical current noise calculation).
 
         """
 
@@ -2010,9 +2006,14 @@ class Circuit:
             el:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
-            m:
-                Integer specifies the eigenvalue. for example ``m=0`` specifies
-                the ground state and ``m=1`` specifies the first excited state.
+            states:
+                Integers indicating indices of eigenenergies to calculate
+                the difference of.
+            _B_idx:
+                Optional integer to indicate which row of the B matrix (external flux
+                distribution of that element) to use. This specifies which JJ of the
+                circuit to consider specifically
+                (ex. for critical current noise calculation).
         """
 
         state_m = self._evecs[states[0]]

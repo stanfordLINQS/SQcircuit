@@ -60,7 +60,7 @@ class Element:
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
 
-    def get_value(self):
+    def get_value(self) -> Union[float, Tensor]:
         pass
 
     @staticmethod
@@ -331,7 +331,7 @@ class Inductor(Element):
 
         self.set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "H") -> float:
+    def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -432,7 +432,7 @@ class Junction(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
-        cap: Optional[str] = None,
+        cap: Optional[Capacitor] = None,
         A: float = 1e-7,
         x: float = 3e-06,
         delta: float = 3.4e-4,
@@ -505,7 +505,7 @@ class Junction(Element):
 
         self.set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "Hz") -> float:
+    def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
