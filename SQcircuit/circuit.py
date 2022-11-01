@@ -1785,7 +1785,7 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
+                        decay = decay + tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
@@ -1793,13 +1793,13 @@ class Circuit:
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
+                    decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
                         sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
+                decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
                          * unt.hbar * sqf.abs(
                     sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
