@@ -17,12 +17,6 @@ tolerance = 2e-2
 all_units = unt.farad_list | unt.freq_list | unt.henry_list
 
 
-def update_circuit(circuit):
-    circuit._update_H()
-    circuit.set_trunc_nums([trunc_num, ])
-    return circuit
-
-
 def max_ratio(a, b):
     return np.max([np.abs(b / a), np.abs(a / b)])
 
@@ -32,15 +26,12 @@ def function_grad_test(circuit_numpy,
                        circuit_torch,
                        function_torch, delta=1e-4):
     set_optim_mode(False)
-    circuit_numpy = update_circuit(circuit_numpy)
     circuit_numpy.diag(eigen_count)
     val_init = function_numpy(circuit_numpy)
     set_optim_mode(True)
-    circuit_torch = update_circuit(circuit_torch)
     circuit_torch.diag(eigen_count)
     tensor_val = function_torch(circuit_torch)
     optimizer = torch.optim.SGD(circuit_torch.parameters, lr=1)
-    print(f"Function torch: {tensor_val.detach().numpy()}")
     tensor_val.backward()
     for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
         for element_idx, element_numpy in enumerate(elements_by_edge):
@@ -50,7 +41,7 @@ def function_grad_test(circuit_numpy,
                 u=element_numpy.unit) + delta,
                 element_numpy.unit
             )
-            circuit_numpy = update_circuit(circuit_numpy)
+            circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_delta = function_numpy(circuit_numpy)
             grad_numpy = (val_delta - val_init) / (delta * all_units[element_numpy.unit])
@@ -81,8 +72,8 @@ def test_omega():
     set_optim_mode(False)
     C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
     J_numpy = Junction(ind_value, ind_unit)
-    cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
-    circuit_numpy = update_circuit(cr_transmon)
+    circuit_numpy = Circuit({(0, 1): [C_numpy, J_numpy], })
+    circuit_numpy.set_trunc_nums([trunc_num, ])
     circuit_numpy.diag(eigen_count)
 
     # Create torch circuit
@@ -113,8 +104,8 @@ def test_T1_transmon():
     set_optim_mode(False)
     C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
     J_numpy = Junction(ind_value, ind_unit)
-    cr_transmon = Circuit({(0, 1): [C_numpy, J_numpy], })
-    circuit_numpy = update_circuit(cr_transmon)
+    circuit_numpy = Circuit({(0, 1): [C_numpy, J_numpy], })
+    circuit_numpy.set_trunc_nums([trunc_num, ])
     circuit_numpy.diag(2)
 
     # Create torch circuit
@@ -157,7 +148,7 @@ def test_grad_multiple_steps():
         print(
             f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
         optimizer.zero_grad()
-        cr = update_circuit(cr)
+        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
@@ -182,7 +173,7 @@ def test_grad_multiple_steps():
         print(
             f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
         optimizer.zero_grad()
-        cr = update_circuit(cr)
+        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
@@ -220,7 +211,7 @@ def test_grad_fluxonium():
         JJ_value = JJ.get_value().detach().numpy()
         print(f"Parameter values (C [F], L [H], JJ [Hz]): {C_value, L_value, JJ_value}\n")
         optimizer.zero_grad()
-        cr = update_circuit(cr)
+        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
@@ -244,8 +235,8 @@ def test_T1_fluxonium():
     C_numpy = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=False)
     L_numpy = Inductor(0.46, 'GHz', Q=500e6, loops=[loop1], requires_grad=False)
     JJ_numpy = Junction(10.2, 'GHz', cap=C_numpy, A=1e-7, x=3e-06, loops=[loop1], requires_grad=False)
-    fluxonium_numpy = Circuit({(0, 1): [C_numpy, L_numpy, JJ_numpy], }, flux_dist='all')
-    circuit_numpy = update_circuit(fluxonium_numpy)
+    circuit_numpy = Circuit({(0, 1): [C_numpy, L_numpy, JJ_numpy], }, flux_dist='all')
+    circuit_numpy.set_trunc_nums([trunc_num, ])
     circuit_numpy.diag(2)
 
     # Create torch circuit

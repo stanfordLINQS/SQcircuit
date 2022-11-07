@@ -2062,7 +2062,7 @@ class Circuit:
 
         return partial_state
 
-    def _update_H(self):
+    def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
 
@@ -2079,6 +2079,11 @@ class Circuit:
             self.W.copy()
         )
         self._transform_hamil()
+
+        self._build_op_memory()
+        self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
+
 
     def _update_element(
         self,
