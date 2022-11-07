@@ -14,7 +14,7 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_error
 from SQcircuit.settings import get_optim_mode
 
 
@@ -51,7 +51,9 @@ class Element:
         self._value.requires_grad = f
 
     def set_value_with_error(self, mean: float, error: float) -> None:
-
+        if mean < 0:
+            raise_negative_value_error(self, mean, self.unit)
+            mean = sqf.abs(mean)
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
 

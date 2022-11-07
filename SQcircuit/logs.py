@@ -16,3 +16,8 @@ def raise_optim_error_if_needed():
 
     if get_optim_mode() is False:
         raise ValueError(OPTIM_ERROR)
+
+
+def raise_negative_value_error(element, value, unit):
+    raise ValueError(f"Attempting to set element {element} value to {value} {unit}. \
+    Negative values are not supported, so this will be set to the absolute value instead.")
