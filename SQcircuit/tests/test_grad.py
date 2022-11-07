@@ -106,7 +106,7 @@ def test_omega():
     set_optim_mode(False)
 
 
-def test_T1():
+def test_T1_transmon():
     cap_value, ind_value, Q = 7.746, 5, 1e6
     cap_unit, ind_unit = 'fF', 'GHz'
     # Create numpy circuit
@@ -125,7 +125,9 @@ def test_T1():
     circuit_torch.set_trunc_nums([trunc_num, ])
 
     def T1_inv(circuit):
-        return circuit.dec_rate('capacitive', (0, 1))
+        return circuit.dec_rate('capacitive', (0, 1)) + \
+        circuit.dec_rate('inductive', (0, 1)) + \
+        circuit.dec_rate('quasiparticle', (0, 1))
 
     function_grad_test(circuit_numpy,
                        T1_inv,
