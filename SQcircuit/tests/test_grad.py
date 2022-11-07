@@ -25,6 +25,22 @@ def function_grad_test(circuit_numpy,
                        function_numpy,
                        circuit_torch,
                        function_torch, delta=1e-4):
+    """General test function for comparing linear approximation with gradient computed with PyTorch backpropagation.
+
+    Parameters
+    ----------
+        circuit_numpy:
+            Numpy circuit for which linear approximation will be calculated.
+        function_numpy:
+            Function to call on the numpy circuit. This should match the expected output of `function_torch`.
+        circuit_torch:
+            Equivalent circuit to `circuit_numpy`, but constructed in PyTorch.
+        function_torch:
+            Equivalent function to `function_numpy`, but written in PyTorch.
+        delta:
+            Perturbation dx to each parameter value in `circuit_numpy` to compute
+            linear gradient df/dx~(f(x+dx)-f(x)/dx).
+    """
     set_optim_mode(False)
     circuit_numpy.diag(eigen_count)
     val_init = function_numpy(circuit_numpy)
@@ -66,6 +82,7 @@ def function_grad_test(circuit_numpy,
 
 
 def test_omega():
+    """Verify gradient of first eigendifference omega_1-omega_0 in transmon circuit with linearized value."""
     cap_value, ind_value, Q = 7.746, 12, 1e6
     cap_unit, ind_unit = 'pF', 'GHz'
     # Create numpy circuit
@@ -98,6 +115,8 @@ def test_omega():
 
 
 def test_T1_transmon():
+    """Compare gradient of T1 decoherence due to capacitive, inductive, and quasiparticle
+     noise in transmon circuit with linearized value."""
     cap_value, ind_value, Q = 7.746, 5, 1e6
     cap_unit, ind_unit = 'fF', 'GHz'
     # Create numpy circuit
@@ -129,6 +148,8 @@ def test_T1_transmon():
 
 
 def test_grad_multiple_steps():
+    """Sample ability of PyTorch to successfully update circuit parameters and iteratively decrease loss
+    for simple LC resonator frequency optimization task."""
     set_optim_mode(True)
     cap_unit, ind_unit = 'pF', 'uH'
 
@@ -188,6 +209,8 @@ trunc_num = 240
 
 
 def test_grad_fluxonium():
+    """Verify gradient values on more complex circuit, first resonant eigendifference in fluxonium.
+    As opposed to previous test with transmon circuit, note that this also involves linear inductor and loop."""
     set_optim_mode(True)
     loop1 = Loop()
     C = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=True)
@@ -228,6 +251,8 @@ tolerance = 0.25
 
 
 def test_T1_fluxonium():
+    """Verify gradient of fluxonium for T1 noise sources, including capacitive, inductive, and
+    quasiparticle decoherence."""
     loop1 = Loop()
     loop1.set_flux(0)
     # Create numpy circuit
