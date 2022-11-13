@@ -118,6 +118,9 @@ class Circuit:
         # transform the Hamiltonian of the circuit
         self._transform_hamil()
 
+        if self._is_JJ_in_circuit():
+            self._update_nmodes_remove_uncoupled_modes()
+
         # charge islands of the circuit
         self.charge_islands = {i: Charge() for i in range(self.n) if
                                self._is_charge_mode(i)}
@@ -400,6 +403,34 @@ class Circuit:
         self.countJJnoInd = countJJnoInd
 
         return cMat, lMat, wMat, bMat, partial_cMats, partial_lMats
+
+    def _get_uncoupled_indices(self) -> list:
+        """Return the indices for the uncoupled mode as list"""
+
+        # number of Josephson Junctions
+        nJJs = self.wTrans.shape[0]
+
+        # boolean format of self.wTrans with elements equal to zero
+        bool_wTrans = self.wTrans == 0
+
+        return list(np.where(np.sum(bool_wTrans, axis=0) == nJJs)[0])
+
+    def _update_nmodes_remove_uncoupled_modes(self) -> None:
+        """Set the number of modes and remove uncoupled modes."""
+
+        unc_indices = self._get_uncoupled_indices()
+
+        self.n = self.n - len(unc_indices)
+
+        # remove the uncoupled modes
+        self.cInvTrans = np.delete(self.cInvTrans, unc_indices, axis=0)
+        self.cInvTrans = np.delete(self.cInvTrans, unc_indices, axis=1)
+
+        self.lTrans = np.delete(self.lTrans, unc_indices, axis=0)
+        self.lTrans = np.delete(self.lTrans, unc_indices, axis=1)
+
+        self.wTrans = np.delete(self.wTrans, unc_indices, axis=1)
+        self.omega = np.delete(self.omega, unc_indices)
 
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
@@ -717,18 +748,21 @@ class Circuit:
                     hamilTxt += txt.Ec(harDim + i + 1, harDim + j + 1) + \
                                 txt.n(harDim + i + 1, harDim + j + 1) + txt.p()
 
+        if '+' in hamilTxt[-3:-1]:
+            hamilTxt = hamilTxt[0:-2]
+
         JJHamilTxt = ""
         indHamilTxt = ""
 
         for i, (edge, el, B_idx, W_idx) in enumerate(self.junction_keys):
             EJLst.append(el.value() / 2 / np.pi / unt.get_unit_freq())
-            junTxt = txt.Ej(i + 1) + txt.cos() + "("
+            junTxt = txt.neg() + txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
                       txt.linear(txt.phiExt, B[B_idx, :], st=False)
             # else:
             #     junTxt += txt.linear(txt.phi, W[W_idx, :])
-            JJHamilTxt += junTxt + ")" + txt.p()
+            JJHamilTxt += junTxt + ")"
 
         for i, (edge, el, B_idx) in enumerate(self.inductor_keys):
 
@@ -736,7 +770,7 @@ class Circuit:
             if np.sum(np.abs(B[B_idx, :])) == 0:
                 continue
             ELLst.append(el.energy())
-            indTxt = txt.El(i + 1) + "("
+            indTxt = txt.p() + txt.El(i + 1) + "("
             if 0 in edge:
                 w = S[edge[0] + edge[1] - 1, :]
             else:
@@ -745,12 +779,12 @@ class Circuit:
 
             indTxt += txt.linear(txt.phi, w) + ")(" + \
                       txt.linear(txt.phiExt, B[B_idx, :])
-            indHamilTxt += indTxt + ")" + txt.p()
+            indHamilTxt += indTxt + ")"
 
-        hamilTxt += indHamilTxt + JJHamilTxt
+        hamilTxt += indHamilTxt + JJHamilTxt + '\n'
 
-        if '+' in hamilTxt[-3:-1]:
-            hamilTxt = hamilTxt[0:-2] + '\n'
+        # if '+' in hamilTxt[-3:-1] or '-' in hamilTxt[-3:-1]:
+        #     hamilTxt = hamilTxt[0:-2] + '\n'
 
         modeTxt = ''
         for i in range(harDim):
@@ -892,8 +926,7 @@ class Circuit:
 
         error1 = "The input must be be a python list"
         assert isinstance(nums, list), error1
-        error2 = ("The number of modes (length of the input) must be equal to "
-                  "the number of nodes")
+        error2 = "Length of the input must be equal to the number of modes."
         assert len(nums) == self.n, error2
 
         self.m = self.n*[1]
