@@ -177,6 +177,12 @@ class HamilTxt:
         elif self.tp == 'txt':
             return " + "
 
+    def neg(self):
+        if self.tp == 'ltx':
+            return "~-~"
+        elif self.tp == 'txt':
+            return " - "
+
     @staticmethod
     def ltx(txt):
         return f"${txt}$"
