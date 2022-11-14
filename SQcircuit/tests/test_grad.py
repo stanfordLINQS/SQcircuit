@@ -16,7 +16,6 @@ import torch
 trunc_num = 120
 eigen_count = 20
 tolerance = 2e-2
-grad_cutoff = 1e-9
 
 all_units = unt.farad_list | unt.freq_list | unt.henry_list
 
@@ -91,7 +90,6 @@ def function_grad_test(circuit_numpy,
             if type(element_numpy) is Junction:
                 grad_torch *= (2 * np.pi)
             print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
-            #if not (sqf.abs(grad_torch) < grad_cutoff and sqf.abs(grad_numpy) < grad_cutoff):
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
     optimizer.zero_grad()
 
@@ -354,7 +352,7 @@ def flux_sensitivity_function(sensitivity_function,
                 new_loop = Loop()
                 new_loop.set_flux(flux_point + offset)
                 new_circuit.loops[loop_idx] = new_loop
-                eigenvalues, _ = new_circuit.diag(2)
+                _ = new_circuit.diag(2)
                 first_harmonic = sensitivity_function(new_circuit)
                 first_harmonic_values.append(first_harmonic)
             (f_minus, f_0, f_plus) = first_harmonic_values
@@ -378,4 +376,31 @@ def test_flux_sensitivity():
                        flux_sensitivity_function(first_eigendifference_numpy),
                        circuit_torch,
                        flux_sensitivity_function(first_eigendifference_torch),
+                       delta=1e-4)
+
+def test_anharmonicity():
+    def anharmonicity_numpy(circuit):
+        B = circuit._efreqs[2] - circuit._efreqs[1]
+        A = circuit._efreqs[1] - circuit._efreqs[0]
+        return B / A
+
+    def anharmonicity_torch(circuit):
+        eigenvals, _ = circuit.diag(eigen_count)
+        B = (eigenvals[2] - eigenvals[1]) * 2 * np.pi * 1e9
+        A = (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
+        return B / A
+
+
+    # Create numpy circuit
+    set_optim_mode(False)
+    circuit_numpy = create_fluxonium_numpy()
+
+    # Create torch circuit
+    set_optim_mode(True)
+    circuit_torch = create_fluxonium_torch()
+
+    function_grad_test(circuit_numpy,
+                       anharmonicity_numpy,
+                       circuit_torch,
+                       anharmonicity_torch,
                        delta=1e-4)
