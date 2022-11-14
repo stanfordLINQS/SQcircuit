@@ -2,6 +2,7 @@
 """
 
 from collections import OrderedDict
+from copy import deepcopy
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
@@ -390,6 +391,12 @@ class Circuit:
 
     def __setstate__(self, state):
         self.__dict__ = state
+
+    def __copy__(self):
+        new_circuit = Circuit(self.elements)
+        new_circuit.set_trunc_nums(self.m)
+        # new_circuit.update()
+        return new_circuit
 
     @property
     def efreqs(self):

@@ -340,6 +340,11 @@ def mat_to_op(A: Union[ndarray, Tensor]):
 
     return qt.Qobj(A)
 
+def pow(x, a):
+    if get_optim_mode():
+        return torch.pow(x, a)
+    return x**a
+
 
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()
