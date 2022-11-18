@@ -1067,7 +1067,7 @@ class Circuit:
 
         return op
 
-    def _d_op_isolated(self, i: int, w: float) -> Qobj:
+    def _d_op_isolated(self, i: int, w: float, qp: bool = False) -> Qobj:
         """Return charge displacement operator for each isolated mode. By
         isolated, we mean that the operator is not in the general tensor
         product states of the overall system.
@@ -1079,15 +1079,23 @@ class Circuit:
             w:
                 Represent the power of the displacement operator, d^w. Right
                 now w should be only 0, 1, and -1.
+            qp:
+                boolean flag shows if we calculate the displacement operator
+                for quasiparticle loss calculation.
         """
 
+        if qp:
+            N = 2*self.m[i] - 1
+        else:
+            N = self.m[i]
+
         if w == 0:
-            return qt.qeye(self.m[i])
+            return qt.qeye(N)
 
-        d = np.zeros((self.m[i], self.m[i]))
+        d = np.zeros((N, N))
 
-        for k in range(self.m[i]):
-            for j in range(self.m[i]):
+        for k in range(N):
+            for j in range(N):
                 if j - 1 == k:
                     d[k, j] = 1
         d = qt.Qobj(d)
@@ -1097,6 +1105,71 @@ class Circuit:
 
         elif w > 0:
             return d.dag()
+
+    def _T_even_isolated(self, i: int) -> Qobj:
+        """Return transformations related to even parity for quasiparticle
+        loss calculation for i-th mode.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        T_even = np.zeros((2*self.m[i]-1, self.m[i]))
+        indices = np.arange(self.m[i])
+        T_even[2*indices, indices] = 1
+
+        return qt.Qobj(T_even)
+
+    def _T_odd_isolated(self, i: int) -> Qobj:
+        """Return transformations related to odd parity for quasiparticle
+        loss calculation for i-th mode.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode. (starts from zero for the first mode)
+        """
+
+        T_odd = np.zeros((2*self.m[i]-1, self.m[i]))
+        indices = np.arange(self.m[i]-1)
+
+        T_odd[2*indices+1, indices] = 1
+
+        return qt.Qobj(T_odd)
+
+    def _T_even(self):
+        """Return transformations related to even parity for quasiparticle
+        loss calculation.
+        """
+
+        # list of transformation for each mode
+        T_list = []
+
+        for i in range(self.n):
+            if self._is_charge_mode(i):
+                T_list.append(self._T_even_isolated(i))
+            else:
+                T_list.append(qt.qeye(self.m[i]))
+
+        return self._squeeze_op(qt.tensor(*T_list))
+
+    def _T_odd(self):
+        """Return transformations related to odd parity for quasiparticle
+        loss calculation.
+        """
+
+        # list of transformation for each mode
+        T_list = []
+
+        for i in range(self.n):
+            if self._is_charge_mode(i):
+                T_list.append(self._T_odd_isolated(i))
+            else:
+                T_list.append(qt.qeye(self.m[i]))
+
+        return self._squeeze_op(qt.tensor(*T_list))
 
     def alpha(self, i: Union[int, range], j: int) -> float:
         """Return the alpha, amount of displacement, for the bosonic
@@ -1192,7 +1265,8 @@ class Circuit:
 
                 if self._is_charge_mode(j):
                     exp.append(self._d_op_isolated(j, self.wTrans[i, j]))
-                    exp_h.append(qt.qeye(self.m[j]))
+                    exp_h.append(self._d_op_isolated(j, self.wTrans[i, j]
+                                                     , qp=True))
                 else:
                     exp.append(qt.displace(self.m[j], self.alpha(i, j)))
                     exp_h.append(qt.displace(self.m[j], self.alpha(i, j)/2))
@@ -1279,7 +1353,7 @@ class Circuit:
 
             self._memory_ops["cos"][el, B_idx] = self._squeeze_op(cos)
             self._memory_ops["sin"][el, B_idx] = self._squeeze_op(sin)
-            self._memory_ops["sin_half"][el, B_idx] = self._squeeze_op(sin_half)
+            self._memory_ops["sin_half"][el, B_idx] = sin_half
 
             H += -EJ * cos
 
@@ -1687,10 +1761,14 @@ class Circuit:
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
-                op = self._memory_ops['sin_half'][(el, _)]
+                op = (
+                    self._T_even().dag()
+                    * self._memory_ops['sin_half'][(el, _)]
+                    * self._T_odd()
+                )
                 decay += tempS * el.Y(omega, ENV["T"]) * omega * el.value() \
                          * unt.hbar * np.abs(
-                    (state1.dag() * op * state2).data[0, 0]) ** 2
+                    (state1.dag() * op * state2).data[0, 0])**2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1761,7 +1839,7 @@ class Circuit:
                 phi_i = self._memory_ops["phi"][i].copy()
                 phi_j = self._memory_ops["phi"][j].copy()
                 if i == j:
-                    op += 0.5 * A[i, i] * phi_i ** 2
+                    op += 0.5 * A[i, i] * phi_i**2
                 elif j > i:
                     op += A[i, j] * phi_i * phi_j
 
