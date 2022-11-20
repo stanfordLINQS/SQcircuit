@@ -1,5 +1,4 @@
-"""
-test_elements contains the test cases for the SQcircuit elements
+"""test_elements contains the test cases for the SQcircuit ``elements.py``
 functionalities.
 """
 import pytest

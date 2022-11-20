@@ -17,6 +17,20 @@ from SQcircuit.settings import get_optim_mode
 import SQcircuit.units as unt
 
 
+def _vectorize(circuit) -> torch.Tensor:
+    """Converts an ordered dictionary of element values for a given circuit
+    into Tensor format.
+    Parameters
+    ----------
+        circuit:
+            A circuit to vectorize.
+    """
+    elements = list(circuit.elements.values())[0]
+    element_values = [element.get_value() for element in elements]
+    element_tensors = torch.stack(element_values)
+    return element_tensors
+
+
 def eigencircuit(circuit, num_eigen):
     """Given a circuit, returns Torch functions that compute the
     concatenated tensor including both eigenvalues and eigenvectors of a circuit.
@@ -28,6 +42,7 @@ def eigencircuit(circuit, num_eigen):
     """
 
     class EigenSolver(torch.autograd.Function):
+
         @staticmethod
         def forward(ctx, element_tensors):
             # Compute forward pass for eigenvalues
