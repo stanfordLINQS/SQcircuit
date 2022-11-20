@@ -14,7 +14,7 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_error
 from SQcircuit.settings import get_optim_mode
 
 
@@ -51,7 +51,9 @@ class Element:
         self._value.requires_grad = f
 
     def set_value_with_error(self, mean: float, error: float) -> None:
-
+        if mean < 0:
+            raise_negative_value_error(self, mean, self.unit)
+            mean = sqf.abs(mean)
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
 
@@ -60,7 +62,7 @@ class Element:
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
 
-    def get_value(self):
+    def get_value(self) -> Union[float, Tensor]:
         pass
 
     @staticmethod
@@ -331,7 +333,7 @@ class Inductor(Element):
 
         self.set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "H") -> float:
+    def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -432,7 +434,7 @@ class Junction(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
-        cap: Optional[str] = None,
+        cap: Optional[Capacitor] = None,
         A: float = 1e-7,
         x: float = 3e-06,
         delta: float = 3.4e-4,
@@ -505,7 +507,7 @@ class Junction(Element):
 
         self.set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "Hz") -> float:
+    def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -557,11 +559,11 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-
+            kn_solver = sqf.get_kn_solver(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * np.sqrt(alpha) * kn(0, alpha) * np.sinh(alpha)
+                * x * sqf.sqrt(alpha) * kn_solver.apply(alpha) * sqf.sinh(alpha)
             return y
 
         return _default_Y_junc

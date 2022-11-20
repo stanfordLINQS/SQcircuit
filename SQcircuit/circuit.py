@@ -2,6 +2,7 @@
 """
 
 from collections import OrderedDict
+from copy import deepcopy
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
@@ -162,6 +163,11 @@ class CircuitEdge:
 
                 self.edge_elems_by_type[Capacitor].append(el.cap)
 
+                if get_optim_mode():
+                    self.circ.add_to_parameters(el.cap)
+                    if hasattr(el.cap, "partial_mat"):
+                        self.circ.partial_mats[el.cap] += el.cap.partial_mat(self.mat_rep)
+
                 self.circ.elem_keys[el.type].append(
                     el.get_key(self.edge, B_idx, W_idx)
                 )
@@ -305,7 +311,7 @@ class Circuit:
         }
 
         # contains the parameters that we want to optimize.
-        self._parameters: Dict[Tuple[Element, Tensor]] = {}
+        self._parameters: OrderedDict[Tuple[Element, Tensor]] = {}
 
         #######################################################################
         # Transformation related attributes
@@ -386,6 +392,12 @@ class Circuit:
     def __setstate__(self, state):
         self.__dict__ = state
 
+    def __copy__(self):
+        new_circuit = Circuit(self.elements)
+        new_circuit.set_trunc_nums(self.m)
+        # new_circuit.update()
+        return new_circuit
+
     @property
     def efreqs(self):
 
@@ -404,7 +416,7 @@ class Circuit:
         """
 
         if el.requires_grad:
-            self._parameters[el] = el.get_value()
+            self._parameters[el] = el._value
 
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -828,7 +840,7 @@ class Circuit:
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
-                      txt.linear(txt.phiExt, B[B_idx, :], st=False)
+                txt.linear(txt.phiExt, B[B_idx, :], st=False)
             # else:
             #     junTxt += txt.linear(txt.phi, W[W_idx, :])
             JJHamilTxt += junTxt + ")" + txt.p()
@@ -847,7 +859,7 @@ class Circuit:
             w = np.round(w[:harDim], 3)
 
             indTxt += txt.linear(txt.phi, w) + ")(" + \
-                      txt.linear(txt.phiExt, B[B_idx, :])
+                txt.linear(txt.phiExt, B[B_idx, :])
             indHamilTxt += indTxt + ")" + txt.p()
 
         hamilTxt += indHamilTxt + JJHamilTxt
@@ -860,7 +872,7 @@ class Circuit:
             modeTxt += txt.mode(i + 1) + txt.tab() + txt.har()
 
             modeTxt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
-                       + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
+                + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
 
             omega = np.round(self.omega[i] / 2 / np.pi / unt.get_unit_freq(), 5)
             zp = 2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
@@ -1440,9 +1452,13 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
-        EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
-        eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
-        eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
+        # EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
+        EigenSolver = sqf.eigencircuit(self, num_eigen=n_eig)
+        # eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
+        # eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
+        eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
+        eigenvalues = torch.real(eigen_solution[:, 0])
+        eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
@@ -1593,7 +1609,7 @@ class Circuit:
 
                     term *= coef * np.exp(
                         -(phi_list[mode]*unt.Phi0/x0)**2/2) * \
-                            eval_hermite(n, phi_list[mode] * unt.Phi0 / x0)
+                        eval_hermite(n, phi_list[mode] * unt.Phi0 / x0)
 
             state += term
 
@@ -1630,7 +1646,7 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = sqf.init_op(size = self._memory_ops["Q"][0].shape)
+        op = sqf.init_op(size=self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1707,9 +1723,8 @@ class Circuit:
                 The derivatives of angular frequency with respect to the
                 noisy parameter
         """
-
-        return (np.abs(partial_omega * A)
-                * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
+        return (sqf.abs(partial_omega * A)
+                * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"]))))
 
     def dec_rate(
         self,
@@ -1748,7 +1763,7 @@ class Circuit:
 
         omega = sqf.abs(omega2 - omega1)
 
-        decay = 0
+        decay = sqf.cast(0, dtype=torch.float32)
 
         # prevent the exponential overflow(exp(709) is the biggest number
         # that numpy can calculate
@@ -1777,24 +1792,23 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay += tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
+                        decay = decay + tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 "capacitive", edge, states)) ** 2
 
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
-                x = 1 / el.get_value()
                 if el.Q:
-                    decay += tempS / el.Q(omega, ENV["T"]) * x * sqf.abs(
-                        (state1.dag() * op * state2).data[0, 0]) ** 2
+                    decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
+                        sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay += tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                         * unt.hbar * sqf.abs(
-                    (state1.dag() * op * state2).data[0, 0]) ** 2
+                decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
+                    * unt.hbar * sqf.abs(
+                    sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1804,8 +1818,9 @@ class Circuit:
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
                                / sqf.sqrt(unt.hbar))
-                    partial_omega = sqf.abs((state2.dag() * op * state2 -
-                                             state1.dag() * op * state1).data[0, 0])
+                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
+                                                                   sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
+                                                                               state1))))
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
@@ -1885,11 +1900,9 @@ class Circuit:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             _B_idx:
-                Optional integer point to each row of B matrix (external flux
-                distribution of that element). This uses to specify that
-                gradient is calculated based on which JJ of the circuit
-                specifically (we use this option for critical current noise
-                calculation)
+                Optional integer to indicate which row of the B matrix (per-element
+                external flux distribution) to use. This specifies which JJ of the
+                circuit to consider specifically (ex. for critical current noise calculation).
         """
 
         partial_H = qt.Qobj()
@@ -1961,11 +1974,9 @@ class Circuit:
                 If ``True``, it subtracts the ground state frequency from the
                 desired frequency.
             _B_idx:
-                Optional integer point to each row of B matrix (external flux
-                distribution of that element). This uses to specify that
-                gradient is calculated based on which JJ of the circuit
-                specifically (we use this option for critical current noise
-                calculation)
+                Optional integer to indicate which row of the B matrix (per-element
+                external flux distribution) to use. This specifies which JJ of the
+                circuit to consider specifically (ex. for critical current noise calculation).
 
         """
 
@@ -2002,9 +2013,14 @@ class Circuit:
             el:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
-            m:
-                Integer specifies the eigenvalue. for example ``m=0`` specifies
-                the ground state and ``m=1`` specifies the first excited state.
+            states:
+                Integers indicating indices of eigenenergies to calculate
+                the difference of.
+            _B_idx:
+                Optional integer to indicate which row of the B matrix (external flux
+                distribution of that element) to use. This specifies which JJ of the
+                circuit to consider specifically
+                (ex. for critical current noise calculation).
         """
 
         state_m = self._evecs[states[0]]
@@ -2047,16 +2063,13 @@ class Circuit:
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
 
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
-            # print(f"m: {m}, n: {n}")
-            # print(f"omega_m: {self._efreqs[m]}, omega_n: {self._efreqs[n]}")
-            # print(f"delta_omega: {delta_omega}")
 
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / delta_omega
 
         return partial_state
 
-    def _update_H(self):
+    def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
 
@@ -2064,6 +2077,7 @@ class Circuit:
             Inductor: [],
             Junction: [],
         }
+        self.loops: List[Loop] = []
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
         self.cInvTrans, self.lTrans, self.wTrans = (
@@ -2072,6 +2086,11 @@ class Circuit:
             self.W.copy()
         )
         self._transform_hamil()
+
+        self._build_op_memory()
+        self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
+
 
     def _update_element(
         self,
