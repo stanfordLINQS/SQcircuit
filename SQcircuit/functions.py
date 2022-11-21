@@ -72,13 +72,11 @@ def get_kn_solver(n: int):
         def forward(ctx, x):
             ctx.save_for_backward(x)
             x = numpy(x)
-            print("forward")
             return torch.as_tensor(scipy.special.kn(n, x))
 
         @staticmethod
         def backward(ctx, grad_output):
-            print("backward")
-            z,  = ctx.saved_tensors
+            z, = ctx.saved_tensors
             return grad_output * scipy.special.kvp(n, z)
     return kn
 
@@ -236,13 +234,13 @@ def sort(a):
     return np.sort(a)
 
 
-def cast(value, dtype=torch.complex128):
+def cast(value, dtype=torch.complex128, requires_grad = True):
     if get_optim_mode():
         if isinstance(value, qt.Qobj):
             return qobj_to_tensor(value)
         return torch.tensor(
             value,
-            requires_grad=True,
+            requires_grad=requires_grad,
             dtype=dtype
         )
     return value
@@ -345,6 +343,10 @@ def pow(x, a):
         return torch.pow(x, a)
     return x**a
 
+def maximum(a, b):
+    if get_optim_mode():
+        return torch.maximum(a, b)
+    return np.maximum(a, b)
 
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()

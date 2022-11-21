@@ -14,9 +14,15 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_error
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_warning
 from SQcircuit.settings import get_optim_mode
 
+
+def enforce_baseline_value(baseline_value, value):
+    if value < baseline_value:
+        raise_negative_value_warning(baseline_value, value)
+        return baseline_value
+    return value
 
 class Element:
     """Class that contains general properties of elements."""
@@ -24,6 +30,7 @@ class Element:
     _unit = None
     _error = None
     _value = None
+
 
     @property
     def unit(self) -> str:
@@ -50,14 +57,13 @@ class Element:
 
         self._value.requires_grad = f
 
-    def set_value_with_error(self, mean: float, error: float) -> None:
-        if mean < 0:
-            raise_negative_value_error(self, mean, self.unit)
-            mean = sqf.abs(mean)
+    def set_value_with_error(self, mean: float, error: float, baseline_value: float) -> None:
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
 
-        self._value = torch.normal(mean_th, mean_th*error_th/100)
+        sampled_value = torch.normal(mean_th, mean_th*error_th/100)
+        baseline_tensor = torch.tensor(baseline_value, dtype=torch.float)
+        self._value = enforce_baseline_value(baseline_tensor, sampled_value)
 
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
@@ -113,11 +119,13 @@ class Capacitor(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
+        min_value: float = 1e-16,
         Q: Union[Any, Callable[[float], float]] = "default",
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
 
+        self.baseline_value = min_value
         self.set_value(value, unit, error)
         self.type = type(self)
 
@@ -176,7 +184,7 @@ class Capacitor(Element):
             E_c = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = unt.e ** 2 / 2 / E_c
 
-        self.set_value_with_error(mean, e)
+        self.set_value_with_error(mean, e, self.baseline_value)
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -212,7 +220,7 @@ class Capacitor(Element):
 class VerySmallCap(Capacitor):
 
     def __init__(self):
-        super().__init__(1e-20, "F", Q=None)
+        super().__init__(1e-20, "F", Q=None, min_value=0)
 
 
 class VeryLargeCap(Capacitor):
@@ -256,6 +264,7 @@ class Inductor(Element):
             value: float,
             unit: str = None,
             requires_grad: bool = False,
+            min_value: float = 1e-13,
             cap: Optional["Capacitor"] = None,
             Q: Union[Any, Callable[[float, float], float]] = "default",
             error: float = 0,
@@ -263,6 +272,7 @@ class Inductor(Element):
             id_str: Optional[str] = None
     ) -> None:
 
+        self.baseline_value = min_value
         self.set_value(value, unit, error)
         self.type = type(self)
 
@@ -331,7 +341,7 @@ class Inductor(Element):
             E_l = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = (unt.Phi0/2/np.pi)**2 / E_l
 
-        self.set_value_with_error(mean, e)
+        self.set_value_with_error(mean, e, self.baseline_value)
 
     def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -434,6 +444,7 @@ class Junction(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
+        min_value: float = 1e9,
         cap: Optional[Capacitor] = None,
         A: float = 1e-7,
         x: float = 3e-06,
@@ -444,6 +455,7 @@ class Junction(Element):
         id_str: Optional[str] = None,
     ) -> None:
 
+        self.baseline_value = min_value
         self.set_value(value, unit, error)
         self.type = type(self)
         self.A = A
@@ -505,7 +517,7 @@ class Junction(Element):
 
         mean = v * unt.freq_list[self.unit] * 2 * np.pi
 
-        self.set_value_with_error(mean, e)
+        self.set_value_with_error(mean, e, self.baseline_value)
 
     def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.

@@ -2069,9 +2069,17 @@ class Circuit:
 
         return partial_state
 
+    def enforce_positive_element_values(self):
+        if get_optim_mode():
+            for element, tensor in self._parameters.items():
+                baseline_tensor = sqf.cast(element.baseline_value, dtype=torch.float, requires_grad=False)
+                self._parameters[element] = sqf.maximum(tensor, baseline_tensor)
+
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
+
+        self.enforce_positive_element_values()
 
         self.elem_keys = {
             Inductor: [],
