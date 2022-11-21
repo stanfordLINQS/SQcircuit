@@ -2077,7 +2077,7 @@ class Circuit:
             for element, tensor in self._parameters.items():
                 baseline_tensor = sqf.cast(element.baseline_value, dtype=torch.float, requires_grad=False)
                 if tensor < baseline_tensor:
-                    raise_negative_value_warning(baseline_tensor.numpy(), tensor.numpy())
+                    raise_negative_value_warning(baseline_tensor.detach().numpy(), tensor.detach().numpy())
                 self._parameters[element] = sqf.maximum(tensor, baseline_tensor)
 
     def update(self):
