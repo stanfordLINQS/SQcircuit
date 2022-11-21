@@ -13,32 +13,22 @@ from torch import Tensor
 from numpy import ndarray
 from qutip import Qobj
 
-from SQcircuit.settings import get_optim_mode
 import SQcircuit.units as unt
 
-
-def _vectorize(circuit) -> torch.Tensor:
-    """Converts an ordered dictionary of element values for a given circuit
-    into Tensor format.
-    Parameters
-    ----------
-        circuit:
-            A circuit to vectorize.
-    """
-    elements = list(circuit.elements.values())[0]
-    element_values = [element.get_value() for element in elements]
-    element_tensors = torch.stack(element_values)
-    return element_tensors
+from SQcircuit.settings import get_optim_mode
 
 
-def eigencircuit(circuit, num_eigen):
-    """Given a circuit, returns Torch functions that compute the
-    concatenated tensor including both eigenvalues and eigenvectors of a circuit.
+def eigencircuit(circuit, n_eig: int):
+    """Given a circuit, returns Torch functions that compute the concatenated 
+    tensor including both eigenvalues and eigenvectors of a circuit.
 
     Parameters
     ----------
         circuit:
             A circuit for which the eigensystem will be solved.
+        n_eig:
+            Number of eigenvalues to output. The lower ``n_eig``, the
+                faster ``SQcircuit`` finds the eigenvalues.
     """
 
     class EigenSolver(torch.autograd.Function):
@@ -46,21 +36,29 @@ def eigencircuit(circuit, num_eigen):
         @staticmethod
         def forward(ctx, element_tensors):
             # Compute forward pass for eigenvalues
-            eigenvalues, eigenvectors = circuit.diag_np(n_eig=num_eigen)
-            eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for eigenvalue in eigenvalues]
-            eigenvalue_tensors = [torch.as_tensor(eigenvalue) for eigenvalue in eigenvalues]
+            eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
+            eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
+                           eigenvalue in eigenvalues]
+            eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
+                                  eigenvalue in eigenvalues]
             eigenvalue_tensor = torch.stack(eigenvalue_tensors)
             eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
             # Compute forward pass for eigenvectors
-            eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for eigenvector in eigenvectors]
+            eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
+                                   eigenvector in eigenvectors]
             eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
             return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
         @staticmethod
         def backward(ctx, grad_output):
-            # Break grad_output into eigenvalue subtensor and eigenvector subtensor
+            # Break grad_output into eigenvalue sub-tensor and eigenvector 
+            # sub-tensor
             elements = list(circuit._parameters.keys())
-            m, n, l = len(circuit.parameters), num_eigen, (grad_output.shape[1] - 1) # grad_output.shape[1] == n + 1
+            m, n, l = (
+                len(circuit.parameters), 
+                n_eig,
+                (grad_output.shape[1] - 1),  # grad_output.shape[1] ==  n + 1
+            ) 
             grad_output_eigenvalue = grad_output[:, 0]
             grad_output_eigenvector = grad_output[:, 1:]
 
@@ -69,17 +67,25 @@ def eigencircuit(circuit, num_eigen):
             for el_idx in range(m):
                 for eigen_idx in range(n):
                     # Compute backward pass for eigenvalues
-                    partial_omega[el_idx, eigen_idx] = circuit.get_partial_omega(el=elements[el_idx],
-                                                                                 m=eigen_idx, subtract_ground=False)
+                    partial_omega[
+                        el_idx, eigen_idx] = circuit.get_partial_omega(
+                        el=elements[el_idx],
+                        m=eigen_idx, subtract_ground=False)
                     # Compute backward pass for eigenvectors
                     partial_tensor = torch.squeeze(
-                        torch.as_tensor(circuit.get_partial_vec(el=elements[el_idx], m=eigen_idx).full()))
+                        torch.as_tensor(
+                            circuit.get_partial_vec(el=elements[el_idx],
+                                                    m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
-            eigenvalue_grad = torch.sum(partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
-            eigenvector_grad = torch.sum(partial_eigenvec * torch.conj(grad_output_eigenvector), axis=(-1, -2))
+            eigenvalue_grad = torch.sum(
+                partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
+            eigenvector_grad = torch.sum(
+                partial_eigenvec * torch.conj(grad_output_eigenvector),
+                axis=(-1, -2))
             return torch.real(eigenvalue_grad + eigenvector_grad)
 
     return EigenSolver
+
 
 def get_kn_solver(n: int):
     class kn(torch.autograd.Function):
@@ -87,15 +93,15 @@ def get_kn_solver(n: int):
         def forward(ctx, x):
             ctx.save_for_backward(x)
             x = numpy(x)
-            print("forward")
             return torch.as_tensor(scipy.special.kn(n, x))
 
         @staticmethod
         def backward(ctx, grad_output):
-            print("backward")
-            z,  = ctx.saved_tensors
+            z = ctx.saved_tensors
             return grad_output * scipy.special.kvp(n, z)
+
     return kn
+
 
 # func_names = ['abs', 'tanh', 'exp', 'sqrt']
 #
@@ -110,7 +116,6 @@ def get_kn_solver(n: int):
 
 
 def block_diag(*args: Union[ndarray, Tensor]) -> Union[ndarray, Tensor]:
-
     if get_optim_mode():
         return torch.block_diag(*args)
 
@@ -133,7 +138,6 @@ def tensor_product_torch(*args: Tensor) -> Tensor:
 
 
 def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
-
     if get_optim_mode():
         return tensor_product_torch(*args)
 
@@ -149,14 +153,12 @@ def eye(N: int) -> Union[Qobj, Tensor]:
             Size of the operator.
     """
     if get_optim_mode():
-
         return torch.eye(N)
 
     return qt.qeye(N)
 
 
 def diag(v):
-
     if get_optim_mode():
         return torch.diag(v)
 
@@ -201,7 +203,7 @@ def init_sparse(shape):
 
 def init_op(size):
     if get_optim_mode():
-        return torch.zeros(size = size, dtype = torch.complex128)
+        return torch.zeros(size=size, dtype=torch.complex128)
         # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
@@ -216,6 +218,7 @@ def log(x):
     if get_optim_mode():
         return torch.log(x)
     return np.log(x)
+
 
 def array(object):
     if get_optim_mode():
@@ -234,10 +237,12 @@ def sinh(x):
         return torch.sinh(x)
     return np.sinh(x)
 
+
 def cosh(x):
     if get_optim_mode():
         return torch.cosh(x)
     return np.cosh(x)
+
 
 def tanh(x):
     if get_optim_mode():
@@ -314,13 +319,15 @@ def mat_mul(A, B):
     if get_optim_mode():
         A = dense(A)
         B = dense(B)
-        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128), torch.as_tensor(B, dtype=torch.complex128))
+        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128),
+                            torch.as_tensor(B, dtype=torch.complex128))
     if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
         return A * B
     return A @ B
 
 
-# Currently, use dense form as PyTorch doesn't seem to support complex sparse tensors
+# Currently, use dense form as PyTorch doesn't seem to support complex 
+# sparse tensors
 def qobj_to_tensor(S):
     return torch.as_tensor(S.full(), dtype=torch.complex128)
 
@@ -350,15 +357,15 @@ def mat_to_op(A: Union[ndarray, Tensor]):
     """Change matrix format to ``qutip.Qobj`` operator."""
 
     if get_optim_mode():
-
         return A
 
     return qt.Qobj(A)
 
+
 def pow(x, a):
     if get_optim_mode():
         return torch.pow(x, a)
-    return x**a
+    return x ** a
 
 
 '''def sparse_csr_to_tensor(S):
