@@ -25,4 +25,4 @@ def raise_negative_value_error(baseline_value, element_value):
 
 
 def raise_negative_value_warning(baseline_value, element_value):
-    raise ValueError(f"Attempting to set element value to {element_value} during optimization. This is less than the baseline value of {baseline_value}, so SQcircuit will automatically set this element's value to the baseline.")
+    warnings.warn(f"Attempting to set element value to {element_value} during optimization. This is less than the baseline value of {baseline_value}, so SQcircuit will automatically set this element's value to the baseline.")
