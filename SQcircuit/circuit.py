@@ -1422,7 +1422,10 @@ class Circuit:
 
             return qt.Qobj(Q_eig)
 
-    def diag_np(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+    def diag_np(
+        self,
+        n_eig: int
+    ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         error1 = "Please specify the truncation number for each mode."
         assert len(self.m) != 0, error1
         error2 = "n_eig (number of eigenvalues) should be an integer."
@@ -1451,11 +1454,8 @@ class Circuit:
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
-    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor, Tensor]:
-        # EigenvalueSolver, EigenvectorSolver = sqf.eigencircuit(self, num_eigen = n_eig)
-        EigenSolver = sqf.eigencircuit(self, num_eigen=n_eig)
-        # eigenvalues = EigenvalueSolver.apply(torch.stack(self.parameters))
-        # eigenvectors = EigenvectorSolver.apply(torch.stack(self.parameters))
+    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
+        EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
         eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
@@ -1464,7 +1464,10 @@ class Circuit:
 
         return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
 
-    def diag(self, n_eig: int) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+    def diag(
+        self,
+        n_eig: int
+    ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         """
         Diagonalize the Hamiltonian of the circuit and return the
         eigenfrequencies and eigenvectors of the circuit up to specified

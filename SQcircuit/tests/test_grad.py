@@ -99,12 +99,15 @@ def function_grad_test(circuit_numpy,
 def first_eigendifference_numpy(circuit):
     return circuit._efreqs[1] - circuit._efreqs[0]
 
+
 def first_eigendifference_torch(circuit):
     eigenvals, _ = circuit.diag(eigen_count)
     return (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
 
+
 def test_omega_transmon():
     """Verify gradient of first eigendifference omega_1-omega_0 in transmon circuit with linearized value."""
+
     cap_value, ind_value, Q = 7.746, 12, 1e6
     cap_unit, ind_unit = 'pF', 'GHz'
     # Create numpy circuit
@@ -132,6 +135,7 @@ def test_omega_transmon():
 def test_T1_transmon():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and quasiparticle
      noise in transmon circuit with linearized value."""
+
     cap_value, ind_value, Q = 7.746, 5, 1e6
     cap_unit, ind_unit = 'fF', 'GHz'
     # Create numpy circuit

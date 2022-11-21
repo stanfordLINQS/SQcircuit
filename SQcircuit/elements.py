@@ -119,7 +119,7 @@ class Capacitor(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
-        min_value: float = 1e-16,
+        min_value: float = 1e-18,
         Q: Union[Any, Callable[[float], float]] = "default",
         error: float = 0,
         id_str: Optional[str] = None,
