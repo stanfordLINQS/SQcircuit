@@ -14,13 +14,13 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_warning
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_error
 from SQcircuit.settings import get_optim_mode
 
 
 def enforce_baseline_value(baseline_value, value):
     if value < baseline_value:
-        raise_negative_value_warning(baseline_value, value)
+        raise_negative_value_error(baseline_value, value)
         return baseline_value
     return value
 

@@ -34,7 +34,7 @@ from SQcircuit.elements import (
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
-from SQcircuit.logs import raise_optim_error_if_needed
+from SQcircuit.logs import raise_optim_error_if_needed, raise_negative_value_warning
 
 
 class CircuitEdge:
@@ -2076,6 +2076,8 @@ class Circuit:
         if get_optim_mode():
             for element, tensor in self._parameters.items():
                 baseline_tensor = sqf.cast(element.baseline_value, dtype=torch.float, requires_grad=False)
+                if tensor < baseline_tensor:
+                    raise_negative_value_warning(baseline_tensor.numpy(), tensor.numpy())
                 self._parameters[element] = sqf.maximum(tensor, baseline_tensor)
 
     def update(self):
