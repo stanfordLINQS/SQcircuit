@@ -1,5 +1,7 @@
 """logs.py contains the error and warning messages for SQcircuit"""
 
+import warnings
+
 from SQcircuit.settings import get_optim_mode
 
 UNIT_ERROR = "The input unit is not correct. Look at the API documentation " \
@@ -18,6 +20,9 @@ def raise_optim_error_if_needed():
         raise ValueError(OPTIM_ERROR)
 
 
-def raise_negative_value_error(element, value, unit):
-    raise ValueError(f"Attempting to set element {element} value to {value} {unit}. \
-    Negative values are not supported, so this will be set to the absolute value instead.")
+def raise_negative_value_error(baseline_value, element_value):
+    raise ValueError(f"Attempting to set user-provided element value to {element_value}. This is lower than the baseline value of {baseline_value}, so SQcircuit will terminate.")
+
+
+def raise_negative_value_warning(baseline_value, element_value):
+    warnings.warn(f"Attempting to set element value to {element_value} during optimization. This is less than the baseline value of {baseline_value}, so SQcircuit will automatically set this element's value to the baseline.")

@@ -71,7 +71,6 @@ def function_grad_test(circuit_numpy,
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_minus = function_numpy(circuit_numpy)
-            print(f"val plus: {val_plus}, val minus: {val_minus}")
             grad_numpy = (val_plus - val_minus) / (2 * delta * all_units[element_numpy.unit])
             element_numpy.set_value(scale_factor * element_numpy.get_value(
                 u=element_numpy.unit) + delta,
@@ -79,6 +78,10 @@ def function_grad_test(circuit_numpy,
             )
 
             edge_elements_torch = list(circuit_torch.elements.values())[0]
+            for edge_element in edge_elements_torch:
+                print(f"edge element: {edge_element}")
+                print(f"value: {edge_element._value}")
+                print(f"value grad: {edge_element._value.grad}")
             grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
             # TODO: Modify Element class so that following gradient scaling is not necessary
             if type(element_numpy) is Capacitor and element_numpy.unit in unt.freq_list:
@@ -185,13 +188,13 @@ def test_grad_multiple_steps():
         print(
             f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
         optimizer.zero_grad()
-        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
         loss.backward()
         C._value.grad *= (C._value**2)
         optimizer.step()
+        cr.update()
     assert loss <= 6e-3
 
     # Test L differentiation
@@ -210,13 +213,13 @@ def test_grad_multiple_steps():
         print(
             f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
         optimizer.zero_grad()
-        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
         loss.backward()
         L._value.grad *= (L._value) ** 2
         optimizer.step()
+        cr.update()
     assert loss <= 6e-3
     set_optim_mode(False)
 
@@ -250,7 +253,6 @@ def test_grad_fluxonium():
         JJ_value = JJ.get_value().detach().numpy()
         print(f"Parameter values (C [F], L [H], JJ [Hz]): {C_value, L_value, JJ_value}\n")
         optimizer.zero_grad()
-        cr.update()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
@@ -259,6 +261,7 @@ def test_grad_fluxonium():
         L._value.grad *= (L._value) ** 2
         JJ._value.grad *= (JJ._value) ** 2
         optimizer.step()
+        cr.update()
     assert loss <= 5e-3
     set_optim_mode(False)
 

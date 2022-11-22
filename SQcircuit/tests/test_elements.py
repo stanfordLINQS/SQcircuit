@@ -30,13 +30,13 @@ def test_capacitor_error_massages():
 
 
 def test_capacitor_energy():
-    cap = Capacitor(10, "GHz")
+    cap = Capacitor(10, "GHz", min_value=0)
     assert cap.get_value("GHz") == 10
 
     assert cap.get_value("MHz") == 10 * 1000
 
     val = cap.get_value()
-    cap2 = Capacitor(val, "F")
+    cap2 = Capacitor(val, "F", min_value=0)
     assert cap2.get_value("GHz") == 10
 
 
@@ -177,7 +177,7 @@ def test_junction_unit():
     assert JJ.unit == "GHz"
 
     sq.set_unit_JJ("MHz")
-    JJ = Junction(10)
+    JJ = Junction(10, min_value=0)
 
     assert JJ.unit == "MHz"
 
@@ -185,16 +185,16 @@ def test_junction_grad():
 
     # First check error massages
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        Junction(10, requires_grad=True)
+        Junction(10, requires_grad=True, min_value=0)
 
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        assert not Junction(10).requires_grad
+        assert not Junction(10, min_value=0).requires_grad
 
-    junc_value_no_grad = Junction(10).get_value()
+    junc_value_no_grad = Junction(10, min_value=0).get_value()
 
     sq.set_optim_mode(True)
 
-    junc_value_with_grad = Junction(10, requires_grad=True).get_value()
+    junc_value_with_grad = Junction(10, requires_grad=True, min_value=0).get_value()
 
     assert junc_value_no_grad == float_torch_to_python(junc_value_with_grad)
 
