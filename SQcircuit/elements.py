@@ -24,13 +24,13 @@ def enforce_baseline_value(baseline_value, value):
         return baseline_value
     return value
 
+
 class Element:
     """Class that contains general properties of elements."""
 
     _unit = None
     _error = None
     _value = None
-
 
     @property
     def unit(self) -> str:
@@ -57,7 +57,12 @@ class Element:
 
         self._value.requires_grad = f
 
-    def set_value_with_error(self, mean: float, error: float, baseline_value: float) -> None:
+    def set_value_with_error(
+        self,
+        mean: float,
+        error: float,
+        baseline_value: float
+    ) -> None:
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
 

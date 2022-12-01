@@ -34,7 +34,10 @@ from SQcircuit.elements import (
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
-from SQcircuit.logs import raise_optim_error_if_needed, raise_negative_value_warning
+from SQcircuit.logs import (
+    raise_optim_error_if_needed,
+    raise_negative_value_warning
+)
 
 
 class CircuitEdge:
@@ -166,7 +169,9 @@ class CircuitEdge:
                 if get_optim_mode():
                     self.circ.add_to_parameters(el.cap)
                     if hasattr(el.cap, "partial_mat"):
-                        self.circ.partial_mats[el.cap] += el.cap.partial_mat(self.mat_rep)
+                        self.circ.partial_mats[el.cap] += el.cap.partial_mat(
+                            self.mat_rep
+                        )
 
                 self.circ.elem_keys[el.type].append(
                     el.get_key(self.edge, B_idx, W_idx)
@@ -1209,7 +1214,7 @@ class Circuit:
         return coef * np.sqrt(unt.hbar/2*Z) * self.wTrans[i, j]
 
     def _build_op_memory(self) -> None:
-        """build the charge, flux, number, and cross multiplication of charge
+        """Build the charge, flux, number, and cross multiplication of charge
         operators and store them in memory related to operators.
         """
 
@@ -1296,8 +1301,7 @@ class Circuit:
         self._memory_ops["root_exp"] = root_exp_ops
 
     def _get_LC_hamil(self) -> Qobj:
-        """
-        get the LC part of the Hamiltonian
+        """Get the LC part of the Hamiltonian
         outputs:
             -- HLC: LC part of the Hamiltonian (qutip Object)
         """
@@ -1322,8 +1326,7 @@ class Circuit:
         return LC_hamil
 
     def _get_external_flux_at_element(self, B_idx: int) -> float:
-        """
-        Return the external flux at an inductive element.
+        """Return the external flux at an inductive element.
 
         Parameters
         ----------
@@ -1456,7 +1459,12 @@ class Circuit:
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
-        eigen_solution = EigenSolver.apply(torch.stack(self.parameters) if self.parameters else torch.tensor([]))
+
+        if self.parameters:
+            eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
+        else:
+            eigen_solution = EigenSolver.apply(torch.tensor([]))
+
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues
@@ -1710,7 +1718,8 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
-        # TODO: Check operator format/dtype, compare to using states from numpy solver directly
+        # TODO: Check operator format/dtype, compare to using states from
+        #  numpy solver directly
         return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
 
     @staticmethod
@@ -1726,8 +1735,10 @@ class Circuit:
                 The derivatives of angular frequency with respect to the
                 noisy parameter
         """
-        return (sqf.abs(partial_omega * A)
-                * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"]))))
+        return (
+            sqf.abs(partial_omega * A)
+            * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"])))
+        )
 
     def dec_rate(
         self,
@@ -1735,7 +1746,7 @@ class Circuit:
         states: Tuple[int, int],
         total: bool = True
     ) -> float:
-        """ Return the decoherence rate in [1/s] between each two eigenstates
+        """Return the decoherence rate in [1/s] between each two eigenstates
         for different types of depolarization and dephasing.
 
         Parameters
@@ -1795,23 +1806,38 @@ class Circuit:
                     else:
                         cap = el.cap
                     if cap.Q:
-                        decay = decay + tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
-                            self.matrix_elements(
-                                "capacitive", edge, states)) ** 2
+                        decay = decay + (
+                            tempS
+                            * cap.get_value()
+                            / cap.Q(omega)
+                            * sqf.abs(self.matrix_elements("capacitive",
+                                                           edge, states))**2
+                        )
 
         if dec_type == "inductive":
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 if el.Q:
-                    decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
-                        sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
+                    decay = decay + (
+                        tempS
+                        / el.Q(omega, ENV["T"])
+                        / el.get_value()
+                        * sqf.abs(sqf.unwrap(sqf.mat_mul(
+                            sqf.mat_mul(sqf.dag(state1), op), state2)))**2
+                    )
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                    * unt.hbar * sqf.abs(
-                    sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
+                decay = decay + (
+                    tempS
+                    * el.Y(omega, ENV["T"])
+                    * omega
+                    * el.get_value()
+                    * unt.hbar
+                    * sqf.abs(sqf.unwrap(sqf.mat_mul(
+                        sqf.mat_mul(sqf.dag(state1), op), state2)))**2
+                )
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
@@ -1819,11 +1845,14 @@ class Circuit:
             for i in range(self.n):
                 if self._is_charge_mode(i):
                     for j in range(self.n):
-                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / sqf.sqrt(unt.hbar))
-                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
-                                                                   sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
-                                                                               state1))))
+                        op += (
+                            self.cInvTrans[i, j] * self._memory_ops["Q"][j]
+                            / sqf.sqrt(unt.hbar)
+                        )
+                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul(
+                        (sqf.mat_mul(sqf.dag(state2), op), state2)
+                        - sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state1)
+                    )))
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
@@ -1894,8 +1923,7 @@ class Circuit:
         el: Union[Capacitor, Inductor, Junction, Loop],
         _B_idx: Optional[int] = None,
     ) -> Qobj:
-        """
-        return the gradient of the Hamiltonian with respect to elements or
+        """Return the gradient of the Hamiltonian with respect to elements or
         loop as ``qutip.Qobj`` format.
         Parameters
         ----------
@@ -1903,9 +1931,10 @@ class Circuit:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (per-element
-                external flux distribution) to use. This specifies which JJ of the
-                circuit to consider specifically (ex. for critical current noise calculation).
+                Optional integer to indicate which row of the B matrix
+                (per-element external flux distribution) to use. This
+                specifies which JJ of the circuit to consider specifically
+                (ex. for critical current noise calculation).
         """
 
         partial_H = qt.Qobj()
@@ -1925,23 +1954,29 @@ class Circuit:
 
                     phi = self._get_external_flux_at_element(B_idx)
 
-                    partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / sqf.numpy(el.get_value())**2 / np.sqrt(unt.hbar)
-                                   * (unt.Phi0/2/np.pi) * phi)
+                    partial_H += -(
+                        self._memory_ops["ind_hamil"][(el, B_idx)]
+                        / sqf.numpy(el.get_value())**2 / np.sqrt(unt.hbar)
+                        * (unt.Phi0/2/np.pi) * phi
+                    )
 
         elif isinstance(el, Loop):
 
             loop_idx = self.loops.index(el)
 
             for edge, el_ind, B_idx in self.elem_keys[Inductor]:
-                partial_H += (self.B[B_idx, loop_idx]
-                              * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / sqf.numpy(el_ind.get_value()) * unt.Phi0 / np.sqrt(unt.hbar)
-                              / 2 / np.pi)
+                partial_H += (
+                    self.B[B_idx, loop_idx]
+                    * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
+                    / sqf.numpy(el_ind.get_value())
+                    * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
+                )
 
             for edge, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
-                partial_H += (self.B[B_idx, loop_idx] * sqf.numpy(el_JJ.get_value())
-                              * self._memory_ops['sin'][(el_JJ, B_idx)])
+                partial_H += (
+                    self.B[B_idx, loop_idx] * sqf.numpy(el_JJ.get_value())
+                    * self._memory_ops['sin'][(el_JJ, B_idx)]
+                )
 
         elif isinstance(el, Junction):
 
@@ -1977,9 +2012,10 @@ class Circuit:
                 If ``True``, it subtracts the ground state frequency from the
                 desired frequency.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (per-element
-                external flux distribution) to use. This specifies which JJ of the
-                circuit to consider specifically (ex. for critical current noise calculation).
+                Optional integer to indicate which row of the B matrix
+                (per-element external flux distribution) to use. This
+                specifies which JJ of the circuit to consider specifically
+                (ex. for critical current noise calculation).
 
         """
 
@@ -2020,9 +2056,9 @@ class Circuit:
                 Integers indicating indices of eigenenergies to calculate
                 the difference of.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (external flux
-                distribution of that element) to use. This specifies which JJ of the
-                circuit to consider specifically
+                Optional integer to indicate which row of the B matrix
+                (external flux distribution of that element) to use. This
+                specifies which JJ of the circuit to consider specifically
                 (ex. for critical current noise calculation).
         """
 
@@ -2075,9 +2111,16 @@ class Circuit:
     def enforce_positive_element_values(self):
         if get_optim_mode():
             for element, tensor in self._parameters.items():
-                baseline_tensor = sqf.cast(element.baseline_value, dtype=torch.float, requires_grad=False)
+                baseline_tensor = sqf.cast(
+                    element.baseline_value,
+                    dtype=torch.float,
+                    requires_grad=False
+                )
                 if tensor < baseline_tensor:
-                    raise_negative_value_warning(baseline_tensor.detach().numpy(), tensor.detach().numpy())
+                    raise_negative_value_warning(
+                        baseline_tensor.detach().numpy(),
+                        tensor.detach().numpy()
+                    )
                 self._parameters[element] = sqf.maximum(tensor, baseline_tensor)
 
     def update(self):
@@ -2103,56 +2146,3 @@ class Circuit:
         self._build_op_memory()
         self._LC_hamil = self._get_LC_hamil()
         self._build_exp_ops()
-
-
-    def _update_element(
-        self,
-        element: Union[Capacitor, Inductor, Junction, Loop],
-        value: float,
-        unit: str,
-        update_H: bool = True
-    ) -> None:
-        """Update a single circuit element with a given element value and unit.
-        If the unit is `None` (not specified), the element's units will not be
-        altered.
-        Parameters
-        ----------
-            value:
-                The scalar value to set for a given element, which can be the
-                capacitance, inductance, Josephson energy, or loop flux.
-            unit:
-                The units corresponding to the input value, which must correspond
-                to the type of element used.
-        """
-        if element.type not in [Capacitor, Inductor, Junction, Loop]:
-            raise ValueError("Element type must be one of Capacitor, Inductor, "
-                             "Junction, or Loop.")
-        element.set_value(value, unit)
-        if update_H:
-            self._update_H()
-
-    def update_elements(
-        self,
-        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
-        values_units: List[Tuple[float, str]]
-    ):
-        """Updates an input list of circuit elements with new scalar parameter
-        values, using the units already specified for that element.
-        Parameters
-        ----------
-            elements:
-                List of circuit elements, which must be of the type ``Capacitor``,
-                ``Inductor``, or ``Junction``.
-            values_units:
-                List of tuples (of the same length as ``elements``) for which
-                the first tuple element is the value to update with, and the
-                second is the unit corresponding to that value.
-        """
-        for idx in range(len(elements)):
-            self._update_element(
-                elements[idx],
-                values_units[idx][0],
-                values_units[idx][1],
-                update_H=False
-            )
-        self._update_H()
