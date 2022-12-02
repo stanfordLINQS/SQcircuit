@@ -25,8 +25,8 @@ https://arxiv.org/abs/2206.08319
 
 # version of the SQcircuit
 MAJOR = 0
-MINOR = 0
-PATCH = 15
+MINOR = 1
+PATCH = 0
 
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, PATCH)
 
