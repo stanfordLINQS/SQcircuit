@@ -88,7 +88,7 @@ def test_coupled_Fluxonium():
     jj_sys_grad = JJ1._value.grad
 
     assert is_close(omega_sq, omega_sys, 1e-2)
-    # assert is_close(c_sq_grad, c_sys_grad, 2e-2)
+    assert is_close(c_sq_grad, c_sys_grad, 2e-2)
     assert is_close(l_sq_grad, l_sys_grad, 2e-2)
     assert is_close(jj_sq_grad, jj_sys_grad, 20e-2)
 

@@ -2,7 +2,6 @@
 """
 
 from collections import OrderedDict
-from copy import deepcopy
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
@@ -1425,10 +1424,30 @@ class Circuit:
 
             return qt.Qobj(Q_eig)
 
+    @staticmethod
+    def _remove_global_phase_evecs(evecs: List[Qobj]) -> List[Qobj]:
+        """Method that remove the phase of the input eigenvectors based on
+        their element with maximum absolute value."""
+
+        phaseless_evecs = []
+
+        for vec in evecs:
+
+            vec_np = vec.full()
+            # index of element with maximum absolute value
+            max_arg = np.argmax(np.abs(vec_np))
+            phase = np.angle(vec_np[max_arg])
+
+            phaseless_evecs.append(vec * np.exp(-1j * phase)[0])
+
+        return phaseless_evecs
+
     def diag_np(
         self,
-        n_eig: int
-    ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
+        n_eig: int,
+        subtract_ground: bool,
+        subtract_phase: bool
+    ) -> Tuple[ndarray, List[Qobj]]:
         error1 = "Please specify the truncation number for each mode."
         assert len(self.m) != 0, error1
         error2 = "n_eig (number of eigenvalues) should be an integer."
@@ -1442,6 +1461,9 @@ class Circuit:
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
+        if subtract_ground:
+            efreqs_sorted = efreqs_sorted - efreqs_sorted[0]
+
         sort_arg = np.argsort(efreqs)
         if isinstance(sort_arg, int):
             sort_arg = [sort_arg]
@@ -1451,14 +1473,28 @@ class Circuit:
             for ind in sort_arg
         ]
 
+        if subtract_phase:
+            evecs_sorted = self._remove_global_phase_evecs(evecs_sorted)
+            pass
+
         # store the eigenvalues and eigenvectors of the circuit Hamiltonian
         self._efreqs = efreqs_sorted
         self._evecs = evecs_sorted
 
-        return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
+        return efreqs_sorted, evecs_sorted
 
-    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
+    def diag_torch(
+        self,
+        n_eig: int,
+        subtract_ground: bool,
+        subtract_phase: bool
+    ) -> Tuple[Tensor, List[Tensor]]:
+        EigenSolver = sqf.eigencircuit(
+            self,
+            n_eig,
+            subtract_ground,
+            subtract_phase
+        )
 
         if self.parameters:
             eigen_solution = EigenSolver.apply(torch.stack(self.parameters))
@@ -1470,11 +1506,13 @@ class Circuit:
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
-        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
+        return eigenvalues, eigenvectors
 
     def diag(
         self,
-        n_eig: int
+        n_eig: int,
+        subtract_ground: bool = False,
+        subtract_phase: bool = False
     ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
         """
         Diagonalize the Hamiltonian of the circuit and return the
@@ -1486,19 +1524,36 @@ class Circuit:
             n_eig:
                 Number of eigenvalues to output. The lower ``n_eig``, the
                 faster ``SQcircuit`` finds the eigenvalues.
+            subtract_ground:
+                If true, the ground eigenfrequency is subtracted from other
+                eigenfrequencies.
+            subtract_phase:
+                If true, SQcircuit tries to remove the global phase from
+                eigenvectors to return the real value eigenvectors (note that
+                it may not be possible in some cases).
         Returns
         ----------
             efreq:
-                ndarray of eigenfrequencies in frequency unit of SQcircuit
-                (gigahertz by default)
+                ndarray or Tensor of eigenfrequencies in frequency unit of
+                SQcircuit (gigahertz by default).
             evecs:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on optimization mode.
         """
         if get_optim_mode():
-            return self.diag_torch(n_eig)
+            eigenvalues, eigenvectors = self.diag_torch(
+                n_eig,
+                subtract_ground,
+                subtract_phase
+            )
         else:
-            return self.diag_np(n_eig)
+            eigenvalues, eigenvectors = self.diag_np(
+                n_eig,
+                subtract_ground,
+                subtract_phase
+            )
+
+        return eigenvalues / (2 * np.pi * unt.get_unit_freq()), eigenvectors
 
     ###########################################################################
     # Methods that calculate circuit properties

@@ -18,7 +18,12 @@ import SQcircuit.units as unt
 from SQcircuit.settings import get_optim_mode
 
 
-def eigencircuit(circuit, n_eig: int):
+def eigencircuit(
+    circuit,
+    n_eig: int,
+    subtract_ground: bool,
+    subtract_phase: bool
+):
     """Given a circuit, returns Torch functions that compute the concatenated 
     tensor including both eigenvalues and eigenvectors of a circuit.
 
@@ -29,6 +34,13 @@ def eigencircuit(circuit, n_eig: int):
         n_eig:
             Number of eigenvalues to output. The lower ``n_eig``, the
                 faster ``SQcircuit`` finds the eigenvalues.
+        subtract_ground:
+            If true, the ground eigenfrequency is subtracted from other
+            eigenfrequencies.
+        subtract_phase:
+            If true, SQcircuit tries to remove the global phase from
+            eigenvectors to return the real value eigenvectors (note that
+            it may not be possible in some cases).
     """
 
     class EigenSolver(torch.autograd.Function):
@@ -36,17 +48,21 @@ def eigencircuit(circuit, n_eig: int):
         @staticmethod
         def forward(ctx, element_tensors):
             # Compute forward pass for eigenvalues
-            eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
-            eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
-                           eigenvalue in eigenvalues]
+            eigenvalues, eigenvectors = circuit.diag_np(
+                n_eig=n_eig,
+                subtract_ground=subtract_ground,
+                subtract_phase=subtract_phase
+            )
             eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
                                   eigenvalue in eigenvalues]
             eigenvalue_tensor = torch.stack(eigenvalue_tensors)
             eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
+
             # Compute forward pass for eigenvectors
             eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
                                    eigenvector in eigenvectors]
             eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
+
             return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
         @staticmethod
@@ -77,11 +93,17 @@ def eigencircuit(circuit, n_eig: int):
                             circuit.get_partial_vec(el=elements[el_idx],
                                                     m=eigen_idx).full()))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
+
             eigenvalue_grad = torch.sum(
-                partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
+                partial_omega
+                * torch.conj(grad_output_eigenvalue), axis=-1
+            )
+
             eigenvector_grad = torch.sum(
-                partial_eigenvec * torch.conj(grad_output_eigenvector),
-                axis=(-1, -2))
+                partial_eigenvec
+                * torch.conj(grad_output_eigenvector), axis=(-1, -2)
+            )
+
             return torch.real(eigenvalue_grad + eigenvector_grad)
 
     return EigenSolver
