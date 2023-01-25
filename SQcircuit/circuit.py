@@ -1379,6 +1379,8 @@ class Circuit:
             self._memory_ops["sin"][el, B_idx] = self._squeeze_op(sin)
             self._memory_ops["sin_half"][el, B_idx] = self._squeeze_op(sin_half)
 
+            print(f"H: {H}")
+            print(f"-EJ * cos: {-EJ * cos}")
             H += -EJ * cos
 
         return H
