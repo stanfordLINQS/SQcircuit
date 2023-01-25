@@ -91,7 +91,9 @@ class CircuitSampler:
                     # TODO: Include default quality factor Q in inductor?
                     inductor_value = loguniform.rvs(*self.inductor_range, size=1)
                     element = Inductor(inductor_value, self.inductor_unit, loops=[loop], requires_grad=get_optim_mode())
-                circuit_elements[(element_idx, (element_idx + 1) % len(topology))] = [element, ]
+                min_idx = min(element_idx, (element_idx + 1) % len(topology))
+                max_idx = max(element_idx, (element_idx + 1) % len(topology))
+                circuit_elements[(min_idx, max_idx)] = [element, ]
 
             # Introduce all-to-all capacitive coupling
             for first_element_idx in range(len(topology)):
