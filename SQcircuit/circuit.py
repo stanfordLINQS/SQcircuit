@@ -7,6 +7,7 @@ from copy import deepcopy
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
 
+import math
 import numpy as np
 import qutip as qt
 import scipy.special
@@ -1453,6 +1454,47 @@ class Circuit:
         self._evecs = evecs_sorted
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
+
+    def truncate_circuit(self, K, heuristic=True):
+        trunc_num_average = K ** (1 / len(self.omega))
+        harmonic_modes = [w for w in self.omega if w != 0]
+        f = len(harmonic_modes)
+        g = len(self.omega) - f # Number of charge modes
+        A = np.prod(harmonic_modes) ** (1 / f)
+        trunc_nums = []
+        if heuristic:
+            for mode in self.omega:
+                # charge mode
+                if mode == 0:
+                    trunc_nums.append(math.ceil(trunc_num_average))
+                else:
+                    h = (A * trunc_num_average) / mode
+                    trunc_nums.append(math.ceil(h))
+        else:
+            trunc_nums = [math.ceil(trunc_num_average) for _ in range(len(self.omega))]
+
+        self.set_trunc_nums(trunc_nums)
+
+    def test_convergence(self, trunc_nums, K=10, epsilon=0.01):
+        # Save previous modes
+        m = self.m
+        ms = self.ms
+        # Test circuit with different truncation numbers
+        self.set_trunc_nums(trunc_nums)
+        eigenvalues, eigenvectors = self.diag(2)
+        criterion = np.sum(np.abs(eigenvectors[0].full()[-K:]))
+        # Restore internal modes to previous values
+        self.m = m
+        self.ms = ms
+        # Only rebuild circuit bases if m non-empty
+        if self.m:
+            self._build_op_memory()
+            self._LC_hamil = self._get_LC_hamil()
+            self._build_exp_ops()
+        if criterion < epsilon:
+            return True
+        else:
+            return False
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
