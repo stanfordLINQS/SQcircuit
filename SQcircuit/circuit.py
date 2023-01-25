@@ -1353,6 +1353,8 @@ class Circuit:
                 self.coupling_op("inductive", edge),
                 dims=self._get_op_dims()
             )
+            print(f"H: {H}")
+            print(f"H_ind: {x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)}")
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
