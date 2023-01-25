@@ -1461,7 +1461,7 @@ class Circuit:
         f = len(harmonic_modes)
         g = len(self.omega) - f # Number of charge modes
         A = np.prod(harmonic_modes)
-        if A > 0:
+        if A > 0 and f > 0:
             A = A ** (1 / f)
         trunc_nums = []
         if heuristic:
