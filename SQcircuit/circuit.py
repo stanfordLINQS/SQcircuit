@@ -1353,8 +1353,6 @@ class Circuit:
                 self.coupling_op("inductive", edge),
                 dims=self._get_op_dims()
             )
-            print(f"H: {H}")
-            print(f"H_ind: {x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)}")
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
@@ -1366,6 +1364,7 @@ class Circuit:
             phi = self._get_external_flux_at_element(B_idx)
 
             EJ = sqf.numpy(el.get_value())
+            print(f"EJ: {EJ}")
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1374,13 +1373,15 @@ class Circuit:
             cos = (exp + exp.dag()) / 2
             sin = (exp - exp.dag()) / 2j
             sin_half = (root_exp - root_exp.dag()) / 2j
+            print(f"cos: {cos}")
+            print(f"sin: {sin}")
+            print(f"sin_half: {sin_half}")
+            print(f"H: {H}")
 
             self._memory_ops["cos"][el, B_idx] = self._squeeze_op(cos)
             self._memory_ops["sin"][el, B_idx] = self._squeeze_op(sin)
             self._memory_ops["sin_half"][el, B_idx] = self._squeeze_op(sin_half)
 
-            print(f"H: {H}")
-            print(f"-EJ * cos: {-EJ * cos}")
             H += -EJ * cos
 
         return H
