@@ -14,13 +14,13 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_negative_value_error
+from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_value_out_of_bounds_error
 from SQcircuit.settings import get_optim_mode
 
 
 def enforce_baseline_value(baseline_value, value):
     if value < baseline_value:
-        raise_negative_value_error(baseline_value, value)
+        raise_value_out_of_bounds_error(baseline_value, value)
         return baseline_value
     return value
 
@@ -120,12 +120,14 @@ class Capacitor(Element):
         unit: Optional[str] = None,
         requires_grad: bool = False,
         min_value: float = 1e-18,
+        max_value: float = 1e-6,
         Q: Union[Any, Callable[[float], float]] = "default",
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
 
-        self.baseline_value = min_value
+        self.min_value = min_value
+        self.max_value = max_value
         self.set_value(value, unit, error)
         self.type = type(self)
 
@@ -184,7 +186,7 @@ class Capacitor(Element):
             E_c = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = unt.e ** 2 / 2 / E_c
 
-        self.set_value_with_error(mean, e, self.baseline_value)
+        self.set_value_with_error(mean, e, self.min_value)
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -265,6 +267,7 @@ class Inductor(Element):
             unit: str = None,
             requires_grad: bool = False,
             min_value: float = 1e-13,
+            max_value: float = 1e-6,
             cap: Optional["Capacitor"] = None,
             Q: Union[Any, Callable[[float, float], float]] = "default",
             error: float = 0,
@@ -272,7 +275,8 @@ class Inductor(Element):
             id_str: Optional[str] = None
     ) -> None:
 
-        self.baseline_value = min_value
+        self.min_value = min_value
+        self.max_value = max_value
         self.set_value(value, unit, error)
         self.type = type(self)
 
@@ -341,7 +345,7 @@ class Inductor(Element):
             E_l = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = (unt.Phi0/2/np.pi)**2 / E_l
 
-        self.set_value_with_error(mean, e, self.baseline_value)
+        self.set_value_with_error(mean, e, self.min_value)
 
     def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -445,6 +449,7 @@ class Junction(Element):
         unit: Optional[str] = None,
         requires_grad: bool = False,
         min_value: float = 1e9,
+        max_value: float = 1e10,
         cap: Optional[Capacitor] = None,
         A: float = 1e-7,
         x: float = 3e-06,
@@ -455,7 +460,8 @@ class Junction(Element):
         id_str: Optional[str] = None,
     ) -> None:
 
-        self.baseline_value = min_value
+        self.min_value = min_value
+        self.max_value = max_value
         self.set_value(value, unit, error)
         self.type = type(self)
         self.A = A
@@ -517,7 +523,7 @@ class Junction(Element):
 
         mean = v * unt.freq_list[self.unit] * 2 * np.pi
 
-        self.set_value_with_error(mean, e, self.baseline_value)
+        self.set_value_with_error(mean, e, self.min_value)
 
     def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.

@@ -20,9 +20,15 @@ def raise_optim_error_if_needed():
         raise ValueError(OPTIM_ERROR)
 
 
-def raise_negative_value_error(baseline_value, element_value):
-    raise ValueError(f"Attempting to set user-provided element value to {element_value}. This is lower than the baseline value of {baseline_value}, so SQcircuit will terminate.")
+def raise_value_out_of_bounds_error(cutoff_value, element_value):
+    if cutoff_value < element_value:
+        raise ValueError(f"Attempting to set user-provided element value to {element_value}. This is greater than the maximum value of {cutoff_value}, so SQcircuit will terminate.")
+    if cutoff_value > element_value:
+        raise ValueError(f"Attempting to set user-provided element value to {element_value}. This is lower than the minimum value of {cutoff_value}, so SQcircuit will terminate.")
 
 
-def raise_negative_value_warning(baseline_value, element_value):
-    warnings.warn(f"Attempting to set element value to {element_value} during optimization. This is less than the baseline value of {baseline_value}, so SQcircuit will automatically set this element's value to the baseline.")
+def raise_value_out_of_bounds_warning(cutoff_value, element_value):
+    if cutoff_value < element_value:
+        warnings.warn(f"Attempting to set element value to {element_value} during optimization. This is greater than the maximum value of {cutoff_value}, so SQcircuit will automatically set this element's value to the maximum.")
+    if cutoff_value > element_value:
+        warnings.warn(f"Attempting to set element value to {element_value} during optimization. This is lower than the minimum value of {cutoff_value}, so SQcircuit will automatically set this element's value to the minimum.")

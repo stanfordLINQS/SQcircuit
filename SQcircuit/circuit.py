@@ -35,7 +35,7 @@ from SQcircuit.elements import (
 from SQcircuit.texts import is_notebook, HamilTxt
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
-from SQcircuit.logs import raise_optim_error_if_needed, raise_negative_value_warning
+from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
 
 
 class CircuitEdge:
@@ -2115,19 +2115,23 @@ class Circuit:
 
         return partial_state
 
-    def enforce_positive_element_values(self):
+    def enforce_element_value_in_range(self):
         if get_optim_mode():
             for element, tensor in self._parameters.items():
-                baseline_tensor = sqf.cast(element.baseline_value, dtype=torch.float, requires_grad=False)
-                if tensor < baseline_tensor:
-                    raise_negative_value_warning(baseline_tensor.detach().numpy(), tensor.detach().numpy())
-                self._parameters[element] = sqf.maximum(tensor, baseline_tensor)
+                min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=False)
+                max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=False)
+                if tensor < min_tensor:
+                    raise_value_out_of_bounds_warning(min_tensor.detach().numpy(), tensor.detach().numpy())
+                if tensor > max_tensor:
+                    raise_value_out_of_bounds_warning(max_tensor.detach().numpy(), tensor.detach().numpy())
+                self._parameters[element] = sqf.maximum(tensor, min_tensor)
+                self._parameters[element] = sqf.minimum(tensor, max_tensor)
 
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
         scalar values used for circuit elements (ex. C, L, J...)."""
 
-        self.enforce_positive_element_values()
+        self.enforce_element_value_in_range()
 
         self.elem_keys = {
             Inductor: [],

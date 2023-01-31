@@ -370,6 +370,11 @@ def pow(x, a):
         return torch.pow(x, a)
     return x ** a
 
+def minimum(a, b):
+    if get_optim_mode():
+        return torch.minimum(a, b)
+    return np.minimum(a, b)
+
 def maximum(a, b):
     if get_optim_mode():
         return torch.maximum(a, b)

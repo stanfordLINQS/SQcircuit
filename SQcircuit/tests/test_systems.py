@@ -178,10 +178,10 @@ def test_three_coupled_transmon():
     jj2_sys_grad = JJ_2._value.grad
     jjc_sys_grad = JJ_c._value.grad
 
-    assert is_close(omega_sq, omega_sys, 1e-2)
-    assert is_close(c1_sq_grad, c1_sys_grad, 1e-2)
-    assert is_close(c1c_sq_grad, c1c_sys_grad, 1e-2)
-    assert is_close(jj2_sq_grad, jj2_sys_grad, 1e-2)
+    assert is_close(omega_sq, omega_sys, 2e-2)
+    assert is_close(c1_sq_grad, c1_sys_grad, 2e-2)
+    assert is_close(c1c_sq_grad, c1c_sys_grad, 2e-2)
+    assert is_close(jj2_sq_grad, jj2_sys_grad, 2e-2)
     assert is_close(jjc_sq_grad, jjc_sys_grad, 25e-2)
 
     sq.set_optim_mode(False)

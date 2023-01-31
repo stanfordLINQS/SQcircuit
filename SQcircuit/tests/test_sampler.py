@@ -33,13 +33,12 @@ def test_convergence():
 def test_circuit_topologies():
     n = 3
     circuit_sampler = CircuitSampler(n)
-    assert circuit_sampler.topologies == {'JLL', 'JJJ', 'JJL'} or \
-           circuit_sampler.topologies == {'JLL', 'JJJ', 'JLJ'}
+    assert circuit_sampler.topologies == ['JJJ', 'JLJ', 'JLL'] or \
+           circuit_sampler.topologies == ['JJJ', 'JJL', 'JLL']
 
-    n = 4
+    '''n = 4
     circuit_sampler = CircuitSampler(n)
-    # print(circuit_sampler.topologies)
-    # assert circuit_sampler.topologies == {'JJLJ', 'JLJL', 'JLLJ', 'JLLL', 'JJJJ'}
+    assert circuit_sampler.topologies == ['JJJJ', 'JJLJ', 'JLJL', 'JLLJ', 'JLLL', ]'''
 
 def test_circuit_sampling():
     pass
