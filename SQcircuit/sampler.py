@@ -53,7 +53,8 @@ class CircuitSampler:
             self,
             num_elements: int
     ) -> None:
-        self.topologies = _generate_topologies(num_elements)
+        self.topologies = list(_generate_topologies(num_elements))
+        self.topologies.sort()
         self.capacitor_range = [12e-6, 12]
         self.capacitor_unit = 'nF'
         self.inductor_range = [12e-3, 12]
@@ -63,8 +64,8 @@ class CircuitSampler:
         self.trunc_num = 40
 
     def sample_circuit(self):
-        circuit_topology = random.sample(self.topologies, 1)[0]
-        print(circuit_topology)
+        sampled_topology = random.sample(self.topologies, 1)[0]
+        return sampled_topology
         # Build circuit, assign random values by sampling from range for each element
 
     def sample_one_loop_circuits(self, n, with_replacement = True) -> [Circuit]:
@@ -72,9 +73,9 @@ class CircuitSampler:
         if not with_replacement:
             assert n <= len(self.topologies), "Number of circuit topologies sampled without replacement must be less" \
                                               "than or equal to number of distinct arrangements of inductive elements."
-            sampled_topologies = random.sample(list(self.topologies), n)
+            sampled_topologies = random.sample(self.topologies, n)
         else:
-            sampled_topologies = random.choices(list(self.topologies), k = n)
+            sampled_topologies = random.choices(self.topologies, k = n)
 
         for topology in sampled_topologies:
             loop = Loop()

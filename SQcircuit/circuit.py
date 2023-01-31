@@ -661,6 +661,7 @@ class Circuit:
             # use Gram–Schmidt to find the linear independent rows of
             # normalized wQ (wQ_norm)
             basis = []
+
             while len(basis) != nq:
                 if len(basis) == 0:
                     indList, basis = self._independentRows(wQ)
@@ -1341,14 +1342,13 @@ class Circuit:
     def _get_inductive_hamil(self) -> Qobj:
 
         H = qt.Qobj()
-
         for edge, el, B_idx in self.elem_keys[Inductor]:
             # phi = 0
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
             # summation of the 1 over inductor values.
-            x = sqf.numpy(1 / el.get_value())
+            x = np.squeeze(sqf.numpy(1 / el.get_value()))
             op = sqf.qutip(
                 self.coupling_op("inductive", edge),
                 dims=self._get_op_dims()
@@ -1357,14 +1357,12 @@ class Circuit:
 
             # save the operators for loss calculation
             self._memory_ops["ind_hamil"][(el, B_idx)] = op
-
         for _, el, B_idx, W_idx in self.elem_keys[Junction]:
             # phi = 0
             # if B_idx is not None:
             phi = self._get_external_flux_at_element(B_idx)
 
-            EJ = sqf.numpy(el.get_value())
-            print(f"EJ: {EJ}")
+            EJ = np.squeeze(sqf.numpy(el.get_value()))
 
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
@@ -1373,10 +1371,6 @@ class Circuit:
             cos = (exp + exp.dag()) / 2
             sin = (exp - exp.dag()) / 2j
             sin_half = (root_exp - root_exp.dag()) / 2j
-            print(f"cos: {cos}")
-            print(f"sin: {sin}")
-            print(f"sin_half: {sin_half}")
-            print(f"H: {H}")
 
             self._memory_ops["cos"][el, B_idx] = self._squeeze_op(cos)
             self._memory_ops["sin"][el, B_idx] = self._squeeze_op(sin)

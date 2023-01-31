@@ -35,6 +35,7 @@ def eigencircuit(circuit, n_eig: int):
 
         @staticmethod
         def forward(ctx, element_tensors):
+            ctx.save_for_backward(element_tensors)
             # Compute forward pass for eigenvalues
             eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
             eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
@@ -82,7 +83,9 @@ def eigencircuit(circuit, n_eig: int):
             eigenvector_grad = torch.sum(
                 partial_eigenvec * torch.conj(grad_output_eigenvector),
                 axis=(-1, -2))
-            return torch.real(eigenvalue_grad + eigenvector_grad)
+
+            input_tensor, = ctx.saved_tensors
+            return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape)
 
     return EigenSolver
 

@@ -214,7 +214,7 @@ class Capacitor(Element):
     def _default_Q_cap(omega):
         """Default function for capacitor quality factor."""
 
-        return 1e6 * (2 * np.pi * 6e9 / np.abs(omega))**0.7
+        return 1e6 * (2 * np.pi * 6e9 / np.abs(sqf.numpy(omega)))**0.7
 
 
 class VerySmallCap(Capacitor):
@@ -368,7 +368,7 @@ class Inductor(Element):
         """Default function for inductor quality factor."""
 
         alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
-        beta = unt.hbar * omega / (2 * unt.k_B * T)
+        beta = unt.hbar * sqf.numpy(omega) / (2 * unt.k_B * T)
 
         return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
 
