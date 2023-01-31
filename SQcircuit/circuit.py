@@ -1969,7 +1969,7 @@ class Circuit:
                     phi = self._get_external_flux_at_element(B_idx)
 
                     partial_H += -(self._memory_ops["ind_hamil"][(el, B_idx)]
-                                   / sqf.numpy(el.get_value())**2 / np.sqrt(unt.hbar)
+                                   / np.squeeze(sqf.numpy(el.get_value()))**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
         elif isinstance(el, Loop):
