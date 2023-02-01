@@ -68,7 +68,6 @@ class Element:
         min_value = torch.tensor(min_value, dtype=torch.float)
         max_value = torch.tensor(max_value, dtype=torch.float)
         self._value = enforce_baseline_value(sampled_value, min_value, max_value)
-        print(f"value: {self._value}")
 
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
