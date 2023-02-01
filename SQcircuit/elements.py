@@ -18,10 +18,13 @@ from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_
 from SQcircuit.settings import get_optim_mode
 
 
-def enforce_baseline_value(baseline_value, value):
-    if value < baseline_value:
-        raise_value_out_of_bounds_error(baseline_value, value)
-        return baseline_value
+def enforce_baseline_value(value, min_value, max_value):
+    if value < min_value:
+        raise_value_out_of_bounds_error(min_value, value)
+        return min_value
+    elif value > max_value:
+        raise_value_out_of_bounds_error(max_value, value)
+        return max_value
     return value
 
 class Element:
@@ -57,13 +60,15 @@ class Element:
 
         self._value.requires_grad = f
 
-    def set_value_with_error(self, mean: float, error: float, baseline_value: float) -> None:
+    def set_value_with_error(self, mean: float, error: float, min_value: float, max_value: float) -> None:
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
 
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
-        baseline_tensor = torch.tensor(baseline_value, dtype=torch.float)
-        self._value = enforce_baseline_value(baseline_tensor, sampled_value)
+        min_value = torch.tensor(min_value, dtype=torch.float)
+        max_value = torch.tensor(max_value, dtype=torch.float)
+        self._value = enforce_baseline_value(sampled_value, min_value, max_value)
+        print(f"value: {self._value}")
 
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
@@ -186,7 +191,7 @@ class Capacitor(Element):
             E_c = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = unt.e ** 2 / 2 / E_c
 
-        self.set_value_with_error(mean, e, self.min_value)
+        self.set_value_with_error(mean, e, self.min_value, self.max_value)
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.

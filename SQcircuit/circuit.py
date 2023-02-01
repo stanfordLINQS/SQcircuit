@@ -2175,6 +2175,7 @@ class Circuit:
             raise ValueError("Element type must be one of Capacitor, Inductor, "
                              "Junction, or Loop.")
         element.set_value(value, unit)
+
         if update_H:
             self._update_H()
 
