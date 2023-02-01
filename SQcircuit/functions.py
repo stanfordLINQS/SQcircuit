@@ -372,12 +372,20 @@ def pow(x, a):
 
 def minimum(a, b):
     if get_optim_mode():
-        return torch.minimum(a, b)
+        if a > b:
+            return 0 * a + b
+        else:
+            return a
+        #return torch.minimum(a, b)
     return np.minimum(a, b)
 
 def maximum(a, b):
     if get_optim_mode():
-        return torch.maximum(a, b)
+        if a > b:
+            return 0 * b + a
+        else:
+            return b
+        # return torch.maximum(a, b)
     return np.maximum(a, b)
 
 '''def sparse_csr_to_tensor(S):
