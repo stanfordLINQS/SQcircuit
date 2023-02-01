@@ -2117,15 +2117,16 @@ class Circuit:
 
     def enforce_element_value_in_range(self):
         if get_optim_mode():
-            for element, tensor in self._parameters.items():
-                min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=False)
-                max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=False)
-                if tensor < min_tensor:
-                    raise_value_out_of_bounds_warning(min_tensor.detach().numpy(), tensor.detach().numpy())
-                if tensor > max_tensor:
-                    raise_value_out_of_bounds_warning(max_tensor.detach().numpy(), tensor.detach().numpy())
-                element._value = self._parameters[element] = sqf.maximum(tensor, min_tensor)
-                element._value = self._parameters[element] = sqf.minimum(tensor, max_tensor)
+            for elements in self.elements.values():
+                for element in elements:
+                    min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=False)
+                    max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=False)
+                    if element._value < min_tensor:
+                        raise_value_out_of_bounds_warning(min_tensor.detach().numpy(), element._value.detach().numpy())
+                    if element._value > max_tensor:
+                        raise_value_out_of_bounds_warning(max_tensor.detach().numpy(), element._value.detach().numpy())
+                    element._value = self._parameters[element] = sqf.maximum(element._value, min_tensor)
+                    element._value = self._parameters[element] = sqf.minimum(element._value, max_tensor)
 
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
