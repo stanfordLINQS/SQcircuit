@@ -350,7 +350,7 @@ class Inductor(Element):
             E_l = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
             mean = (unt.Phi0/2/np.pi)**2 / E_l
 
-        self.set_value_with_error(mean, e, self.min_value)
+        self.set_value_with_error(mean, e, self.min_value, self.max_value)
 
     def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -528,7 +528,7 @@ class Junction(Element):
 
         mean = v * unt.freq_list[self.unit] * 2 * np.pi
 
-        self.set_value_with_error(mean, e, self.min_value)
+        self.set_value_with_error(mean, e, self.min_value, self.max_value)
 
     def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
