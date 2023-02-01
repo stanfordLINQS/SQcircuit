@@ -2,6 +2,7 @@ from collections import defaultdict
 import random
 from scipy.stats import loguniform
 from typing import Set
+import numpy as np
 
 from SQcircuit.circuit import Circuit
 from SQcircuit.elements import Capacitor, Inductor, Junction, Loop
@@ -87,7 +88,7 @@ class CircuitSampler:
                 if element_code == 'J':
                     # Add requires grad to element here?
                     junction_value = loguniform.rvs(*self.junction_range, size=1)
-                    element = Junction(junction_value, self.junction_unit, loops=[loop], requires_grad=get_optim_mode())
+                    element = Junction(junction_value / 2 / np.pi, self.junction_unit, loops=[loop], requires_grad=get_optim_mode())
                 elif element_code == 'L':
                     # TODO: Include default quality factor Q in inductor?
                     inductor_value = loguniform.rvs(*self.inductor_range, size=1)
