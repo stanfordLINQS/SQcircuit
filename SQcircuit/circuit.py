@@ -2125,8 +2125,8 @@ class Circuit:
                         raise_value_out_of_bounds_warning(min_tensor.detach().numpy(), element._value.detach().numpy())
                     if element._value > max_tensor:
                         raise_value_out_of_bounds_warning(max_tensor.detach().numpy(), element._value.detach().numpy())
-                    element._value = self._parameters[element] = sqf.maximum(element._value, min_tensor)
-                    element._value = self._parameters[element] = sqf.minimum(element._value, max_tensor)
+                    element._value = sqf.maximum(element._value, min_tensor)
+                    element._value = sqf.minimum(element._value, max_tensor)
 
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
