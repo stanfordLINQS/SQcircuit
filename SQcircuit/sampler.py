@@ -85,7 +85,8 @@ class CircuitSampler:
                 if element_code == 'J':
                     # Add requires grad to element here?
                     junction_value = loguniform.rvs(*self.junction_range, size=1)
-                    element = Junction(junction_value / 2 / np.pi, 'Hz', loops=[loop], requires_grad=get_optim_mode())
+                    junction_value /= (2 * np.pi)
+                    element = Junction(junction_value, 'Hz', loops=[loop], requires_grad=get_optim_mode())
                     element.min_value = self.junction_range[0]
                     element.max_value = self.junction_range[1]
                 elif element_code == 'L':
