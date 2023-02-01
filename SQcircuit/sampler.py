@@ -56,12 +56,9 @@ class CircuitSampler:
     ) -> None:
         self.topologies = list(_generate_topologies(num_elements))
         self.topologies.sort()
-        self.capacitor_range = [12e-6, 12]
-        self.capacitor_unit = 'nF'
-        self.inductor_range = [12e-3, 12]
-        self.inductor_unit = 'uH'
-        self.junction_range = [1, 10]
-        self.junction_unit = 'GHz'
+        self.capacitor_range = [12e-15, 12e-9]
+        self.inductor_range = [12e-9, 12e-6]
+        self.junction_range = [1e9, 10e9]
         self.trunc_num = 40
 
     def sample_circuit(self):
@@ -88,11 +85,16 @@ class CircuitSampler:
                 if element_code == 'J':
                     # Add requires grad to element here?
                     junction_value = loguniform.rvs(*self.junction_range, size=1)
-                    element = Junction(junction_value / 2 / np.pi, self.junction_unit, loops=[loop], requires_grad=get_optim_mode())
+                    element = Junction(junction_value / 2 / np.pi, 'Hz', loops=[loop], requires_grad=get_optim_mode())
+                    element.min_value = self.junction_range[0]
+                    element.max_value = self.junction_range[1]
                 elif element_code == 'L':
                     # TODO: Include default quality factor Q in inductor?
                     inductor_value = loguniform.rvs(*self.inductor_range, size=1)
-                    element = Inductor(inductor_value, self.inductor_unit, loops=[loop], requires_grad=get_optim_mode())
+                    element = Inductor(inductor_value, 'H', loops=[loop], requires_grad=get_optim_mode())
+                    element.min_value = self.inductor_range[0]
+                    element.max_value = self.inductor_range[1]
+
                 min_idx = min(element_idx, (element_idx + 1) % len(topology))
                 max_idx = max(element_idx, (element_idx + 1) % len(topology))
                 circuit_elements[(min_idx, max_idx)] = [element, ]
@@ -101,7 +103,9 @@ class CircuitSampler:
             for first_element_idx in range(len(topology)):
                 for second_element_idx in range(first_element_idx + 1, len(topology)):
                     capacitor_value = loguniform.rvs(*self.capacitor_range, size=1)
-                    capacitor = Capacitor(capacitor_value, self.capacitor_unit, requires_grad=get_optim_mode())
+                    capacitor = Capacitor(capacitor_value, 'F', requires_grad=get_optim_mode())
+                    capacitor.min_value = self.capacitor_range[0]
+                    capacitor.max_value = self.capacitor_range[1]
                     circuit_elements[(first_element_idx, second_element_idx)] += [capacitor, ]
 
             circuit = Circuit(circuit_elements, flux_dist='all')
