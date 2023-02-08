@@ -54,6 +54,7 @@ class CircuitSampler:
             self,
             num_elements: int
     ) -> None:
+        self.num_elements = num_elements
         self.topologies = list(_generate_topologies(num_elements))
         self.topologies.sort()
         self.capacitor_range = [12e-15, 12e-9]
@@ -96,7 +97,11 @@ class CircuitSampler:
 
                 min_idx = min(element_idx, (element_idx + 1) % len(topology))
                 max_idx = max(element_idx, (element_idx + 1) % len(topology))
-                circuit_elements[(min_idx, max_idx)] = [element, ]
+                if self.num_elements == 2:
+                    # Edge case for n=2: Two elements on same edge
+                    circuit_elements[(min_idx, max_idx)] += [element, ]
+                else:
+                    circuit_elements[(min_idx, max_idx)] = [element, ]
 
             # Introduce all-to-all capacitive coupling
             for first_element_idx in range(len(topology)):
