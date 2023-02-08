@@ -283,6 +283,9 @@ def numpy(input):
             return [value.detach().numpy() for value in input]
         else:
             return input.detach().numpy()
+    else:
+        if type(input) is qt.Qobj:
+            return input.full()
     return input
 
 

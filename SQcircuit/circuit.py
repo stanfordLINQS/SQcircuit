@@ -1484,7 +1484,7 @@ class Circuit:
         # Test circuit with different truncation numbers
         self.set_trunc_nums(trunc_nums)
         eigenvalues, eigenvectors = self.diag(2)
-        criterion = np.sum(np.abs(eigenvectors[0].full()[-K:]))
+        criterion = np.sum(np.abs(sqf.numpy(eigenvectors[0])[-K:]))
         # Restore internal modes to previous values
         self.m = m
         self.ms = ms
