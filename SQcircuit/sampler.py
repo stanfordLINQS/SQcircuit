@@ -78,7 +78,7 @@ class CircuitSampler:
 
         for topology in sampled_topologies:
             loop = Loop()
-            loop.set_flux(0)
+            loop.set_flux(0.5)
             circuit_elements = defaultdict(list)
 
             # Add inductive elements to circuit
