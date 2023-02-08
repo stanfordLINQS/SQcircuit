@@ -1475,6 +1475,7 @@ class Circuit:
             trunc_nums = [math.ceil(trunc_num_average) for _ in range(len(self.omega))]
 
         self.set_trunc_nums(trunc_nums)
+        return trunc_nums
 
     def test_convergence(self, trunc_nums, K=10, epsilon=0.01):
         # Save previous modes
