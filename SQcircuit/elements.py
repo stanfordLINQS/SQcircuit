@@ -18,11 +18,11 @@ from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_
 from SQcircuit.settings import get_optim_mode
 
 
-def enforce_baseline_value(value, min_value, max_value):
-    if value < min_value:
+def enforce_baseline_value(value, min_value, max_value, epsilon = 0.01):
+    if value < min_value * (1 - epsilon):
         raise_value_out_of_bounds_error(min_value, value)
         return min_value
-    elif value > max_value:
+    elif value > max_value * (1 + epsilon):
         raise_value_out_of_bounds_error(max_value, value)
         return max_value
     return value
@@ -130,8 +130,10 @@ class Capacitor(Element):
         id_str: Optional[str] = None,
     ) -> None:
 
+        # EMERGENCY TODO: Save min/max values in SI units
         self.min_value = min_value
         self.max_value = max_value
+
         self.set_value(value, unit, error)
         self.type = type(self)
 
