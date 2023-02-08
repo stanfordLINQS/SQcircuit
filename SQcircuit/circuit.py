@@ -2125,18 +2125,18 @@ class Circuit:
                     if element._value < element.min_value:
                         raise_value_out_of_bounds_warning(element.min_value, element._value.detach().numpy())
                         if type(element) is Junction:
-                            element.set_value(np.squeeze(element.min_value) / 2 / np.pi)
+                            element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
-                            element.set_value(np.squeeze(element.min_value))
+                            element.set_value(element.min_value)
                             element.requires_grad = True
                     if element._value > element.max_value:
                         raise_value_out_of_bounds_warning(element.max_value, element._value.detach().numpy())
                         if type(element) is Junction:
-                            element.set_value(np.squeeze(element.min_value) / 2 / np.pi)
+                            element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
-                            element.set_value(np.squeeze(element.max_value))
+                            element.set_value(element.max_value)
                             element.requires_grad = True
                     # element._value = sqf.maximum(element._value, min_tensor)
                     # element._value = sqf.minimum(element._value, max_tensor)

@@ -85,13 +85,13 @@ class CircuitSampler:
             for element_idx, element_code in enumerate(topology):
                 if element_code == 'J':
                     # Add requires grad to element here?
-                    junction_value = loguniform.rvs(*self.junction_range, size=1)
+                    junction_value = loguniform.rvs(*self.junction_range, size=1)[0]
                     junction_value /= (2 * np.pi)
                     element = Junction(junction_value, 'Hz', loops=[loop], requires_grad=get_optim_mode(),
                                        min_value=self.junction_range[0], max_value = self.junction_range[1])
                 elif element_code == 'L':
                     # TODO: Include default quality factor Q in inductor?
-                    inductor_value = loguniform.rvs(*self.inductor_range, size=1)
+                    inductor_value = loguniform.rvs(*self.inductor_range, size=1)[0]
                     element = Inductor(inductor_value, 'H', loops=[loop], requires_grad=get_optim_mode(),
                                        min_value=self.inductor_range[0], max_value = self.inductor_range[1])
 
@@ -106,7 +106,7 @@ class CircuitSampler:
             # Introduce all-to-all capacitive coupling
             for first_element_idx in range(len(topology)):
                 for second_element_idx in range(first_element_idx + 1, len(topology)):
-                    capacitor_value = loguniform.rvs(*self.capacitor_range, size=1)
+                    capacitor_value = loguniform.rvs(*self.capacitor_range, size=1)[0]
                     capacitor = Capacitor(capacitor_value, 'F', requires_grad=get_optim_mode(),
                                        min_value=self.capacitor_range[0], max_value = self.capacitor_range[1])
                     circuit_elements[(first_element_idx, second_element_idx)] += [capacitor, ]
