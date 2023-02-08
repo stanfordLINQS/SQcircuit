@@ -169,7 +169,7 @@ class Capacitor(Element):
         else:
             self._unit = u
 
-    def set_value(self, v: float, u: str, e: float = 0.0) -> None:
+    def set_value(self, v: float, u: str = 'F', e: float = 0.0) -> None:
         """Set the value for the capacitor.
         
         Parameters
@@ -328,7 +328,7 @@ class Inductor(Element):
         else:
             self._unit = u
 
-    def set_value(self, v: float, u: str, e: float = 0.0) -> None:
+    def set_value(self, v: float, u: str = 'H', e: float = 0.0) -> None:
         """Set the value for the element.
         
         Parameters
@@ -510,7 +510,7 @@ class Junction(Element):
         else:
             self._unit = u
 
-    def set_value(self, v: float, u: str, e: float = 0.0) -> None:
+    def set_value(self, v: float, u: str = 'Hz', e: float = 0.0) -> None:
         """Set the value for the element.
         
         Parameters
