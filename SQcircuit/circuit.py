@@ -1483,8 +1483,10 @@ class Circuit:
         ms = self.ms
         # Test circuit with different truncation numbers
         self.set_trunc_nums(trunc_nums)
-        eigenvalues, eigenvectors = self.diag(2)
-        criterion = np.sum(np.abs(sqf.numpy(eigenvectors[0])[-K:]))
+
+        assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
+
+        criterion = np.sum(np.abs(sqf.numpy(self.eigenvectors[0])[-K:]))
         # Restore internal modes to previous values
         self.m = m
         self.ms = ms
@@ -2164,6 +2166,9 @@ class Circuit:
         self._build_op_memory()
         self._LC_hamil = self._get_LC_hamil()
         self._build_exp_ops()
+
+        self._efreqs = sqf.array([])
+        self._evecs = []
 
 
     def _update_element(
