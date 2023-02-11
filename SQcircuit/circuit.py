@@ -1486,7 +1486,7 @@ class Circuit:
 
         assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
 
-        criterion = np.sum(np.abs(sqf.numpy(self.eigenvectors[0])[-K:]))
+        criterion = np.sum(np.abs(sqf.numpy(self._evecs[0])[-K:]))
         # Restore internal modes to previous values
         self.m = m
         self.ms = ms
