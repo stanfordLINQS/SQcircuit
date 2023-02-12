@@ -67,6 +67,47 @@ class CircuitSampler:
         return sampled_topology
         # Build circuit, assign random values by sampling from range for each element
 
+    def sample_circuit_code(self, codename):
+        loop = Loop()
+        loop.set_flux(0.5)
+        circuit_elements = defaultdict(list)
+
+        # Add inductive elements to circuit
+        for element_idx, element_code in enumerate(codename):
+            if element_code == 'J':
+                # Add requires grad to element here?
+                junction_value = loguniform.rvs(*self.junction_range, size=1)[0]
+                junction_value /= (2 * np.pi)
+                element = Junction(junction_value, 'Hz', loops=[loop], requires_grad=get_optim_mode(),
+                                   min_value=self.junction_range[0], max_value=self.junction_range[1])
+            elif element_code == 'L':
+                # TODO: Include default quality factor Q in inductor?
+                inductor_value = loguniform.rvs(*self.inductor_range, size=1)[0]
+                element = Inductor(inductor_value, 'H', loops=[loop], requires_grad=get_optim_mode(),
+                                   min_value=self.inductor_range[0], max_value=self.inductor_range[1])
+
+            min_idx = min(element_idx, (element_idx + 1) % len(codename))
+            max_idx = max(element_idx, (element_idx + 1) % len(codename))
+            if self.num_elements == 2:
+                # Edge case for n=2: Two elements on same edge
+                circuit_elements[(min_idx, max_idx)] += [element, ]
+            else:
+                circuit_elements[(min_idx, max_idx)] = [element, ]
+
+        # Introduce all-to-all capacitive coupling
+        for first_element_idx in range(len(codename)):
+            for second_element_idx in range(first_element_idx + 1, len(codename)):
+                capacitor_value = loguniform.rvs(*self.capacitor_range, size=1)[0]
+                capacitor = Capacitor(capacitor_value, 'F', requires_grad=get_optim_mode(),
+                                      min_value=self.capacitor_range[0], max_value=self.capacitor_range[1])
+                circuit_elements[(first_element_idx, second_element_idx)] += [capacitor, ]
+
+        circuit = Circuit(circuit_elements, flux_dist='all')
+        # If mode j > 100 * mode i, set mode j trunc num to 1
+        # circuit.set_trunc_nums([np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n)])
+        # Weight based on natural frequency?
+        return circuit
+
     def sample_one_loop_circuits(self, n, with_replacement = True) -> [Circuit]:
         circuits = []
         if not with_replacement:
@@ -77,44 +118,7 @@ class CircuitSampler:
             sampled_topologies = random.choices(self.topologies, k = n)
 
         for topology in sampled_topologies:
-            loop = Loop()
-            loop.set_flux(0.5)
-            circuit_elements = defaultdict(list)
-
-            # Add inductive elements to circuit
-            for element_idx, element_code in enumerate(topology):
-                if element_code == 'J':
-                    # Add requires grad to element here?
-                    junction_value = loguniform.rvs(*self.junction_range, size=1)[0]
-                    junction_value /= (2 * np.pi)
-                    element = Junction(junction_value, 'Hz', loops=[loop], requires_grad=get_optim_mode(),
-                                       min_value=self.junction_range[0], max_value = self.junction_range[1])
-                elif element_code == 'L':
-                    # TODO: Include default quality factor Q in inductor?
-                    inductor_value = loguniform.rvs(*self.inductor_range, size=1)[0]
-                    element = Inductor(inductor_value, 'H', loops=[loop], requires_grad=get_optim_mode(),
-                                       min_value=self.inductor_range[0], max_value = self.inductor_range[1])
-
-                min_idx = min(element_idx, (element_idx + 1) % len(topology))
-                max_idx = max(element_idx, (element_idx + 1) % len(topology))
-                if self.num_elements == 2:
-                    # Edge case for n=2: Two elements on same edge
-                    circuit_elements[(min_idx, max_idx)] += [element, ]
-                else:
-                    circuit_elements[(min_idx, max_idx)] = [element, ]
-
-            # Introduce all-to-all capacitive coupling
-            for first_element_idx in range(len(topology)):
-                for second_element_idx in range(first_element_idx + 1, len(topology)):
-                    capacitor_value = loguniform.rvs(*self.capacitor_range, size=1)[0]
-                    capacitor = Capacitor(capacitor_value, 'F', requires_grad=get_optim_mode(),
-                                       min_value=self.capacitor_range[0], max_value = self.capacitor_range[1])
-                    circuit_elements[(first_element_idx, second_element_idx)] += [capacitor, ]
-
-            circuit = Circuit(circuit_elements, flux_dist='all')
-            # If mode j > 100 * mode i, set mode j trunc num to 1
-            # circuit.set_trunc_nums([np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n)])
-            # Weight based on natural frequency?
+            circuit = self.sample_circuit_code(topology)
             circuits.append(circuit)
 
         return circuits
