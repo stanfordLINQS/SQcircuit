@@ -2161,7 +2161,22 @@ class Circuit:
             sqf.numpy(self.L).copy(),
             self.W.copy()
         )
+        self.omega = np.zeros(self.n)
         self._transform_hamil()
+
+        self._memory_ops: Dict[str, Union[List[Qobj],
+                                          List[List[Qobj]], dict]] = {
+            "Q": [],  # list of charge operators (normalized by 1/sqrt(hbar))
+            "QQ": [[]],  # list of charge times charge operators
+            "phi": [],  # list of flux operators (normalized by 1/sqrt(hbar))
+            "N": [],  # list of number operators
+            "exp": [],  # List of exponential operators
+            "root_exp": [],  # List of square root of exponential operators
+            "cos": {},  # List of cosine operators
+            "sin": {},  # List of sine operators
+            "sin_half": {},  # list of sin(phi/2)
+            "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
+        }
 
         self._build_op_memory()
         self._LC_hamil = self._get_LC_hamil()
