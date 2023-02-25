@@ -102,7 +102,7 @@ class CircuitSampler:
                                       min_value=self.capacitor_range[0], max_value=self.capacitor_range[1])
                 circuit_elements[(first_element_idx, second_element_idx)] += [capacitor, ]
 
-        circuit = Circuit(circuit_elements, flux_dist='all')
+        circuit = Circuit(circuit_elements, flux_dist='junctions')
         # If mode j > 100 * mode i, set mode j trunc num to 1
         # circuit.set_trunc_nums([np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n), np.pow(1000,1/n)])
         # Weight based on natural frequency?
