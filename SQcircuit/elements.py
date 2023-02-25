@@ -18,15 +18,6 @@ from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_
 from SQcircuit.settings import get_optim_mode
 
 
-def enforce_baseline_value(value, min_value, max_value, epsilon = 0.01):
-    if value < min_value * (1 - epsilon):
-        raise_value_out_of_bounds_error(min_value, value)
-        return min_value
-    elif value > max_value * (1 + epsilon):
-        raise_value_out_of_bounds_error(max_value, value)
-        return max_value
-    return value
-
 class Element:
     """Class that contains general properties of elements."""
 
@@ -59,6 +50,15 @@ class Element:
         raise_optim_error_if_needed()
 
         self._value.requires_grad = f
+
+    def enforce_baseline_value(self, value, min_value, max_value, epsilon=0.01):
+        if value < min_value * (1 - epsilon):
+            raise_value_out_of_bounds_error(type(self), min_value, value)
+            return min_value
+        elif value > max_value * (1 + epsilon):
+            raise_value_out_of_bounds_error(type(self), max_value, value)
+            return max_value
+        return value
 
     def set_value_with_error(self, mean: float, error: float, min_value: float, max_value: float) -> None:
         mean_th = torch.as_tensor(mean, dtype=float)
