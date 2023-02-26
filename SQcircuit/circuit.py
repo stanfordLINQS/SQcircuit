@@ -32,7 +32,8 @@ from SQcircuit.elements import (
     Loop,
     Charge
 )
-from SQcircuit.texts import is_notebook, HamilTxt
+from SQcircuit.texts import HamilTxt, is_notebook
+import SQcircuit.symbolic as symbolic
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
@@ -368,6 +369,15 @@ class Circuit:
             "sin": {},  # List of sine operators
             "sin_half": {},  # list of sin(phi/2)
             "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
+        }
+
+        # TODO: fix typing; add comments etc.
+        self._descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
+            "omega": [], 
+            "phi_zp": [], 
+            "ng": [],
+            "EC": None,
+            "EJ" : None
         }
 
         # LC part of the Hamiltonian
@@ -925,6 +935,105 @@ class Circuit:
                 phiExt) + txt.tab()
 
         finalTxt = hamilTxt + txt.line + modeTxt + txt.line + paramTxt + loopTxt
+
+        txt.display(finalTxt)
+
+        if _test:
+            return finalTxt
+
+    def compute_params(self):
+        # calculate coefficients normalized in units of angular frequency
+        self._descrip_vars['n_modes'] = self.n
+        self._descrip_vars['har_dim'] = np.sum(self.omega != 0)
+        harDim = self._descrip_vars['har_dim']
+        self._descrip_vars['charge_dim'] = np.sum(self.omega == 0)
+        self._descrip_vars['omega'] = self.omega \
+                                        / (2 * np.pi * unt.get_unit_freq())
+        
+        self._descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
+            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
+                                        / np.diag(self.cInvTrans)[:harDim])))
+        ## NOTE: atm ['ng'] is a dict referenced by index in range of chardim
+        self._descrip_vars['ng'] = [self.charge_islands[i].value() \
+                                    for i in range(len(self.charge_islands))]
+        self._descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
+                                       * unt.get_unit_freq())) \
+                                    * np.diag(np.repeat(0.5, self.n)) \
+                                    * self.cInvTrans
+        
+        self._descrip_vars['W'] = np.round(self.wTrans, 6)
+        self._descrip_vars['S'] = np.round(self.S, 3)
+        if self.loops:
+            self._descrip_vars['B'] = np.round(self.B, 2)
+        else:
+            self._descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
+                          + len(self.elem_keys[Inductor]), 1))
+
+        self._descrip_vars['EJ'] = [] 
+        for _, el, _, _ in self.elem_keys[Junction]:
+            self._descrip_vars['EJ'].append(el.get_value() / \
+                                            (2 * np.pi * unt.get_unit_freq()))
+        self._descrip_vars['EL'] = [] 
+        self._descrip_vars['EL_incl'] = []
+        for _, el, B_idx in self.elem_keys[Inductor]:
+            self._descrip_vars['EL'].append(el.get_value(unt._unit_ind))
+            self._descrip_vars['EL_incl'].append(
+                np.sum(np.abs(self._descrip_vars['B'][B_idx, :])) != 0)
+
+        self._descrip_vars['EC'] = dict()
+        for i in range(self._descrip_vars['har_dim'], self._descrip_vars['n_modes']):
+            for j in range(i, self._descrip_vars['num_modes']):
+                self._descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
+                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
+                                self.cInvTrans[i, j]
+                if i == j:
+                    self._descrip_vars['EC'][(i,j)] /= 2   
+
+
+        self._descrip_vars['n_loops'] = len(self.loops)
+        self._descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
+                                       for i in range(len(self.loops))]
+
+    def description_new(
+            self,
+            tp: Optional[str] = None,
+            _test: bool = False,
+    ) -> Optional[str]:
+        """
+        Print out Hamiltonian and a listing of the modes (whether they are
+        harmonic or charge modes with the frequency for each harmonic mode),
+        Hamiltonian parameters, and external flux values.
+
+        Parameters
+        ----------
+            tp:
+                If ``None`` prints out the output as Latex if SQcircuit is
+                running in a Jupyter notebook and as text if SQcircuit is
+                running in Python terminal. If ``tp`` is ``"ltx"``,
+                the output is in Latex format, and if ``tp`` is ``"txt"`` the
+                output is in text format.
+            _test:
+                if True, return the entire description as string
+                text (use only for testing the function).
+        """
+        if tp is None:
+            if is_notebook():
+                txt = HamilTxt('ltx')
+            else:
+                txt = HamilTxt('txt')
+        else:
+            txt = HamilTxt(tp)
+
+        self.compute_params()
+        self.sym_hamil = symbolic.construct_hamiltonian(self)
+        mode_info = symbolic.mode_info(self._descrip_vars)
+        param_info = symbolic.param_info(self._descrip_vars)
+        loop_info = symbolic.loop_info(self._descrip_vars)
+
+        finalTxt = txt.ham_txt(self.sym_hamil) + txt.line \
+                    + txt.mode_txt(mode_info) + txt.line \
+                    + txt.param_txt(param_info) \
+                    + txt.loop_txt(loop_info)
 
         txt.display(finalTxt)
 
