@@ -2125,7 +2125,7 @@ class Circuit:
                     # min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=True)
                     # max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=True)
                     if element._value < element.min_value:
-                        raise_value_out_of_bounds_warning(element.min_value, element._value.detach().numpy())
+                        raise_value_out_of_bounds_warning(type(element), element.min_value, element._value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
@@ -2133,7 +2133,7 @@ class Circuit:
                             element.set_value(element.min_value)
                             element.requires_grad = True
                     if element._value > element.max_value:
-                        raise_value_out_of_bounds_warning(element.max_value, element._value.detach().numpy())
+                        raise_value_out_of_bounds_warning(type(element), element.max_value, element._value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
