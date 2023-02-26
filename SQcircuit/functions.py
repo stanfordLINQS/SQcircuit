@@ -391,6 +391,11 @@ def maximum(a, b):
         # return torch.maximum(a, b)
     return np.maximum(a, b)
 
+def round(x, a=3):
+    if get_optim_mode():
+        return torch.round(x * 10**a) / (10**a)
+    return np.round(x, a)
+
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()
     values = S.data
