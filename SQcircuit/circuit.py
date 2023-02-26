@@ -789,158 +789,6 @@ class Circuit:
         # scaling the modes by third transformation
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
-    def description(
-        self,
-        tp: Optional[str] = None,
-        _test: bool = False,
-    ) -> Optional[str]:
-        """
-        Print out Hamiltonian and a listing of the modes (whether they are
-        harmonic or charge modes with the frequency for each harmonic mode),
-        Hamiltonian parameters, and external flux values.
-
-        Parameters
-        ----------
-            tp:
-                If ``None`` prints out the output as Latex if SQcircuit is
-                running in a Jupyter notebook and as text if SQcircuit is
-                running in Python terminal. If ``tp`` is ``"ltx"``,
-                the output is in Latex format if ``tp`` is ``"txt"`` the
-                output is in text format.
-            _test:
-                if True, return the entire description as string
-                text. (use only for testing the function)
-        """
-        if tp is None:
-            if is_notebook():
-                txt = HamilTxt('ltx')
-            else:
-                txt = HamilTxt('txt')
-        else:
-            txt = HamilTxt(tp)
-
-        hamilTxt = txt.H()
-        harDim = np.sum(self.omega != 0)
-        chDim = np.sum(self.omega == 0)
-        W = np.round(self.wTrans, 6)
-        S = np.round(self.S, 3)
-
-        # If circuit has any loop:
-        if self.loops:
-            B = np.round(self.B, 2)
-        else:
-            B = np.zeros((len(self.elem_keys[Junction])
-                          + len(self.elem_keys[Inductor]), 1))
-        EJLst = []
-        ELLst = []
-
-        for i in range(harDim):
-            hamilTxt += txt.omega(i + 1) + txt.ad(i + 1) + \
-                        txt.a(i + 1) + txt.p()
-
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    hamilTxt += txt.Ec(harDim + i + 1, harDim + j + 1) + \
-                                txt.n(harDim + i + 1, harDim + j + 1) + txt.p()
-
-        JJHamilTxt = ""
-        indHamilTxt = ""
-
-        for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
-            EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
-            junTxt = txt.Ej(i + 1) + txt.cos() + "("
-            # if B_idx is not None:
-            junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
-                txt.linear(txt.phiExt, B[B_idx, :], st=False)
-            # else:
-            #     junTxt += txt.linear(txt.phi, W[W_idx, :])
-            JJHamilTxt += junTxt + ")" + txt.p()
-
-        for i, (edge, el, B_idx) in enumerate(self.elem_keys[Inductor]):
-
-            # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
-            if np.sum(np.abs(B[B_idx, :])) == 0:
-                continue
-            ELLst.append(el.get_value("GHz"))
-            indTxt = txt.El(i + 1) + "("
-            if 0 in edge:
-                w = S[edge[0] + edge[1] - 1, :]
-            else:
-                w = S[edge[0] - 1, :] - S[edge[1] - 1, :]
-            w = np.round(w[:harDim], 3)
-
-            indTxt += txt.linear(txt.phi, w) + ")(" + \
-                txt.linear(txt.phiExt, B[B_idx, :])
-            indHamilTxt += indTxt + ")" + txt.p()
-
-        hamilTxt += indHamilTxt + JJHamilTxt
-
-        if '+' in hamilTxt[-3:-1]:
-            hamilTxt = hamilTxt[0:-2] + '\n'
-
-        modeTxt = ''
-        for i in range(harDim):
-            modeTxt += txt.mode(i + 1) + txt.tab() + txt.har()
-
-            modeTxt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
-                + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
-
-            omega = np.round(self.omega[i] / 2 / np.pi / unt.get_unit_freq(), 5)
-            zp = 2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
-                self.cInvTrans[i, i] / self.lTrans[i, i]))
-            zpTxt = "{:.2e}".format(zp)
-
-            modeTxt += txt.tab() + txt.omega(i + 1, False) + txt.eq() + str(
-                omega) + txt.tab() + txt.zp(i + 1) + txt.eq() + zpTxt
-
-            modeTxt += '\n'
-        for i in range(chDim):
-            modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].value(), 3)
-            modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
-            modeTxt += '\n'
-
-        paramTxt = txt.param() + txt.tab()
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    paramTxt += txt.Ec(harDim + i + 1,
-                                       harDim + j + 1) + txt.eq()
-
-                    if i == j:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j] / 2
-                    else:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j]
-
-                    paramTxt += str(np.round(Ec, 3)) + txt.tab()
-        for i in range(len(ELLst)):
-            paramTxt += txt.El(i + 1) + txt.eq() + str(
-                np.round(ELLst[i], 3)) + txt.tab()
-        for i in range(len(EJLst)):
-            paramTxt += txt.Ej(i + 1) + txt.eq() + str(
-                np.round(EJLst[i], 3)) + txt.tab()
-        paramTxt += '\n'
-
-        loopTxt = txt.loops() + txt.tab()
-        for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
-            loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
-                phiExt) + txt.tab()
-
-        finalTxt = hamilTxt + txt.line + modeTxt + txt.line + paramTxt + loopTxt
-
-        txt.display(finalTxt)
-
-        if _test:
-            return finalTxt
-
     def compute_params(self):
         # calculate coefficients normalized in units of angular frequency
         self._descrip_vars['n_modes'] = self.n
@@ -969,14 +817,18 @@ class Circuit:
             self._descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
                           + len(self.elem_keys[Inductor]), 1))
 
+        def elem_value(val):
+            if get_optim_mode(): return val.item()
+            else: return val
+
         self._descrip_vars['EJ'] = [] 
         for _, el, _, _ in self.elem_keys[Junction]:
-            self._descrip_vars['EJ'].append(el.get_value() / \
+            self._descrip_vars['EJ'].append(elem_value(el.get_value()) / \
                                             (2 * np.pi * unt.get_unit_freq()))
         self._descrip_vars['EL'] = [] 
         self._descrip_vars['EL_incl'] = []
         for _, el, B_idx in self.elem_keys[Inductor]:
-            self._descrip_vars['EL'].append(el.get_value(unt._unit_ind))
+            self._descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
             self._descrip_vars['EL_incl'].append(
                 np.sum(np.abs(self._descrip_vars['B'][B_idx, :])) != 0)
 
@@ -994,7 +846,7 @@ class Circuit:
         self._descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
                                        for i in range(len(self.loops))]
 
-    def description_new(
+    def description(
             self,
             tp: Optional[str] = None,
             _test: bool = False,

@@ -1,6 +1,6 @@
 import numpy as np
 import sympy as sm
-from sympy.physics.quantum import Operator as qOperator
+from sympy.physics.quantum import Operator
 
 from SQcircuit.elements import (
     Capacitor,
@@ -10,12 +10,29 @@ from SQcircuit.elements import (
     Charge
 )
 
-# class ad_op(smq.operator.Operator): # inherits from QExpr inherits from Expr
-#     def _latex(self, printer):
-#         return r"a^\dagger"
-    
+class qOperator(Operator):
+    def __new__(cls, name, subscript):
+        self = super().__new__(cls,f'{name}_{{{subscript}}}')
+        self.opname = name
+        self.sub = subscript
+        return self
+    def _latex(self, printer):
+        if self.opname[-1] == 'd':
+            return printer._print(sm.Symbol(f'\hat{{{self.opname[:-1]}}}^\dagger_{{{self.sub}}}'))
+        else:
+            return printer._print(sm.Symbol(f'\hat{{{self.opname}}}_{{{self.sub}}}'))
+
 def phi_op(i):
-    return qOperator(rf'\hat{{\varphi}}_{{{i}}}')
+    return qOperator(r'\varphi', i)
+
+def a(i):
+    return qOperator('a', i) 
+
+def ad(i):
+    return qOperator('ad', i)
+
+def n(i):
+    return qOperator('n', i)
 
 def phi_ext(i):
     return sm.Symbol(r'\varphi_{\text{ext}_{' + str(i) + '}}')
@@ -23,17 +40,8 @@ def phi_ext(i):
 def phi_zp(i):
     return sm.Symbol(r'\varphi_{\text{zp}_{' + str(i) + '}}')
 
-def a(i):
-    return qOperator(rf'\hat{{a}}_{{{i}}}')
-
-def ad(i):
-    return qOperator(rf'\hat{{a}}^\dagger_{{{i}}}')
-
 def omega(i):
     return sm.Symbol(rf'\omega_{i}')
-
-def n(i):
-    return qOperator(rf'\hat{{n}}_{{{i}}}')
 
 def ng(i):
     return sm.Symbol(f'n_{{g_{{{i}}}}}')
@@ -47,7 +55,7 @@ def EL(i):
 def EJ(i):
     return sm.Symbol(f'E_{{J_{{{i}}}}}')
 
-H = qOperator(r'\hat{H}')
+H = Operator(r'\hat{H}')
 
 
 def har_mode_hamil(coeff_dict):
