@@ -2082,7 +2082,7 @@ class Circuit:
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
 
-    def get_partial_vec(self, el: Union[Element, Loop], m: int):
+    def get_partial_vec(self, el: Union[Element, Loop], m: int, epsilon=1e-12):
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
         Parameters
@@ -2114,7 +2114,7 @@ class Circuit:
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
 
             partial_state += (state_n.dag()
-                              * (partial_H * state_m)) * state_n / delta_omega
+                              * (partial_H * state_m)) * state_n / (delta_omega + epsilon)
 
         return partial_state
 
