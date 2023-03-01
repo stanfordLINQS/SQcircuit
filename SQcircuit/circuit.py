@@ -372,7 +372,7 @@ class Circuit:
         }
 
         # TODO: fix typing; add comments etc.
-        self._descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
+        self.descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
             "omega": [], 
             "phi_zp": [], 
             "ng": [],
@@ -791,59 +791,61 @@ class Circuit:
 
     def compute_params(self):
         # calculate coefficients normalized in units of angular frequency
-        self._descrip_vars['n_modes'] = self.n
-        self._descrip_vars['har_dim'] = np.sum(self.omega != 0)
-        harDim = self._descrip_vars['har_dim']
-        self._descrip_vars['charge_dim'] = np.sum(self.omega == 0)
-        self._descrip_vars['omega'] = self.omega \
+
+        ## dimensions of modes of circuit
+        self.descrip_vars['n_modes'] = self.n
+        self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
+        harDim = self.descrip_vars['har_dim']
+        self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
+        self.descrip_vars['omega'] = self.omega \
                                         / (2 * np.pi * unt.get_unit_freq())
         
-        self._descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
+        self.descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
             * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
                                         / np.diag(self.cInvTrans)[:harDim])))
-        ## NOTE: atm ['ng'] is a dict referenced by index in range of chardim
-        self._descrip_vars['ng'] = [self.charge_islands[i].value() \
+        self.descrip_vars['ng'] = [self.charge_islands[i].value() \
                                     for i in range(len(self.charge_islands))]
-        self._descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
+        self.descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
                                        * unt.get_unit_freq())) \
                                     * np.diag(np.repeat(0.5, self.n)) \
                                     * self.cInvTrans
         
-        self._descrip_vars['W'] = np.round(self.wTrans, 6)
-        self._descrip_vars['S'] = np.round(self.S, 3)
+        self.descrip_vars['W'] = np.round(self.wTrans, 6)
+        self.descrip_vars['S'] = np.round(self.S, 3)
         if self.loops:
-            self._descrip_vars['B'] = np.round(self.B, 2)
+            self.descrip_vars['B'] = np.round(self.B, 2)
         else:
-            self._descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
+            self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
                           + len(self.elem_keys[Inductor]), 1))
 
+        ## values of elements
         def elem_value(val):
             if get_optim_mode(): return val.item()
             else: return val
 
-        self._descrip_vars['EJ'] = [] 
+        self.descrip_vars['EJ'] = [] 
         for _, el, _, _ in self.elem_keys[Junction]:
-            self._descrip_vars['EJ'].append(elem_value(el.get_value()) / \
+            self.descrip_vars['EJ'].append(elem_value(el.get_value()) / \
                                             (2 * np.pi * unt.get_unit_freq()))
-        self._descrip_vars['EL'] = [] 
-        self._descrip_vars['EL_incl'] = []
+        self.descrip_vars['EL'] = [] 
+        self.descrip_vars['EL_incl'] = []
         for _, el, B_idx in self.elem_keys[Inductor]:
-            self._descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
-            self._descrip_vars['EL_incl'].append(
-                np.sum(np.abs(self._descrip_vars['B'][B_idx, :])) != 0)
+            self.descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
+            self.descrip_vars['EL_incl'].append(
+                np.sum(np.abs(self.descrip_vars['B'][B_idx, :])) != 0)
 
-        self._descrip_vars['EC'] = dict()
-        for i in range(self._descrip_vars['har_dim'], self._descrip_vars['n_modes']):
-            for j in range(i, self._descrip_vars['num_modes']):
-                self._descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
+        self.descrip_vars['EC'] = dict()
+        for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
+            for j in range(i, self.descrip_vars['num_modes']):
+                self.descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
                                 unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
                                 self.cInvTrans[i, j]
                 if i == j:
-                    self._descrip_vars['EC'][(i,j)] /= 2   
+                    self.descrip_vars['EC'][(i,j)] /= 2   
 
-
-        self._descrip_vars['n_loops'] = len(self.loops)
-        self._descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
+        ## values of loops
+        self.descrip_vars['n_loops'] = len(self.loops)
+        self.descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
                                        for i in range(len(self.loops))]
 
     def description(
@@ -876,18 +878,12 @@ class Circuit:
         else:
             txt = HamilTxt(tp)
 
+        # txt.print_descript(self)
+
         self.compute_params()
-        self.sym_hamil = symbolic.construct_hamiltonian(self)
-        mode_info = symbolic.mode_info(self._descrip_vars)
-        param_info = symbolic.param_info(self._descrip_vars)
-        loop_info = symbolic.loop_info(self._descrip_vars)
+        self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
-        finalTxt = txt.ham_txt(self.sym_hamil) + txt.line \
-                    + txt.mode_txt(mode_info) + txt.line \
-                    + txt.param_txt(param_info) \
-                    + txt.loop_txt(loop_info)
-
-        txt.display(finalTxt)
+        finalTxt = txt.print_description(self.descrip_vars)
 
         if _test:
             return finalTxt

@@ -10,20 +10,45 @@ from SQcircuit.elements import (
     Charge
 )
 
+from sympy.printing.latex import LatexPrinter
+
+class ExplicitSymbol(sm.Symbol):
+    def __new__(cls, plainname, latexname):
+        self = super().__new__(cls, plainname)
+        self.lsymbol = sm.Symbol(latexname)
+        return self
+
+    def _latex(self, printer):
+        return printer.doprint(self.lsymbol)
+        
+
 class qOperator(Operator):
-    def __new__(cls, name, subscript):
-        self = super().__new__(cls,f'{name}_{{{subscript}}}')
+    """
+    Class extending sympy physics operator, mostly for custom printing purposes.
+    Created with a base `name` and a `subscript`. When printing in LaTeX, a hat 
+    will be put over the name, but not in plaintext.
+    """
+    def __new__(cls, name, subscript=None):
+        if subscript:
+            self = super().__new__(cls,f'{name}_{subscript}')
+        else:
+            self = super().__new__(cls, name)
         self.opname = name
         self.sub = subscript
         return self
+    
     def _latex(self, printer):
         if self.opname[-1] == 'd':
-            return printer._print(sm.Symbol(f'\hat{{{self.opname[:-1]}}}^\dagger_{{{self.sub}}}'))
+            tex = fr'\hat{{{self.opname[:-1]}}}^\dagger'
         else:
-            return printer._print(sm.Symbol(f'\hat{{{self.opname}}}_{{{self.sub}}}'))
+            tex = fr'\hat{{{self.opname}}}'
+        if self.sub:
+            tex  += fr'_{{{self.sub}}}'
+        return printer.doprint(sm.Symbol(tex))
 
 def phi_op(i):
-    return qOperator(r'\varphi', i)
+    return ExplicitSymbol(f'phi_{i}',
+                          fr'\hat{{\varphi}}_{{{i}}}')
 
 def a(i):
     return qOperator('a', i) 
@@ -35,27 +60,33 @@ def n(i):
     return qOperator('n', i)
 
 def phi_ext(i):
-    return sm.Symbol(r'\varphi_{\text{ext}_{' + str(i) + '}}')
+    return ExplicitSymbol(f'phi_e{i}',
+                          r'\varphi_{\text{ext}_{' + str(i) + '}}')
 
 def phi_zp(i):
-    return sm.Symbol(r'\varphi_{\text{zp}_{' + str(i) + '}}')
+    return ExplicitSymbol(f'zp_{i}',
+                          r'\varphi_{\text{zp}_{' + str(i) + '}}')
 
 def omega(i):
-    return sm.Symbol(rf'\omega_{i}')
+    return sm.Symbol(rf'omega_{i}')
 
 def ng(i):
-    return sm.Symbol(f'n_{{g_{{{i}}}}}')
+    return ExplicitSymbol(f'ng_{i}',
+                          fr'n_{{g_{{{i}}}}}')
 
 def EC(i,j):
-    return sm.Symbol(f'E_{{C_{{{i}{i}}}}}')
+    return ExplicitSymbol(f'EC_{i}{j}',
+                          fr'E_{{C_{{{i}{j}}}}}')
 
 def EL(i):
-    return sm.Symbol(f'E_{{L_{{{i}}}}}')
+    return ExplicitSymbol(f'EL_{i}',
+                          fr'E_{{L_{{{i}}}}}')
 
 def EJ(i):
-    return sm.Symbol(f'E_{{J_{{{i}}}}}')
+    return ExplicitSymbol(f'EJ_{i}',
+                          fr'E_{{J_{{{i}}}}}')
 
-H = Operator(r'\hat{H}')
+H = qOperator('H')
 
 
 def har_mode_hamil(coeff_dict):
@@ -102,64 +133,15 @@ def jj_hamil(elem_keys, coeff_dict):
         B_sym = sm.Matrix(coeff_dict['B'][B_idx, :])
         phi_exts = [phi_ext(i+1) for i in range(len(B_sym))]
 
-        hamil = EJ(i+1) * sm.cos(sm.nsimplify(W_sym.dot(phis) + B_sym.dot(phi_exts)))
+        hamil = EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
+                                        sm.nsimplify(B_sym.dot(phi_exts)),
+                                        evaluate=False))
     return hamil
                     
 def construct_hamiltonian(cr):
-    LC_hamil = har_mode_hamil(cr._descrip_vars) + charge_mode_hamil(cr._descrip_vars)
-    Ind_hamil = inductive_hamil(cr.elem_keys, cr._descrip_vars)
-    JJ_hamil = jj_hamil(cr.elem_keys, cr._descrip_vars)
+    LC_hamil = har_mode_hamil(cr.descrip_vars) + charge_mode_hamil(cr.descrip_vars)
+    Ind_hamil = inductive_hamil(cr.elem_keys, cr.descrip_vars)
+    JJ_hamil = jj_hamil(cr.elem_keys, cr.descrip_vars)
             
-    return sm.Add(LC_hamil, Ind_hamil, JJ_hamil, evaluate=False)
-
-def har_mode(coeff_dict):
-    modes = []
-    for i in range(coeff_dict['har_dim']):
-        omega_val  = np.round(coeff_dict['omega'][i], 5)
-        zp_val = np.round(coeff_dict['phi_zp'][i], 2)
-
-        modes.append([i+1,
-                      'harmonic', 
-                      sm.Eq(phi_op(i+1), phi_zp(i+1)*(a(i+1) + ad(i+1))), 
-                      sm.Eq(omega(i+1)/(2 * sm.pi), omega_val), 
-                      sm.Eq(phi_zp(i+1), zp_val)])
-
-    return modes
-
-def charge_mode(coeff_dict):
-    modes = []
-    for i in range(coeff_dict['har_dim'], coeff_dict['n_modes']):
-            ng_val = np.round(coeff_dict['ng'][i], 3)
-            modes.append([i + 1,
-                          'charge',
-                          sm.Eq(ng(i+1), ng_val)
-
-            ])
-    return modes
-
-def mode_info(coeff_dict):
-    # [mode type, *infos]
-    return har_mode(coeff_dict) + charge_mode(coeff_dict)
-
-def param_info(coeff_dict):
-    params = []
-    for key in coeff_dict['EC']:
-        i,j = key
-        params.append(sm.Eq(EC(i+1,j+1),
-                            np.round(coeff_dict['EC'][(i,j)], 2)))
-    for i, EL_val in enumerate(coeff_dict['EL']):
-        if coeff_dict['EL_incl'][i]:
-            params.append(sm.Eq(EL(i+1),
-                                np.round(EL_val, 3)))
-    for i, EJ_val in enumerate(coeff_dict['EJ']):
-        params.append(sm.Eq(EJ(i+1), 
-                            np.round(EJ_val, 3)))
-    return params
-
-def loop_info(coeff_dict):
-    return [sm.Eq(phi_ext(i+1)/(2*sm.pi), 
-                  np.round(coeff_dict['loops'][i], 2)) \
-            for i in range(coeff_dict['n_loops'])]
-
-
-
+    return sm.Add(*[H for H in [LC_hamil, Ind_hamil, JJ_hamil] if H!=0], 
+                  evaluate=False)
