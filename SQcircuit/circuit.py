@@ -804,7 +804,7 @@ class Circuit:
             * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
                                         / np.diag(self.cInvTrans)[:harDim])))
         self.descrip_vars['ng'] = [self.charge_islands[i].value() \
-                                    for i in range(len(self.charge_islands))]
+                                    for i in range(harDim, self.n)]
         self.descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
                                        * unt.get_unit_freq())) \
                                     * np.diag(np.repeat(0.5, self.n)) \
@@ -836,7 +836,7 @@ class Circuit:
 
         self.descrip_vars['EC'] = dict()
         for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
-            for j in range(i, self.descrip_vars['num_modes']):
+            for j in range(i, self.descrip_vars['n_modes']):
                 self.descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
                                 unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
                                 self.cInvTrans[i, j]

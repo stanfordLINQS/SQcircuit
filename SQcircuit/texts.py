@@ -75,7 +75,7 @@ class HamilTxt:
     
     def mode_txt(self, coeff_dict):
         txt = ''
-        for i in range(coeff_dict['har_dim']):
+        for i in range(coeff_dict['n_modes']):
             if i < coeff_dict['har_dim']:
                 kind = 'harmonic'
                 omega_val  = np.round(coeff_dict['omega'][i], 5)
@@ -86,11 +86,11 @@ class HamilTxt:
                         sm.Eq(sym.phi_zp(i+1), zp_val)]
             else:
                 kind = 'charge'
-                ng_val = np.round(coeff_dict['ng'][i], 3)
+                ng_val = np.round(coeff_dict['ng'][i - coeff_dict['har_dim']], 3)
                 info = [sm.Eq(sym.ng(i+1), ng_val)]
             txt += self.plaintxt(f'mode {i+1}:') + self.tab() \
                     + self.plaintxt(kind) + self.tab()
-            txt += self.tab().join([self.printer.doprint(e) for e in info])
+            txt += self.tab().join([self.printer.doprint(e) for e in info]) + '\n'
         return txt + '\n'
 
     def param_txt(self, coeff_dict):

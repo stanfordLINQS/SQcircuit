@@ -133,13 +133,14 @@ def jj_hamil(elem_keys, coeff_dict):
         B_sym = sm.Matrix(coeff_dict['B'][B_idx, :])
         phi_exts = [phi_ext(i+1) for i in range(len(B_sym))]
 
-        hamil = EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
+        hamil += EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
                                         sm.nsimplify(B_sym.dot(phi_exts)),
                                         evaluate=False))
     return hamil
                     
 def construct_hamiltonian(cr):
-    LC_hamil = har_mode_hamil(cr.descrip_vars) + charge_mode_hamil(cr.descrip_vars)
+    LC_hamil = sm.Add(har_mode_hamil(cr.descrip_vars),
+                      charge_mode_hamil(cr.descrip_vars), evaluate=False)
     Ind_hamil = inductive_hamil(cr.elem_keys, cr.descrip_vars)
     JJ_hamil = jj_hamil(cr.elem_keys, cr.descrip_vars)
             
