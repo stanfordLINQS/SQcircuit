@@ -8,6 +8,14 @@ from sympy.printing.pretty.pretty import PrettyPrinter
 from sympy.printing.pretty.stringpict import prettyForm, stringPict
 from typing import List
 
+from SQcircuit.elements import (
+    Element,
+    Capacitor,
+    Inductor,
+    Junction,
+    Loop,
+    Charge
+)
 import SQcircuit.symbolic as sym
 
 
@@ -108,10 +116,9 @@ class HamilTxt:
                 for i in range(coeff_dict['n_loops'])]
         txt = self.plaintxt('loops:') + self.tab() \
                 + self.tab().join([self.printer.doprint(l) for l in info])
-        txt += '\n'
         return txt
     
-    def print_description(self, coeff_dict):
+    def print_circuit_description(self, coeff_dict):
         finalTxt = self.ham_txt(coeff_dict) + self.line \
                     + self.mode_txt(coeff_dict) + self.line \
                     + self.param_txt(coeff_dict) \
@@ -119,6 +126,51 @@ class HamilTxt:
 
         self.display(finalTxt)
         return finalTxt
+
+    @staticmethod
+    def print_loop_description(cr):
+        # maximum length of element ID strings
+        nr = max(
+            [len(el.id_str) for _, el, _, _ in cr.elem_keys[Junction]]
+            + [len(el.id_str) for _, el, _ in cr.elem_keys[Inductor]]
+        )
+
+        # maximum length of loop ID strings
+        nh = max([len(lp.id_str) for lp in cr.loops])
+
+        # number of loops
+        nl = len(cr.loops)
+
+        # space between elements in rows
+        ns = 5
+
+        # header with names of loops
+        header = (nr + ns + len(", b1:")) * " "
+        header += (' ' * 10).join([f'{lp.id_str:{nh}}' for lp in cr.loops])
+
+        loop_description_txt = header + '\n'
+
+        # add line under header
+        loop_description_txt += "-" * len(header) + '\n'
+
+
+        for i in range(cr.B.shape[0]):
+            el = None
+            for _, el_ind, B_idx in cr.elem_keys[Inductor]:
+                if i == B_idx:
+                    el = el_ind
+            for _, el_ind, B_idx, W_idx in cr.elem_keys[Junction]:
+                if i == B_idx:
+                    el = el_ind
+
+            id_str = el.id_str
+            row = f'{id_str:{nr}}' + f'{{:{ns + len(", b1:")}}}'.format(', b' + str(i+1) + ':')
+            row += ('').join([f'{np.round(np.abs(cr.B[i, j]), 2):<{nh + 10}}' 
+                              for j in range(nl)])
+            loop_description_txt += row + '\n'
+
+        print(loop_description_txt)
+        return loop_description_txt
 
     def display(self, text):
         if self.tp == 'ltx':

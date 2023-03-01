@@ -883,7 +883,7 @@ class Circuit:
         self.compute_params()
         self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
-        finalTxt = txt.print_description(self.descrip_vars)
+        finalTxt = txt.print_circuit_description(self.descrip_vars)
 
         if _test:
             return finalTxt
@@ -899,58 +899,10 @@ class Circuit:
                 text. (use only for testing the function)
 
         """
-
-        # maximum length of element ID strings
-        nr = max(
-            [len(el.id_str) for _, el, _, _ in self.elem_keys[Junction]]
-            + [len(el.id_str) for _, el, _ in self.elem_keys[Inductor]]
-        )
-
-        # maximum length of loop ID strings
-        nh = max([len(lp.id_str) for lp in self.loops])
-
-        # number of loops
-        nl = len(self.loops)
-
-        # space between elements in rows
-        ns = 5
-
-        loop_description_txt = ''
-
-        header = (nr + ns + len(", b1:")) * " "
-        for i in range(nl):
-            lp = self.loops[i]
-            header += ("{}" + (nh + 10 - len(lp.id_str)) * " ").format(
-                lp.id_str)
-
-        loop_description_txt += header + '\n'
-
-        # add line under header
-        loop_description_txt += "-" * len(header) + '\n'
-        for i in range(self.B.shape[0]):
-
-            el = None
-            for _, el_ind, B_idx in self.elem_keys[Inductor]:
-                if i == B_idx:
-                    el = el_ind
-            for _, el_ind, B_idx, W_idx in self.elem_keys[Junction]:
-                if i == B_idx:
-                    el = el_ind
-
-            id = el.id_str
-            row = id + (nr - len(id)) * " "
-            bStr = f", b{i + 1}:"
-            row += bStr
-            row += (ns + len(", b1:") - len(bStr)) * " "
-            for j in range(nl):
-                b = np.round(np.abs(self.B[i, j]), 2)
-                row += ("{}" + (nh + 10 - len(str(b))) * " ").format(b)
-            loop_description_txt += row + '\n'
+        loop_description_txt = HamilTxt.print_loop_description(self)
 
         if _test:
             return loop_description_txt
-        else:
-            print(loop_description_txt)
 
     def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
