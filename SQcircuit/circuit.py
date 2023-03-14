@@ -431,8 +431,8 @@ class Circuit:
         and the flux distribution over inductive elements B matrix.
         """
 
-        cMat = sqf.zeros((self.n, self.n))
-        lMat = sqf.zeros((self.n, self.n))
+        cMat = sqf.zeros((self.n, self.n), dtype=torch.float64)
+        lMat = sqf.zeros((self.n, self.n), dtype=torch.float64)
         wMat = []
         bMat = sqf.array([])
 
@@ -551,7 +551,6 @@ class Circuit:
         simultaneously diagonalizes the capacitance and susceptance matrices.
         """
 
-        print(f"dtype: {self.C.dtype}")
         cMatRoot = sqrtm(sqf.numpy(self.C))
         cMatRootInv = np.linalg.inv(cMatRoot)
         lMatRoot = sqrtm(sqf.numpy(self.L))

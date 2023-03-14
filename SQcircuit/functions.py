@@ -211,9 +211,9 @@ def init_op(size):
     return qt.Qobj()
 
 
-def zeros(shape):
+def zeros(shape, dtype=torch.complex128):
     if get_optim_mode():
-        return torch.zeros(shape, dtype=torch.complex128)
+        return torch.zeros(shape, dtype=dtype)
     return np.zeros(shape)
 
 
