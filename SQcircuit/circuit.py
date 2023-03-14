@@ -551,6 +551,7 @@ class Circuit:
         simultaneously diagonalizes the capacitance and susceptance matrices.
         """
 
+        print(f"dtype: {self.C.dtype}")
         cMatRoot = sqrtm(sqf.numpy(self.C))
         cMatRootInv = np.linalg.inv(cMatRoot)
         lMatRoot = sqrtm(sqf.numpy(self.L))
