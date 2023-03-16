@@ -1455,6 +1455,10 @@ class Circuit:
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
     def truncate_circuit(self, K, heuristic=True):
+        assert K >= int(2**len(self.omega)), "Circuit should have at least two trunc numbers for each mode"
+        # Preemptively allocate 2 trunc nums to each mode when using heuristic
+        if heuristic:
+            K /= int(2**len(self.omega))
         trunc_num_average = K ** (1 / len(self.omega))
         harmonic_modes = [w for w in self.omega if w != 0]
         f = len(harmonic_modes)
@@ -1462,15 +1466,15 @@ class Circuit:
         A = np.prod(harmonic_modes)
         if A > 0 and f > 0:
             A = A ** (1 / f)
-        trunc_nums = []
         if heuristic:
-            for mode in self.omega:
+            trunc_nums = [2 for _ in range(len(self.omega))]
+            for mode_idx, mode in enumerate(self.omega):
                 # charge mode
                 if mode == 0:
-                    trunc_nums.append(math.ceil(trunc_num_average))
+                    trunc_nums[mode_idx] *= math.floor(trunc_num_average)
                 else:
                     h = (A * trunc_num_average) / mode
-                    trunc_nums.append(math.ceil(h))
+                    trunc_nums[mode_idx] *= math.floor(h)
         else:
             trunc_nums = [math.ceil(trunc_num_average) for _ in range(len(self.omega))]
 
