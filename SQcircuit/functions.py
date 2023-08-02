@@ -258,7 +258,7 @@ def sort(a):
         return torch.sort(a)
     return np.sort(a)
 
-
+# TODO: Fix this function name
 def cast(value, dtype=torch.complex128, requires_grad = True):
     if get_optim_mode():
         if isinstance(value, qt.Qobj):
@@ -290,12 +290,13 @@ def numpy(input):
 
 
 def dag(state):
+    assert len(state.shape) <= 2
     if get_optim_mode():
         if isinstance(state, np.ndarray) and state.ndim == 1:
             return np.conj(state)
         if isinstance(state, torch.Tensor) and state.dim() == 1:
             return torch.conj(state)
-        return torch.conj(torch.transpose(state))
+        return torch.conj(torch.transpose(state, 0, 1))
     return state.dag()
 
 
@@ -309,7 +310,7 @@ def copy(x):
 
 def unwrap(x):
     if get_optim_mode():
-        return x
+        return x[0, 0]
     return x.data[0, 0]
 
 
@@ -323,6 +324,19 @@ def dense(obj):
 
 def mat_mul(A, B):
     if get_optim_mode():
+        if type(A) is Tensor and type(B) is Tensor:
+            if A.is_sparse and B.is_sparse:
+                return torch.sparse.mm(A, B)
+            if (A.is_sparse and not B.is_sparse) or (not A.is_sparse and B.is_sparse):
+                return torch.sparse.mm(A, B)
+            return torch.mm(A, B)
+        elif type(A) is Tensor and type(B) is Qobj:
+            B = qobj_to_tensor(B)
+            # TODO: Add additional check on input dimensions, to make sure this works
+            return torch.transpose(torch.sparse.mm(B, A), 0, 1)
+        elif type(B) is Tensor and type(A) is Qobj:
+            A = qobj_to_tensor(A)
+            return torch.sparse.mm(A, B)
         A = dense(A)
         B = dense(B)
         return torch.matmul(torch.as_tensor(A, dtype=torch.complex128),
@@ -332,11 +346,21 @@ def mat_mul(A, B):
     return A @ B
 
 
-# Currently, use dense form as PyTorch doesn't seem to support complex 
-# sparse tensors
-def qobj_to_tensor(S):
-    return torch.as_tensor(S.full(), dtype=torch.complex128)
+def qobj_to_tensor(qobj, dtype=torch.complex128):
+    '''return torch.as_tensor(S.full(), dtype=torch.complex128)'''
+    # Convert to coo, as there does not seem to be a way to convert directly
+    # from csr format to PyTorch sparse tensor
+    coo_scipy = qobj.data.tocoo()
+    indices = np.vstack((coo_scipy.row, coo_scipy.col))
+    values = coo_scipy.data
+    shape = coo_scipy.shape
 
+    indices_tensor = torch.LongTensor(indices)
+    values_tensor = torch.tensor(values, dtype=dtype)
+    coo_tensor = torch.sparse_coo_tensor(indices_tensor, values_tensor, torch.Size(shape),
+                            dtype=dtype)
+
+    return coo_tensor
 
 def mul(S, T):
     if get_optim_mode():
@@ -344,7 +368,6 @@ def mul(S, T):
             S = qobj_to_tensor(S)
         if isinstance(T, qt.Qobj):
             T = qobj_to_tensor(T)
-        # return torch.sparse.mm(S, T)
         return torch.matmul(S, T)
     return S * T
 
@@ -352,6 +375,19 @@ def mul(S, T):
 def qutip(A: Union[Qobj, Tensor], dims=List[list]) -> Qobj:
     if get_optim_mode():
         if isinstance(A, torch.Tensor):
+            if A.is_sparse:
+                input = A.detach().coalesce()
+                indices = input.indices().numpy()
+                row_indices = indices[0, :]
+                col_indices = indices[1, :]
+                values = input.values().numpy()
+                shape = tuple(input.shape)
+                coo_sparse = scipy.sparse.coo_matrix((values, (row_indices, col_indices)), shape=shape)
+                csr_sparse = coo_sparse.tocsr()
+                qobj = qt.Qobj(inpt=csr_sparse)
+                qobj.dims = dims
+                return qobj
+
             qobj = qt.Qobj(inpt=A.detach().numpy())
             qobj.dims = dims
             return qobj
@@ -395,6 +431,16 @@ def round(x, a=3):
     if get_optim_mode():
         return torch.round(x * 10**a) / (10**a)
     return np.round(x, a)
+
+def operator_inner_product(state1, op, state2):
+    if get_optim_mode():
+        state1 = torch.unsqueeze(state1, 1)
+        state2 = torch.unsqueeze(state2, 1)
+
+    # torch.sparse.mm requires sparse in first arg, dense in second
+    A = mat_mul(op, state2)
+    B = mat_mul(dag(state1), A)
+    return unwrap(B)
 
 '''def sparse_csr_to_tensor(S):
     S = S.tocoo()

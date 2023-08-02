@@ -37,6 +37,8 @@ from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
 
+import psutil # temp
+
 
 class CircuitEdge:
     """Class that contains the properties of an edge in the circuit.
@@ -1007,6 +1009,7 @@ class Circuit:
                 ..., 0, ..., (N-1).
         """
 
+        print("set_trunc_nums called")
         error1 = "The input must be be a python list"
         assert isinstance(nums, list), error1
         error2 = ("The number of modes (length of the input) must be equal to "
@@ -1349,6 +1352,7 @@ class Circuit:
 
             # summation of the 1 over inductor values.
             x = np.squeeze(sqf.numpy(1 / el.get_value()))
+            A = self.coupling_op("inductive", edge)
             op = sqf.qutip(
                 self.coupling_op("inductive", edge),
                 dims=self._get_op_dims()
@@ -1367,7 +1371,6 @@ class Circuit:
             exp = np.exp(1j * phi) * self._memory_ops["exp"][W_idx]
             root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
                 W_idx]
-
             cos = (exp + exp.dag()) / 2
             sin = (exp - exp.dag()) / 2j
             sin_half = (root_exp - root_exp.dag()) / 2j
@@ -1533,6 +1536,7 @@ class Circuit:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on optimization mode.
         """
+        print("diag called")
         if get_optim_mode():
             return self.diag_torch(n_eig)
         else:
@@ -1695,7 +1699,8 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        op = sqf.init_op(size=self._memory_ops["Q"][0].shape)
+        size=self._memory_ops["Q"][0].shape
+        op = sqf.init_sparse(shape=self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
         node2 = nodes[1]
@@ -1756,8 +1761,8 @@ class Circuit:
         # get the coupling operator
         op = self.coupling_op(ctype, nodes)
 
-        # TODO: Check operator format/dtype, compare to using states from numpy solver directly
-        return sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))
+        # return (state1.dag() * op * state2).data[0, 0] (original)
+        return sqf.operator_inner_product(state1, op, state2) # (modified)
 
     @staticmethod
     def _dephasing(A: float, partial_omega: float) -> float:
@@ -1850,14 +1855,14 @@ class Circuit:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 if el.Q:
                     decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
-                        sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
+                        sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
                 decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
                     * unt.hbar * sqf.abs(
-                    sqf.unwrap(sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state2))) ** 2
+                    sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
@@ -2030,15 +2035,11 @@ class Circuit:
         """
 
         state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
-
         partial_H = self._get_partial_H(el, _B_idx)
-
         partial_omega_m = state_m.dag() * (partial_H * state_m)
 
         if subtract_ground:
-
             state_0 = sqf.qutip(self._evecs[0], dims=self._get_state_dims())
-
             partial_omega_0 = state_0.dag() * (partial_H * state_0)
 
             return (partial_omega_m - partial_omega_0).data[0, 0].real
@@ -2110,9 +2111,7 @@ class Circuit:
                 continue
 
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
-
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
-
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / (delta_omega + epsilon)
 
@@ -2238,3 +2237,9 @@ class Circuit:
                 update_H=False
             )
         self._update_H()
+
+    def get_all_circuit_elements(self):
+        def flatten(l):
+            return [item for sublist in l for item in sublist]
+        elements = flatten(list(self.elements.values()))
+        return elements

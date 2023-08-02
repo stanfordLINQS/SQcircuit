@@ -8,7 +8,7 @@ import SQcircuit.units as unt
 
 
 ENV = {
-    "T":  0.015,    # experiment time
+    "T":  0.015,    # temperature
     "omega_low": 2 * np.pi,    # low-frequency cut off
     "omega_high": 2 * np.pi * 3 * 1e9,    # high-frequency cut off
     "t_exp": 10e-6,    # experiment time
