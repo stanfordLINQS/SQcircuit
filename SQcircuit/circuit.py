@@ -1504,8 +1504,7 @@ class Circuit:
             return False
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
-        eigen_solution = EigenSolver.apply(torch.stack(self.parameters) if self.parameters else torch.tensor([]))
+        eigen_solution = sqf.eigencircuit(self, n_eig)
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues

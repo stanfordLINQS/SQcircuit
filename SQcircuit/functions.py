@@ -30,64 +30,67 @@ def eigencircuit(circuit, n_eig: int):
             Number of eigenvalues to output. The lower ``n_eig``, the
                 faster ``SQcircuit`` finds the eigenvalues.
     """
+    return EigenSolver.apply(torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]), 
+                             circuit, 
+                             n_eig)
 
-    class EigenSolver(torch.autograd.Function):
+class EigenSolver(torch.autograd.Function):
 
-        @staticmethod
-        def forward(ctx, element_tensors):
-            ctx.save_for_backward(element_tensors)
-            # Compute forward pass for eigenvalues
-            eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
-            eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
-                           eigenvalue in eigenvalues]
-            eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
-                                  eigenvalue in eigenvalues]
-            eigenvalue_tensor = torch.stack(eigenvalue_tensors)
-            eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
-            # Compute forward pass for eigenvectors
-            eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
-                                   eigenvector in eigenvectors]
-            eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
-            return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
+    @staticmethod
+    def forward(ctx, element_tensors, circuit, n_eig):
+        ctx.save_for_backward(element_tensors)
+        ctx.circuit=circuit
+        ctx.n_eig=n_eig
+        # Compute forward pass for eigenvalues
+        eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
+        eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
+                    eigenvalue in eigenvalues]
+        eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
+                              eigenvalue in eigenvalues]
+        eigenvalue_tensor = torch.stack(eigenvalue_tensors)
+        eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
+        # Compute forward pass for eigenvectors
+        eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
+                               eigenvector in eigenvectors]
+        eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
+        return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
-        @staticmethod
-        def backward(ctx, grad_output):
-            # Break grad_output into eigenvalue sub-tensor and eigenvector 
-            # sub-tensor
-            elements = list(circuit._parameters.keys())
-            m, n, l = (
-                len(circuit.parameters), 
-                n_eig,
-                (grad_output.shape[1] - 1),  # grad_output.shape[1] ==  n + 1
-            ) 
-            grad_output_eigenvalue = grad_output[:, 0]
-            grad_output_eigenvector = grad_output[:, 1:]
+    @staticmethod
+    def backward(ctx, grad_output):
+        # Break grad_output into eigenvalue sub-tensor and eigenvector 
+        # sub-tensor
+        elements = list(ctx.circuit._parameters.keys())
+        m, n, l = (
+            len(ctx.circuit.parameters), 
+            ctx.n_eig,
+            (grad_output.shape[1] - 1),  # grad_output.shape[1] ==  n + 1
+        ) 
+        grad_output_eigenvalue = grad_output[:, 0]
+        grad_output_eigenvector = grad_output[:, 1:]
 
-            partial_omega = torch.zeros([m, n], dtype=float)
-            partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
-            for el_idx in range(m):
-                for eigen_idx in range(n):
-                    # Compute backward pass for eigenvalues
-                    partial_omega[
-                        el_idx, eigen_idx] = circuit.get_partial_omega(
-                        el=elements[el_idx],
-                        m=eigen_idx, subtract_ground=False)
-                    # Compute backward pass for eigenvectors
-                    partial_tensor = torch.squeeze(
-                        torch.as_tensor(
-                            circuit.get_partial_vec(el=elements[el_idx],
-                                                    m=eigen_idx).full()))
-                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
-            eigenvalue_grad = torch.sum(
-                partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
-            eigenvector_grad = torch.sum(
-                partial_eigenvec * torch.conj(grad_output_eigenvector),
-                axis=(-1, -2))
+        partial_omega = torch.zeros([m, n], dtype=float)
+        partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
+        for el_idx in range(m):
+            for eigen_idx in range(n):
+                # Compute backward pass for eigenvalues
+                partial_omega[
+                    el_idx, eigen_idx] = ctx.circuit.get_partial_omega(
+                    el=elements[el_idx],
+                    m=eigen_idx, subtract_ground=False)
+                # Compute backward pass for eigenvectors
+                partial_tensor = torch.squeeze(
+                    torch.as_tensor(
+                        ctx.circuit.get_partial_vec(el=elements[el_idx],
+                                                m=eigen_idx).full()))
+                partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
+        eigenvalue_grad = torch.sum(
+            partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
+        eigenvector_grad = torch.sum(
+            partial_eigenvec * torch.conj(grad_output_eigenvector),
+            axis=(-1, -2))
 
-            input_tensor, = ctx.saved_tensors
-            return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape)
-
-    return EigenSolver
+        input_tensor, = ctx.saved_tensors
+        return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape)
 
 
 def get_kn_solver(n: int):
