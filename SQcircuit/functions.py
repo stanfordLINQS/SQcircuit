@@ -90,7 +90,7 @@ class EigenSolver(torch.autograd.Function):
             axis=(-1, -2))
 
         input_tensor, = ctx.saved_tensors
-        return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape)
+        return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape), None, None
 
 
 def get_kn_solver(n: int):
