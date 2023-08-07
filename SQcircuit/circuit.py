@@ -315,6 +315,7 @@ class Circuit:
 
         # contains the parameters that we want to optimize.
         self._parameters: OrderedDict[Tuple[Element, Tensor]] = {}
+        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = {}
 
         #######################################################################
         # Transformation related attributes
@@ -414,12 +415,19 @@ class Circuit:
 
         return list(self._parameters.values())
 
+    @property
+    def unitless_parameters(self):
+        raise_optim_error_if_needed()
+
+        return list(self._unitless_parameters.values())
+
     def add_to_parameters(self, el: Element) -> None:
         """Add elements with ``requires_grad=True`` to parameters.
         """
 
         if el.requires_grad:
             self._parameters[el] = el._value
+            self._unitless_parameters[el] = el._theta
 
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -1480,7 +1488,7 @@ class Circuit:
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
 
-    def test_convergence(self, trunc_nums, K=10, epsilon=0.01):
+    def test_convergence(self, trunc_nums, K=10, epsilon=0.01, eig_vec_idx=1):
         # Save previous modes
         m = self.m
         ms = self.ms
@@ -1489,7 +1497,7 @@ class Circuit:
 
         assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
 
-        criterion = np.sum(np.abs(sqf.numpy(self._evecs[0])[-K:]))
+        criterion = np.sum(np.abs(sqf.numpy(self._evecs[eig_vec_idx])[-K:]))
         # Restore internal modes to previous values
         self.m = m
         self.ms = ms
@@ -1499,9 +1507,9 @@ class Circuit:
             self._LC_hamil = self._get_LC_hamil()
             self._build_exp_ops()
         if criterion < epsilon:
-            return True
+            return True, epsilon
         else:
-            return False
+            return False, epsilon
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         EigenSolver = sqf.eigencircuit(self, n_eig=n_eig)
@@ -2155,6 +2163,7 @@ class Circuit:
         self.loops: List[Loop] = []
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
+        self.R, self.S = np.eye(self.n), np.eye(self.n)
         self.cInvTrans, self.lTrans, self.wTrans = (
             np.linalg.inv(sqf.numpy(self.C)),
             sqf.numpy(self.L).copy(),
