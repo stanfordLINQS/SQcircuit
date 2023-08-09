@@ -234,7 +234,7 @@ class VerySmallCap(Capacitor):
 class VeryLargeCap(Capacitor):
 
     def __init__(self):
-        super().__init__(1e20, "F", Q=None, max_value=float('inf'))
+        super().__init__(1e20, "F", Q=None, max_value=1e20)
 
 
 class Inductor(Element):

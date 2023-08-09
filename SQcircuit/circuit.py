@@ -427,7 +427,6 @@ class Circuit:
 
         if el.requires_grad:
             self._parameters[el] = el._value
-            self._unitless_parameters[el] = el._theta
 
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
