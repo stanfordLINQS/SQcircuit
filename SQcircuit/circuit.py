@@ -847,7 +847,10 @@ class Circuit:
         indHamilTxt = ""
 
         for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
-            EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
+            if get_optim_mode():
+                EJLst.append(el.get_value().detach().numpy()  / 2 / np.pi / unt.get_unit_freq())
+            else:
+                EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
@@ -861,7 +864,10 @@ class Circuit:
             # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
             if np.sum(np.abs(B[B_idx, :])) == 0:
                 continue
-            ELLst.append(el.get_value("GHz"))
+            if get_optim_mode():
+                ELLst.append(el.get_value("GHz").detach().numpy())
+            else:
+                ELLst.append(el.get_value("GHz"))
             indTxt = txt.El(i + 1) + "("
             if 0 in edge:
                 w = S[edge[0] + edge[1] - 1, :]
