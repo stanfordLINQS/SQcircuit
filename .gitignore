@@ -20,5 +20,4 @@
 
 /examples/.ipynb_checkpoints/
 
-
-
+.mypy_cache/

@@ -1,25 +1,28 @@
 from collections import defaultdict
 import random
+from typing import Dict, Iterable, List, Set, Tuple, Union
+
 from scipy.stats import loguniform
-from typing import Set
 import numpy as np
 
 from SQcircuit.circuit import Circuit
-from SQcircuit.elements import Capacitor, Inductor, Junction, Loop
+from SQcircuit.elements import Capacitor, Element, Inductor, Junction, Loop
 from SQcircuit.settings import get_optim_mode
 
 
-def test_equivalent(code_1, code_2):
-    '''Given two strings indicating a sequence of junctions and inductors (ex. JLJ and JJL), determines whether the
-    patterns are equivalent up to cyclic permutations.'''
+def test_equivalent(code_1: str, code_2: str) -> bool:
+    '''Given two strings indicating a sequence of junctions and inductors 
+    (ex. JLJ and JJL), determines whether the patterns are equivalent up to 
+    cyclic permutations.'''
     assert len(code_1) == len(code_2)
     for i in range(1, len(code_2)):
         if code_1[i:] + code_1[:i] == code_2:
             return True
+    return False
 
-def filter(element_codes):
-    '''Given a sequence of junctions and inductors encoded in string format (ex. JJLJ), removes any that are equivalent
-    up to cyclic permutation.'''
+def filter(element_codes: Iterable[str]) -> Set[str]:
+    '''Given a sequence of junctions and inductors encoded in string format 
+    (ex. JJLJ), removes any that are equivalent up to cyclic permutation.'''
     element_codes_list = list(element_codes)
     for i in range(len(element_codes_list)):
         j = i + 1
@@ -30,10 +33,11 @@ def filter(element_codes):
             j += 1
     return set(element_codes_list)
 
-def _generate_topologies(num_elements) -> Set[str]:
-    '''Generates the set of all unique orderings of N junctions and inductors on a one-loop ring, for later use in
-    sampling random circuit topologies.'''
+def _generate_topologies(num_elements: int) -> Set[str]:
+    '''Generates the set of all unique orderings of N junctions and inductors 
+    on a one-loop ring, for later use in sampling random circuit topologies.'''
     assert num_elements >= 1
+
     element_codes = set()
     element_codes.add('J')  # There should always be at least one junction
     length = 1
@@ -62,16 +66,17 @@ class CircuitSampler:
         self.junction_range = [1e9, 10e9]
         self.trunc_num = 40
 
-    def sample_circuit(self):
+    def sample_circuit(self) -> str:
         sampled_topology = random.sample(self.topologies, 1)[0]
         return sampled_topology
         # Build circuit, assign random values by sampling from range for each element
 
-    def sample_circuit_code(self, codename):
+    def sample_circuit_code(self, codename: str) -> Circuit:
         loop = Loop()
         loop.set_flux(0.5)
-        circuit_elements = defaultdict(list)
+        circuit_elements: Dict[Tuple[int, int], List[Element]] = defaultdict(list)
 
+        element: Union[Junction, Inductor]
         # Add inductive elements to circuit
         for element_idx, element_code in enumerate(codename):
             if element_code == 'J':
@@ -108,7 +113,10 @@ class CircuitSampler:
         # Weight based on natural frequency?
         return circuit
 
-    def sample_one_loop_circuits(self, n, with_replacement = True) -> [Circuit]:
+    def sample_one_loop_circuits(self, 
+                                 n: int, 
+                                 with_replacement = True
+                                 ) -> List[Circuit]:
         circuits = []
         if not with_replacement:
             assert n <= len(self.topologies), "Number of circuit topologies sampled without replacement must be less" \
