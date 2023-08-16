@@ -1,7 +1,7 @@
 """utils.py module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
-
-from typing import List, Union
+from copy import deepcopy
+from typing import List, Tuple, Union
 
 import scipy
 import torch
@@ -14,11 +14,9 @@ from numpy import ndarray
 from qutip import Qobj
 
 import SQcircuit.units as unt
-
 from SQcircuit.settings import get_optim_mode
 
-
-def eigencircuit(circuit, n_eig: int):
+def eigencircuit(circuit: 'Circuit', n_eig: int):
     """Given a circuit, returns Torch functions that compute the concatenated 
     tensor including both eigenvalues and eigenvectors of a circuit.
 
@@ -37,9 +35,9 @@ def eigencircuit(circuit, n_eig: int):
 class EigenSolver(torch.autograd.Function):
 
     @staticmethod
-    def forward(ctx, element_tensors, circuit, n_eig):
+    def forward(ctx, element_tensors: Tensor, circuit: 'Circuit', n_eig: int) -> Tensor:
         ctx.save_for_backward(element_tensors)
-        ctx.circuit=circuit
+        ctx.circuit=circuit.safecopy()
         ctx.n_eig=n_eig
         # Compute forward pass for eigenvalues
         eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
@@ -56,7 +54,7 @@ class EigenSolver(torch.autograd.Function):
         return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
     @staticmethod
-    def backward(ctx, grad_output):
+    def backward(ctx, grad_output) -> Tuple[Tensor]:
         # Break grad_output into eigenvalue sub-tensor and eigenvector 
         # sub-tensor
         elements = list(ctx.circuit._parameters.keys())

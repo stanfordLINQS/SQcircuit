@@ -2,7 +2,7 @@
 """
 
 from collections import OrderedDict
-from copy import deepcopy
+from copy import copy, deepcopy
 
 from typing import Dict, Tuple, List, Sequence, Optional, Union
 from collections import defaultdict
@@ -395,11 +395,27 @@ class Circuit:
     def __setstate__(self, state):
         self.__dict__ = state
 
-    def __copy__(self):
+    def copy_from_elemenest(self):
         new_circuit = Circuit(self.elements)
         new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
+    
+    def safecopy(self):
+        # Instantiate new container
+        new_circuit = copy(self)
+
+        # Explicitly copy any non-leaf tensors
+        new_circuit.C = new_circuit.C.detach()
+        new_circuit.L = new_circuit.L.detach()
+
+        # Remove old eigen(freq/vector)s
+        new_circuit._efreqs = sqf.array([])
+        # eigenvectors of the circuit
+        new_circuit._evecs = []
+
+        # Deepcopy the whole thign
+        return deepcopy(new_circuit)
 
     @property
     def efreqs(self):
@@ -2182,7 +2198,6 @@ class Circuit:
 
         self._efreqs = sqf.array([])
         self._evecs = []
-
 
     def _update_element(
         self,
