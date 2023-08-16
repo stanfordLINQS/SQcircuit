@@ -315,6 +315,7 @@ class Circuit:
 
         # contains the parameters that we want to optimize.
         self._parameters: OrderedDict[Tuple[Element, Tensor]] = {}
+        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = {}
 
         #######################################################################
         # Transformation related attributes
@@ -429,6 +430,12 @@ class Circuit:
         raise_optim_error_if_needed()
 
         return list(self._parameters.values())
+
+    @property
+    def unitless_parameters(self):
+        raise_optim_error_if_needed()
+
+        return list(self._unitless_parameters.values())
 
     def add_to_parameters(self, el: Element) -> None:
         """Add elements with ``requires_grad=True`` to parameters.
@@ -856,7 +863,10 @@ class Circuit:
         indHamilTxt = ""
 
         for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
-            EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
+            if get_optim_mode():
+                EJLst.append(el.get_value().detach().numpy()  / 2 / np.pi / unt.get_unit_freq())
+            else:
+                EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
             junTxt = txt.Ej(i + 1) + txt.cos() + "("
             # if B_idx is not None:
             junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
@@ -870,7 +880,10 @@ class Circuit:
             # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
             if np.sum(np.abs(B[B_idx, :])) == 0:
                 continue
-            ELLst.append(el.get_value("GHz"))
+            if get_optim_mode():
+                ELLst.append(el.get_value("GHz").detach().numpy())
+            else:
+                ELLst.append(el.get_value("GHz"))
             indTxt = txt.El(i + 1) + "("
             if 0 in edge:
                 w = S[edge[0] + edge[1] - 1, :]
@@ -1496,7 +1509,7 @@ class Circuit:
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
 
-    def test_convergence(self, trunc_nums, K=10, epsilon=0.01):
+    def test_convergence(self, trunc_nums, K=10, epsilon=0.01, eig_vec_idx=1):
         # Save previous modes
         m = self.m
         ms = self.ms
@@ -1505,7 +1518,7 @@ class Circuit:
 
         assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
 
-        criterion = np.sum(np.abs(sqf.numpy(self._evecs[0])[-K:]))
+        criterion = np.sum(np.abs(sqf.numpy(self._evecs[eig_vec_idx])[-K:]))
         # Restore internal modes to previous values
         self.m = m
         self.ms = ms
@@ -1515,9 +1528,9 @@ class Circuit:
             self._LC_hamil = self._get_LC_hamil()
             self._build_exp_ops()
         if criterion < epsilon:
-            return True
+            return True, epsilon
         else:
-            return False
+            return False, epsilon
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         eigen_solution = sqf.eigencircuit(self, n_eig)
@@ -2170,6 +2183,7 @@ class Circuit:
         self.loops: List[Loop] = []
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
+        self.R, self.S = np.eye(self.n), np.eye(self.n)
         self.cInvTrans, self.lTrans, self.wTrans = (
             np.linalg.inv(sqf.numpy(self.C)),
             sqf.numpy(self.L).copy(),
