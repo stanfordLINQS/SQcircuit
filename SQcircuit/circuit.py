@@ -381,17 +381,24 @@ class Circuit:
         # eigenvectors of the circuit
         self._evecs = []
 
-    # def __getstate__(self):
-    #     attrs = self.__dict__
-    #     # type_attrs = type(self).__dict__
+        # Toggle whether we need to copy all elements (namely the
+        # _memory_ops and _LC_hamil)
+        self._toggle_fullcopy = True
 
-    #     # Attributes that we are avoiding to store for reducing the size of
-    #     # the saved file( Qutip objects and Quantum operators usually).
-    #     avoid_attrs = ["_memory_ops", "_LC_hamil"]
+    def __getstate__(self):
+        attrs = self.__dict__
+        # type_attrs = type(self).__dict__
 
-    #     self_dict = {k: attrs[k] for k in attrs if k not in avoid_attrs}
+        # Attributes that we are avoiding to store for reducing the size of
+        # the saved file( Qutip objects and Quantum operators usually).
+        if self.toggle_fullcopy:
+            avoid_attrs = []
+        else:
+            avoid_attrs = ["_memory_ops", "_LC_hamil"]
 
-    #     return self_dict
+        self_dict = {k: attrs[k] for k in attrs if k not in avoid_attrs}
+
+        return self_dict
 
     def __setstate__(self, state):
         self.__dict__ = state
@@ -418,6 +425,10 @@ class Circuit:
 
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
+    
+    @property
+    def toggle_fullcopy(self):
+        return self._toggle_fullcopy
 
     @property
     def efreqs(self):
