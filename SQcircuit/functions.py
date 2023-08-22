@@ -10,6 +10,8 @@ import numpy as np
 import qutip as qt
 
 from torch import Tensor
+from torch.autograd import Function
+from torch.autograd.function import once_differentiable
 from numpy import ndarray
 from qutip import Qobj
 
@@ -32,17 +34,16 @@ def eigencircuit(circuit: 'Circuit', n_eig: int):
                              circuit, 
                              n_eig)
 
-class EigenSolver(torch.autograd.Function):
-
+class EigenSolver(Function):
     @staticmethod
-    def forward(ctx, element_tensors: Tensor, circuit: 'Circuit', n_eig: int) -> Tensor:
-        ctx.save_for_backward(element_tensors)
-        ctx.circuit=circuit.safecopy()
-        ctx.n_eig=n_eig
+    def forward(ctx, 
+                element_tensors: Tensor, 
+                circuit: 'Circuit',
+                n_eig: int) -> Tensor:
         # Compute forward pass for eigenvalues
         eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
         eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
-                    eigenvalue in eigenvalues]
+                       eigenvalue in eigenvalues]
         eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
                               eigenvalue in eigenvalues]
         eigenvalue_tensor = torch.stack(eigenvalue_tensors)
@@ -51,17 +52,34 @@ class EigenSolver(torch.autograd.Function):
         eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
                                eigenvector in eigenvectors]
         eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
+
+
+        # Setup context -- needs to be done after diagonalization so that
+        # memory ops are filled
+        ## Save eigenvalues, vectors into `ctx` circuit
+        eigenvalues = torch.real(eigenvalue_tensor)
+        ctx.circuit = circuit.safecopy()
+        ctx.circuit._efreqs = eigenvalues
+        ctx.circuit._evecs = eigenvector_tensor
+
+        ## Number of eigenvalues
+        ctx.n_eig = n_eig
+
+        ## Output shape
+        ctx.out_shape = element_tensors.shape
+
         return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
 
     @staticmethod
+    @once_differentiable
     def backward(ctx, grad_output) -> Tuple[Tensor]:
         # Break grad_output into eigenvalue sub-tensor and eigenvector 
         # sub-tensor
         elements = list(ctx.circuit._parameters.keys())
         m, n, l = (
-            len(ctx.circuit.parameters), 
-            ctx.n_eig,
-            (grad_output.shape[1] - 1),  # grad_output.shape[1] ==  n + 1
+            len(ctx.circuit.parameters), # number of parameters
+            ctx.n_eig,                   # number of eigenvalues
+            (grad_output.shape[1] - 1),  # length of eigenvectors
         ) 
         grad_output_eigenvalue = grad_output[:, 0]
         grad_output_eigenvector = grad_output[:, 1:]
@@ -87,8 +105,7 @@ class EigenSolver(torch.autograd.Function):
             partial_eigenvec * torch.conj(grad_output_eigenvector),
             axis=(-1, -2))
 
-        input_tensor, = ctx.saved_tensors
-        return torch.real(eigenvalue_grad + eigenvector_grad).view(input_tensor.shape), None, None
+        return torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape), None, None
 
 
 def get_kn_solver(n: int):

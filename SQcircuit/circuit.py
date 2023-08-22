@@ -381,17 +381,17 @@ class Circuit:
         # eigenvectors of the circuit
         self._evecs = []
 
-    def __getstate__(self):
-        attrs = self.__dict__
-        # type_attrs = type(self).__dict__
+    # def __getstate__(self):
+    #     attrs = self.__dict__
+    #     # type_attrs = type(self).__dict__
 
-        # Attributes that we are avoiding to store for reducing the size of
-        # the saved file( Qutip objects and Quantum operators usually).
-        avoid_attrs = ["_memory_ops", "_LC_hamil"]
+    #     # Attributes that we are avoiding to store for reducing the size of
+    #     # the saved file( Qutip objects and Quantum operators usually).
+    #     avoid_attrs = ["_memory_ops", "_LC_hamil"]
 
-        self_dict = {k: attrs[k] for k in attrs if k not in avoid_attrs}
+    #     self_dict = {k: attrs[k] for k in attrs if k not in avoid_attrs}
 
-        return self_dict
+    #     return self_dict
 
     def __setstate__(self, state):
         self.__dict__ = state
@@ -407,15 +407,16 @@ class Circuit:
         new_circuit = copy(self)
 
         # Explicitly copy any non-leaf tensors
-        new_circuit.C = new_circuit.C.detach()
-        new_circuit.L = new_circuit.L.detach()
+        # (these don't implement a __deepcopy__ method)
+        if get_optim_mode():
+            new_circuit.C = new_circuit.C.detach()
+            new_circuit.L = new_circuit.L.detach()
 
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
-        # eigenvectors of the circuit
         new_circuit._evecs = []
 
-        # Deepcopy the whole thign
+        # Deepcopy the whole thing
         return deepcopy(new_circuit)
 
     @property
@@ -2111,7 +2112,9 @@ class Circuit:
 
         return (partial_omega_m - partial_omega_n).data[0, 0].real
 
-    def get_partial_vec(self, el: Union[Element, Loop], m: int, epsilon=1e-12):
+    def get_partial_vec(self, 
+                        el: Union[Element, Loop], 
+                        m: int, epsilon=1e-12) -> Qobj:
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
         Parameters
