@@ -426,6 +426,24 @@ class Circuit:
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
     
+    def picklecopy(self):
+       # Instantiate new container
+        new_circuit = copy(self)
+
+        # Explicitly copy any non-leaf tensors
+        # (these don't implement a __deepcopy__ method)
+        if get_optim_mode():
+            new_circuit.C = new_circuit.C.detach()
+            new_circuit.L = new_circuit.L.detach()
+            new_circuit._efreqs = new_circuit._efreqs.detach()
+            new_circuit._evecs = new_circuit._efreqs.detach()
+
+        # Remove large objects
+        del new_circuit._memory_ops
+        del new_circuit._LC_hamil
+
+        return deepcopy(new_circuit)
+    
     @property
     def toggle_fullcopy(self):
         return self._toggle_fullcopy
