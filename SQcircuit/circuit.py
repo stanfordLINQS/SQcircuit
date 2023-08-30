@@ -391,7 +391,7 @@ class Circuit:
 
         # Attributes that we are avoiding to store for reducing the size of
         # the saved file( Qutip objects and Quantum operators usually).
-        if self.toggle_fullcopy:
+        if self._toggle_fullcopy:
             avoid_attrs = []
         else:
             avoid_attrs = ["_memory_ops", "_LC_hamil"]
@@ -403,7 +403,7 @@ class Circuit:
     def __setstate__(self, state):
         self.__dict__ = state
 
-    def copy_from_elemenest(self):
+    def copy_from_elements(self):
         new_circuit = Circuit(self.elements)
         new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
@@ -439,14 +439,11 @@ class Circuit:
             new_circuit._evecs = new_circuit._efreqs.detach()
 
         # Remove large objects
-        del new_circuit._memory_ops
-        del new_circuit._LC_hamil
-
+        # del new_circuit._memory_ops
+        # del new_circuit._LC_hamil
+        new_circuit._toggle_fullcopy = False
+        
         return deepcopy(new_circuit)
-    
-    @property
-    def toggle_fullcopy(self):
-        return self._toggle_fullcopy
 
     @property
     def efreqs(self):
@@ -1516,16 +1513,35 @@ class Circuit:
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
 
-    def truncate_circuit(self, K, heuristic=True):
+    def truncate_circuit(self, K: int, heuristic=True) -> List[int]:
+        """
+        Set truncation numbers of circuit to `k=ceil(K^{1/n})` for all modes, 
+        where `n` is the number of modes in the circuit. 
+
+        If `heuristic` is true, then the truncation number for each 
+        harmonic mode is weighted by setting
+            `k_i = k * prod(omega_j^(1/n))/omega_i`
+        All charge modes are left with truncation number `k` as above.
+
+        Parameters
+        ----------
+            K:
+                Total truncation number
+        Returns
+        ----------
+            trunc_nums:
+                List of truncation numbers for each mode of circuit
+        """
         trunc_num_average = K ** (1 / len(self.omega))
-        harmonic_modes = [w for w in self.omega if w != 0]
-        f = len(harmonic_modes)
-        g = len(self.omega) - f # Number of charge modes
-        A = np.prod(harmonic_modes)
-        if A > 0 and f > 0:
-            A = A ** (1 / f)
-        trunc_nums = []
+
         if heuristic:
+            harmonic_modes = [w for w in self.omega if w != 0]
+            f = len(harmonic_modes) # Number of harmonic modes
+            A = np.prod(harmonic_modes)
+            if A > 0 and f > 0:
+                A = A ** (1 / f)
+                
+            trunc_nums = []
             for mode in self.omega:
                 # charge mode
                 if mode == 0:
