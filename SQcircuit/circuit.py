@@ -314,8 +314,8 @@ class Circuit:
         }
 
         # contains the parameters that we want to optimize.
-        self._parameters: OrderedDict[Tuple[Element, Tensor]] = {}
-        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = {}
+        self._parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
+        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
 
         #######################################################################
         # Transformation related attributes
