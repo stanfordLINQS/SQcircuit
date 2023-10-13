@@ -1891,7 +1891,7 @@ class Circuit:
 
         omega = sqf.abs(omega2 - omega1)
 
-        decay = sqf.cast(0, dtype=torch.float32)
+        decay = sqf.cast(0, dtype=torch.float64)
 
         # prevent the exponential overflow(exp(709) is the biggest number
         # that numpy can calculate
@@ -1940,30 +1940,47 @@ class Circuit:
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
-            op = qt.Qobj()
+            print(f"optim mode: {get_optim_mode()}")
+            op = sqf.init_sparse(shape=self._memory_ops["Q"][0].shape)
             for i in range(self.n):
                 if self._is_charge_mode(i):
                     for j in range(self.n):
-                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / sqf.sqrt(unt.hbar))
-                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
-                                                                   sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
-                                                                               state1))))
+                        # op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
+                        #        / sqf.sqrt(unt.hbar))
+                        op += sqf.cast(sqf.mat_inv(self.C)[i, j] * sqf.cast(self._memory_ops["Q"][j], dtype=torch.float64), dtype=torch.complex128)
+                    print(f"i, j: {i}, {j}")
+                    print(f"sqf.mat_inv(self.C)[i, j]: {sqf.mat_inv(self.C)[i, j]}")
+                    if get_optim_mode():
+                        print(f"rg? {self.C.requires_grad}")
+                        print(f"sparse? {sqf.mat_inv(self.C).is_sparse}")
+                    state1 = sqf.cast(np.ones_like(sqf.numpy(state1)))
+                    print(f"type state1: {type(state1)}, type op: {type(op)}")
+                    # partial_omega = sqf.abs(sqf.operator_inner_product(state1, op, state1))
+
+                    ## Compare:
+                    # partial_omega = sqf.sum(self.C)
+                    partial_omega = sqf.abs(sqf.operator_inner_product(state1, qt.qeye(op.shape[0]), state2))
+
+                    # print(f"partial_omega shape: {sqf.operator_inner_product(state1, op, state1).shape}")
+
+                    # partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
+                    #                                                sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
+                    #                                                            state1))))
                     A = (self.charge_islands[i].A * 2 * unt.e)
-                    decay += self._dephasing(A, partial_omega)
+                    decay = decay + self._dephasing(A, partial_omega)
 
         elif dec_type == "cc":
             for el, B_idx in self._memory_ops['cos']:
                 partial_omega = self._get_partial_omega_mn(el, states=states,
                                                            _B_idx=B_idx)
                 A = el.A * el.get_value()
-                decay += self._dephasing(A, partial_omega)
+                decay = decay + self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
             for loop in self.loops:
                 partial_omega = self._get_partial_omega_mn(loop, states=states)
                 A = loop.A
-                decay += self._dephasing(A, partial_omega)
+                decay = decay + self._dephasing(A, partial_omega)
 
         return decay
 
@@ -2152,10 +2169,13 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H*state_m)
-        partial_omega_n = state_n.dag() * (partial_H*state_n)
+        print(f"type 1: {type(partial_H)}, 2: {type(state_m)}")
+        # partial_omega_m = sqf.dag(state_m) * (partial_H * state_m)
+        # partial_omega_n = sqf.dag(state_n) * (partial_H * state_n)
+        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
+        partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return (partial_omega_m - partial_omega_n).data[0, 0].real
+        return (partial_omega_m - partial_omega_n).real
 
     def get_partial_vec(self, 
                         el: Union[Element, Loop], 

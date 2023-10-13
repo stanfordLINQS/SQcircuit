@@ -187,25 +187,25 @@ def diag(v):
 
 
 def abs(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.abs(x)
     return np.abs(x)
 
 
 def tanh(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.tanh(x)
     return np.tanh(x)
 
 
 def exp(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.exp(x)
     return np.exp(x)
 
 
 def sqrt(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.sqrt(x)
     return np.sqrt(x)
 
@@ -236,7 +236,7 @@ def zeros(shape, dtype=torch.complex128):
 
 
 def log(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float:
         return torch.log(x)
     return np.log(x)
 
@@ -250,23 +250,26 @@ def array(object):
 def sum(a):
     if get_optim_mode():
         return torch.sum(a)
-    return np.sum(a)
+    else:
+        if type(a) is qt.Qobj:
+            return np.sum(a.data)
+        return np.sum(a)
 
 
 def sinh(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.sinh(x)
     return np.sinh(x)
 
 
 def cosh(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.cosh(x)
     return np.cosh(x)
 
 
 def tanh(x):
-    if get_optim_mode():
+    if get_optim_mode() and type(x) is not float and type(x) is not np.float64:
         return torch.tanh(x)
     return np.tanh(x)
 
@@ -315,7 +318,11 @@ def dag(state):
         if isinstance(state, torch.Tensor) and state.dim() == 1:
             return torch.conj(state)
         return torch.conj(torch.transpose(state, 0, 1))
-    return state.dag()
+    else:
+        if isinstance(state, np.ndarray):
+            return np.conj(state).T
+        elif isinstance(state, qt.Qobj):
+            return state.dag()
 
 
 def copy(x):
@@ -329,8 +336,11 @@ def copy(x):
 def unwrap(x):
     if get_optim_mode():
         return x[0, 0]
-    return x.data[0, 0]
-
+    else:
+        if isinstance(x, qt.Qobj):
+            return x.data[0, 0]
+        else:
+            return x[0, 0]
 
 def dense(obj):
     if isinstance(obj, qt.Qobj):
@@ -359,8 +369,13 @@ def mat_mul(A, B):
         B = dense(B)
         return torch.matmul(torch.as_tensor(A, dtype=torch.complex128),
                             torch.as_tensor(B, dtype=torch.complex128))
-    if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
-        return A * B
+    else:
+        if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
+            return A * B
+        elif isinstance(A, qt.Qobj) and isinstance(B, np.ndarray):
+            return A.full() @ B
+        elif isinstance(A, np.ndarray) and isinstance(B, qt.Qobj):
+            return A @ B.full()
     return A @ B
 
 

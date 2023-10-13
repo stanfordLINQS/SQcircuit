@@ -60,6 +60,7 @@ def function_grad_test(circuit_numpy,
                 u=element_numpy.unit) + delta,
                 element_numpy.unit
             )
+            # Start np circuit calculation
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_plus = function_numpy(circuit_numpy)
@@ -77,23 +78,26 @@ def function_grad_test(circuit_numpy,
                 element_numpy.unit
             )
 
+            # Start torch circuit calculation
+            set_optim_mode(True)
             edge_elements_torch = list(circuit_torch.elements.values())[0]
             for edge_element in edge_elements_torch:
+                print(f"Element type: {type(element_numpy)}")
                 print(f"edge element: {edge_element}")
                 print(f"value: {edge_element._value}")
                 print(f"value grad: {edge_element._value.grad}")
-            grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
-            # TODO: Modify Element class so that following gradient scaling is not necessary
-            if type(element_numpy) is Capacitor and element_numpy.unit in unt.freq_list:
-                grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            elif type(element_numpy) is Inductor and element_numpy.unit in unt.freq_list:
-                grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            if type(element_numpy) is Junction:
-                grad_torch *= (2 * np.pi)
-            print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
-            assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+                grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
+                # TODO: Modify Element class so that following gradient scaling is not necessary
+                if type(element_numpy) is Capacitor and element_numpy.unit in unt.freq_list:
+                    grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                elif type(element_numpy) is Inductor and element_numpy.unit in unt.freq_list:
+                    grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                if type(element_numpy) is Junction:
+                    grad_torch *= (2 * np.pi)
+                print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
+                assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
     optimizer.zero_grad()
 
 def first_eigendifference_numpy(circuit):
@@ -163,6 +167,71 @@ def test_T1_transmon():
                        circuit_torch,
                        T1_inv,
                        delta=1e-6)
+    set_optim_mode(False)
+
+def test_T2_transmon():
+    cap_value, ind_value, Q = 7.746, 5, 1e6
+    cap_unit, ind_unit = 'fF', 'GHz'
+    # Create numpy circuit
+    set_optim_mode(False)
+    C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
+    J_numpy = Junction(ind_value, ind_unit)
+    circuit_numpy = Circuit({(0, 1): [C_numpy, J_numpy], })
+    circuit_numpy.set_trunc_nums([trunc_num, ])
+    circuit_numpy.diag(5)
+
+    # Create torch circuit
+    set_optim_mode(True)
+    C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
+    J_torch = Junction(ind_value, ind_unit, requires_grad=True)
+    circuit_torch = Circuit({(0, 1): [C_torch, J_torch]})
+    circuit_torch.set_trunc_nums([trunc_num, ])
+
+    def T2_inv_charge(circuit):
+        return circuit.dec_rate('charge', (0, 1))
+
+    def T2_inv_flux(circuit):
+        return circuit.dec_rate('flux', (0, 1))
+
+    function_grad_test(circuit_numpy,
+                       T2_inv_charge,
+                       circuit_torch,
+                       T2_inv_charge,
+                       delta=np.power(10, -4.25))
+    print("charge passed")
+
+    # function_grad_test(circuit_numpy,
+    #                    T2_inv_flux,
+    #                    circuit_torch,
+    #                    T2_inv_flux,
+    #                    delta=1e-6)
+    # print("flux passed")
+
+
+    set_optim_mode(False)
+
+def test_T2_fluxonium():
+    """Compare gradient of T2 decoherence due to charge, cc, and flux
+     noise in fluxonium circuit with linearized value."""
+
+    # Create numpy circuit
+    set_optim_mode(False)
+    circuit_numpy = create_fluxonium_numpy()
+
+    # Create torch circuit
+    set_optim_mode(True)
+    circuit_torch = create_fluxonium_torch()
+
+    def T2_inv_cc(circuit):
+        return circuit.dec_rate('cc', (0, 1))
+
+    function_grad_test(circuit_numpy,
+                       T2_inv_cc,
+                       circuit_torch,
+                       T2_inv_cc,
+                       delta=1e-6)
+
+    print('cc passed')
     set_optim_mode(False)
 
 
