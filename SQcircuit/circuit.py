@@ -14,10 +14,11 @@ import scipy.special
 import scipy.sparse
 import torch
 
+import mpmath
 from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
-from scipy.special import eval_hermite
+from scipy.special import eval_hermite, eval_hermitenorm, hyperu
 
 from torch import Tensor
 
@@ -1714,7 +1715,10 @@ class Circuit:
             # indices as a list
             indList = self._tensor_to_modes(i)
 
-            term = self._evecs[k][i][0, 0]
+            if get_optim_mode():
+                term = self._evecs[k][i].item()
+            else:
+                term = self._evecs[k][i][0, 0]
 
             for mode in range(self.n):
 
@@ -1727,16 +1731,41 @@ class Circuit:
                         1j * phi_list[mode] * n)
                 # For harmonic basis
                 else:
+                    # compute in log-space due to large magnitude variation
                     x0 = np.sqrt(unt.hbar * np.sqrt(
                         self.cInvTrans[mode, mode] / self.lTrans[mode, mode]))
+                    
+                    coeff_log = - 0.25 * np.log(np.pi) \
+                                - 0.5 * sum(np.log(np.arange(1, n + 1))) \
+                                - 0.5 * np.log(x0) \
+                                + 0.5 * np.log(unt.Phi0)
+                    
+                    if n < 250:
+                        term_hermitnorm = eval_hermitenorm(n, np.sqrt(2) * phi_list[mode] * unt.Phi0 / x0)
+                        term_hermite_signs = np.sign(term_hermitnorm)
+                        term_hermitenorm_log = np.log(np.abs(term_hermitnorm))
+                    else:
+                        term_hyper = hyperu(-0.5 * n, 
+                                            -0.5, 
+                                            (phi_list[mode] * unt.Phi0 / x0)**2)
+                        term_hermite_signs = np.power(np.sign(phi_list[mode]), n)
+                        term_hermitenorm_log = -(n/2) * np.log(2) * np.log(np.abs(term_hyper))
 
-                    coef = 1 / np.sqrt(np.sqrt(np.pi) * (2 ** n) *
-                                       scipy.special.factorial(
-                                           n) * x0 / unt.Phi0)
+                    # Resort to mpmath library if vectorized SciPy code fails
+                    if not np.all(np.isfinite(term_hermitenorm_log)):
+                        term_hermitenorm_log = np.zeros_like(phi_list[mode], dtype=np.float64)
+                        term_hermite_signs = np.zeros_like(phi_list[mode], dtype=int)
+                        for i in range(phi_list[mode].shape[0]):
+                            for j in range(phi_list[mode].shape[1]):
+                                hermite_val = mpmath.hermite(n, phi_list[mode][i, j] * unt.Phi0 / x0)
+                                term_hermite_signs[i, j] = mpmath.sign(hermite_val)
+                                term_hermitenorm_log[i, j] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
 
-                    term *= coef * np.exp(
-                        -(phi_list[mode]*unt.Phi0/x0)**2/2) * \
-                        eval_hermite(n, phi_list[mode] * unt.Phi0 / x0)
+                    term_log = coeff_log \
+                                + (-(phi_list[mode]*unt.Phi0/x0)**2/2) \
+                                + term_hermitenorm_log
+
+                    term *= term_hermite_signs * np.exp(term_log)
 
             state += term
 
