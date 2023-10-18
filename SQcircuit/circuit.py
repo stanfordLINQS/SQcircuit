@@ -1054,6 +1054,16 @@ class Circuit:
         else:
             print(loop_description_txt)
 
+    @property
+    def trunc_nums(self) -> List[int]:
+        trunc_nums = []
+        for i in range(self.n):
+            if self._is_charge_mode(i):
+                trunc_nums.append(int((self.m[i] + 1)/2))
+            else:
+                trunc_nums.append(self.m[i])
+        return trunc_nums
+
     def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
 
@@ -1741,25 +1751,38 @@ class Circuit:
                                 + 0.5 * np.log(unt.Phi0)
                     
                     if n < 250:
-                        term_hermitnorm = eval_hermitenorm(n, np.sqrt(2) * phi_list[mode] * unt.Phi0 / x0)
-                        term_hermite_signs = np.sign(term_hermitnorm)
-                        term_hermitenorm_log = np.log(np.abs(term_hermitnorm))
+                        term_hermitenorm = eval_hermitenorm(n, np.sqrt(2) * phi_list[mode] * unt.Phi0 / x0)
+                        term_hermite_signs = np.where(term_hermitenorm != 0, np.sign(term_hermitenorm), 0)
+                        term_hermitenorm_log = np.where(term_hermitenorm != 0, np.log(np.abs(term_hermitenorm)), 0)
                     else:
                         term_hyper = hyperu(-0.5 * n, 
                                             -0.5, 
                                             (phi_list[mode] * unt.Phi0 / x0)**2)
-                        term_hermite_signs = np.power(np.sign(phi_list[mode]), n)
-                        term_hermitenorm_log = -(n/2) * np.log(2) * np.log(np.abs(term_hyper))
+                        term_hermite_signs = np.where(term_hyper != 0, np.power(np.sign(phi_list[mode]), n), 0)
+                        term_hermitenorm_log = np.where(term_hyper != 0, -(n/2) * np.log(2) * np.log(np.abs(term_hyper)), 0)
 
                     # Resort to mpmath library if vectorized SciPy code fails
                     if not np.all(np.isfinite(term_hermitenorm_log)):
-                        term_hermitenorm_log = np.zeros_like(phi_list[mode], dtype=np.float64)
-                        term_hermite_signs = np.zeros_like(phi_list[mode], dtype=int)
-                        for i in range(phi_list[mode].shape[0]):
-                            for j in range(phi_list[mode].shape[1]):
-                                hermite_val = mpmath.hermite(n, phi_list[mode][i, j] * unt.Phi0 / x0)
-                                term_hermite_signs[i, j] = mpmath.sign(hermite_val)
-                                term_hermitenorm_log[i, j] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
+                        bad_pos = ~np.isfinite(term_hermitenorm_log)
+                        it = np.nditer(term_hermitenorm_log, flags=['multi_index'])
+                        for _ in it:
+                            idx = it.multi_index
+                            if bad_pos[idx]:
+                                hermite_val = mpmath.hermite(n, phi_list[mode][idx] * unt.Phi0 / x0)
+                                if hermite_val == 0:
+                                    term_hermite_signs[idx] = 0
+                                    term_hermitnorm_log[idx] = 0
+                                else:
+                                    term_hermite_signs[idx] = mpmath.sign(hermite_val)
+                                    term_hermitenorm_log[idx] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
+
+                        # term_hermitenorm_log = np.zeros_like(phi_list[mode], dtype=np.float64)
+                        # term_hermite_signs = np.zeros_like(phi_list[mode], dtype=int)
+                        # for i in range(phi_list[mode].shape[0]):
+                        #     for j in range(phi_list[mode].shape[1]):
+                        #         hermite_val = mpmath.hermite(n, phi_list[mode][i, j] * unt.Phi0 / x0)
+                        #         term_hermite_signs[i, j] = mpmath.sign(hermite_val)
+                        #         term_hermitenorm_log[i, j] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
 
                     term_log = coeff_log \
                                 + (-(phi_list[mode]*unt.Phi0/x0)**2/2) \
