@@ -2000,7 +2000,7 @@ class Circuit:
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
 
-                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) - sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state1))))
+                    partial_omega = sqf.abs(sqf.operator_inner_product(state2, op, state2) - sqf.operator_inner_product(state1, op, state1))
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
