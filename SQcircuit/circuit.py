@@ -1904,7 +1904,7 @@ class Circuit:
                 noisy parameter
         """
         return (sqf.abs(partial_omega * A)
-                * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"]))))
+                * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
 
     def dec_rate(
         self,
