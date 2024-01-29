@@ -2203,10 +2203,12 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H*state_m)
-        partial_omega_n = state_n.dag() * (partial_H*state_n)
+        # partial_omega_m = state_m.dag() * (partial_H*state_m)
+        # partial_omega_n = state_n.dag() * (partial_H*state_n)
+        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
+        partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return (partial_omega_m - partial_omega_n).data[0, 0].real
+        return sqf.abs(partial_omega_m - partial_omega_n)
 
     def get_partial_vec(self, 
                         el: Union[Element, Loop], 
