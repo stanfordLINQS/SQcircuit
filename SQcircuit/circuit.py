@@ -1991,49 +1991,29 @@ class Circuit:
                     sqf.operator_inner_product(state1, op, state2)) ** 2
 
 
+
         elif dec_type == "charge":
-
             # first derivative of the Hamiltonian with respect to charge noise
-
             op = qt.Qobj()
-
             for i in range(self.n):
-
                 if self._is_charge_mode(i):
-
                     for j in range(self.n):
-                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
+                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
 
-                               / np.sqrt(unt.hbar))
-
-                    partial_omega = np.abs((state2.dag() * op * state2 -
-
-                                            state1.dag() * op * state1).data[0, 0])
-
+                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) - sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op), state1))))
                     A = (self.charge_islands[i].A * 2 * unt.e)
-
                     decay += self._dephasing(A, partial_omega)
 
-
         elif dec_type == "cc":
-
             for el, B_idx in self._memory_ops['cos']:
-                partial_omega = self._get_partial_omega_mn(el, states=states,
-
-                                                           _B_idx=B_idx)
-
-                A = el.A * el.value(self.random)
-
+                partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
+                A = el.A * el.get_value()
                 decay += self._dephasing(A, partial_omega)
 
-
         elif dec_type == "flux":
-
             for loop in self.loops:
                 partial_omega = self._get_partial_omega_mn(loop, states=states)
-
                 A = loop.A
-
                 decay += self._dephasing(A, partial_omega)
 
         return decay
