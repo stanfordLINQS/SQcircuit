@@ -296,11 +296,18 @@ def normal(mean, var):
 
 
 def numpy(input):
+    def tensor_to_numpy(tensor):
+        if not list(tensor.size()):
+            # Convert single-value tensors directly to numpy scalar
+            return tensor.item()
+        else:
+            return tensor.detach().numpy()
+
     if get_optim_mode():
         if isinstance(input, list):
-            return [value.detach().numpy() for value in input]
+            return [tensor_to_numpy(value) for value in input]
         else:
-            return input.detach().numpy()
+            return tensor_to_numpy(input)
     else:
         if type(input) is qt.Qobj:
             return input.full()
