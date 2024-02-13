@@ -1776,14 +1776,6 @@ class Circuit:
                                     term_hermite_signs[idx] = mpmath.sign(hermite_val)
                                     term_hermitenorm_log[idx] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
 
-                        # term_hermitenorm_log = np.zeros_like(phi_list[mode], dtype=np.float64)
-                        # term_hermite_signs = np.zeros_like(phi_list[mode], dtype=int)
-                        # for i in range(phi_list[mode].shape[0]):
-                        #     for j in range(phi_list[mode].shape[1]):
-                        #         hermite_val = mpmath.hermite(n, phi_list[mode][i, j] * unt.Phi0 / x0)
-                        #         term_hermite_signs[i, j] = mpmath.sign(hermite_val)
-                        #         term_hermitenorm_log[i, j] = mpmath.log(mpmath.fabs(hermite_val)) - (n/2) * np.log(2)
-
                     term_log = coeff_log \
                                 + (-(phi_list[mode]*unt.Phi0/x0)**2/2) \
                                 + term_hermitenorm_log
