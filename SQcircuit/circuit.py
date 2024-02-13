@@ -1896,7 +1896,7 @@ class Circuit:
                 noisy parameter
         """
         return (sqf.abs(partial_omega * A)
-                * sqf.sqrt(2 * sqf.abs(sqf.log(ENV["omega_low"] * ENV["t_exp"]))))
+                * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
 
     def dec_rate(
         self,
@@ -1982,24 +1982,23 @@ class Circuit:
                     * unt.hbar * sqf.abs(
                     sqf.operator_inner_product(state1, op, state2)) ** 2
 
+
+
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
             op = qt.Qobj()
             for i in range(self.n):
                 if self._is_charge_mode(i):
                     for j in range(self.n):
-                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j]
-                               / sqf.sqrt(unt.hbar))
-                    partial_omega = sqf.abs(sqf.unwrap(sqf.mat_mul((sqf.mat_mul(sqf.dag(state2), op), state2) -
-                                                                   sqf.mat_mul(sqf.mat_mul(sqf.dag(state1), op),
-                                                                               state1))))
+                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
+
+                    partial_omega = sqf.abs(sqf.operator_inner_product(state2, op, state2) - sqf.operator_inner_product(state1, op, state1))
                     A = (self.charge_islands[i].A * 2 * unt.e)
                     decay += self._dephasing(A, partial_omega)
 
         elif dec_type == "cc":
             for el, B_idx in self._memory_ops['cos']:
-                partial_omega = self._get_partial_omega_mn(el, states=states,
-                                                           _B_idx=B_idx)
+                partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
                 A = el.A * el.get_value()
                 decay += self._dephasing(A, partial_omega)
 
@@ -2196,10 +2195,12 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = state_m.dag() * (partial_H*state_m)
-        partial_omega_n = state_n.dag() * (partial_H*state_n)
+        # partial_omega_m = state_m.dag() * (partial_H*state_m)
+        # partial_omega_n = state_n.dag() * (partial_H*state_n)
+        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
+        partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return (partial_omega_m - partial_omega_n).data[0, 0].real
+        return sqf.abs(partial_omega_m - partial_omega_n)
 
     def get_partial_vec(self, 
                         el: Union[Element, Loop], 
