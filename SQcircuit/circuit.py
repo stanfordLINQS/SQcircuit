@@ -416,16 +416,21 @@ class Circuit:
 
         # Explicitly copy any non-leaf tensors
         # (these don't implement a __deepcopy__ method)
+        # We also copy the element values over, since those may not be leaf
+        # tensors
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
+
             new_elements = defaultdict(list)
-            for edge in self.elements:
-                for el in self.elements[edge]:
+            for edge in new_circuit.elements:
+                for el in new_circuit.elements[edge]:
                     new_el = copy(el)
                     new_el._value = el._value.detach().clone()
                     new_elements[edge].append(new_el)
             new_circuit.elements = new_elements
+            for el in new_circuit._parameters:
+                new_circuit._parameters[el] = new_circuit._parameters[el].detach().clone()
 
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
