@@ -429,8 +429,10 @@ class Circuit:
                     new_el._value = el._value.detach().clone()
                     new_elements[edge].append(new_el)
             new_circuit.elements = new_elements
-            for el in new_circuit._parameters:
-                new_circuit._parameters[el] = new_circuit._parameters[el].detach().clone()
+
+            new_circuit._parameters = OrderedDict()
+            for el in self._parameters:
+                new_circuit._parameters[el] = self._parameters[el].detach().clone()
 
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
