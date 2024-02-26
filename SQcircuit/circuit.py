@@ -438,6 +438,7 @@ class Circuit:
                 new_el = replacement_dict[el]
                 new_circuit._parameters[new_el] = new_el._value
 
+            # Need to fix everything that uses an element as dictionary key
             new_circuit.elem_keys = {
                 Inductor: [],
                 Junction: [],
@@ -456,7 +457,12 @@ class Circuit:
                 except KeyError:
                     new_circuit.partial_mats[el] = self.partial_mats[el]
 
-                
+            problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
+            for op_type in problem_types:
+                new_circuit._memory_ops[op_type] = {}
+                for el, B_idx in self._memory_ops[op_type].keys():
+                    new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
+
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
         new_circuit._evecs = []
