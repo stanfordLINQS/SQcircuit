@@ -457,11 +457,15 @@ class Circuit:
                 except KeyError:
                     new_circuit.partial_mats[el] = self.partial_mats[el]
 
+            new_circuit._memory_ops = dict()
             problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
-            for op_type in problem_types:
-                new_circuit._memory_ops[op_type] = {}
-                for el, B_idx in self._memory_ops[op_type].keys():
-                    new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
+            for op_type in self._memory_ops:
+                if op_type not in problem_types:
+                    new_circuit._memory_ops[op_type] = self._memory_ops[op_type]
+                else:
+                    new_circuit._memory_ops[op_type] = dict()
+                    for el, B_idx in self._memory_ops[op_type].keys():
+                        new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
 
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
