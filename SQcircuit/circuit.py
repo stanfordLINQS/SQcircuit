@@ -423,17 +423,40 @@ class Circuit:
             new_circuit.L = new_circuit.L.detach()
 
             new_elements = defaultdict(list)
+            replacement_dict = dict()
             for edge in new_circuit.elements:
                 for el in new_circuit.elements[edge]:
                     new_el = copy(el)
                     new_el._value = el._value.detach().clone()
                     new_elements[edge].append(new_el)
+
+                    replacement_dict[el] = new_el
             new_circuit.elements = new_elements
 
             new_circuit._parameters = OrderedDict()
             for el in self._parameters:
-                new_circuit._parameters[el] = self._parameters[el].detach().clone()
+                new_el = replacement_dict[el]
+                new_circuit._parameters[new_el] = new_el._value
 
+            new_circuit.elem_keys = {
+                Inductor: [],
+                Junction: [],
+            }
+            for edge, el, B_idx, W_idx in self.elem_keys[Junction]:
+                new_el = replacement_dict[el]
+                new_circuit.elem_keys[Junction].append((edge, new_el, B_idx, W_idx))
+            for edge, el, B_idx in self.elem_keys[Inductor]:
+                new_el = replacement_dict[el]
+                new_circuit.elem_keys[Inductor].append((edge, new_el, B_idx))
+
+            new_circuit.partial_mats = defaultdict(lambda: 0)
+            for el in self.partial_mats.keys():
+                try:
+                    new_circuit.partial_mats[replacement_dict[el]] = self.partial_mats[el]
+                except KeyError:
+                    new_circuit.partial_mats[el] = self.partial_mats[el]
+
+                
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
         new_circuit._evecs = []
