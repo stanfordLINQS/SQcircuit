@@ -424,8 +424,8 @@ class Circuit:
 
             new_elements = defaultdict(list)
             replacement_dict = dict()
-            for edge in new_circuit.elements:
-                for el in new_circuit.elements[edge]:
+            for edge in self.elements:
+                for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el._value = el._value.detach().clone()
                     new_elements[edge].append(new_el)
@@ -481,7 +481,12 @@ class Circuit:
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
         
-        return deepcopy(new_circuit)
+        pickle_copy = deepcopy(new_circuit)
+
+        # So that it loads correctly
+        pickle_copy._toggle_fullcopy = True
+
+        return pickle_copy
 
     @property
     def efreqs(self):
