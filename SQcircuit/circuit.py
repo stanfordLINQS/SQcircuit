@@ -406,7 +406,7 @@ class Circuit:
 
     def copy_from_elements(self):
         new_circuit = Circuit(self.elements)
-        new_circuit.set_trunc_nums(self.trunc_nums())
+        new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
     
@@ -416,52 +416,16 @@ class Circuit:
 
         # Explicitly copy any non-leaf tensors
         # (these don't implement a __deepcopy__ method)
-        # We also copy the element values over, since those may not be leaf
-        # tensors
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
-
             new_elements = defaultdict(list)
-            replacement_dict = dict()
             for edge in self.elements:
                 for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el._value = el._value.detach().clone()
                     new_elements[edge].append(new_el)
-
-                    replacement_dict[el] = new_el
             new_circuit.elements = new_elements
-
-            new_circuit._parameters = OrderedDict()
-            for el in self._parameters:
-                new_el = replacement_dict[el]
-                new_circuit._parameters[new_el] = new_el._value
-
-            # Need to fix everything that uses an element as dictionary key
-            new_circuit.elem_keys = {
-                Inductor: [],
-                Junction: [],
-            }
-            for edge, el, B_idx, W_idx in self.elem_keys[Junction]:
-                new_el = replacement_dict[el]
-                new_circuit.elem_keys[Junction].append((edge, new_el, B_idx, W_idx))
-            for edge, el, B_idx in self.elem_keys[Inductor]:
-                new_el = replacement_dict[el]
-                new_circuit.elem_keys[Inductor].append((edge, new_el, B_idx))
-
-            new_circuit.partial_mats = defaultdict(lambda: 0)
-            for el in self.partial_mats.keys():
-                try:
-                    new_circuit.partial_mats[replacement_dict[el]] = self.partial_mats[el]
-                except KeyError:
-                    new_circuit.partial_mats[el] = self.partial_mats[el]
-
-            problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
-            for op_type in problem_types:
-                new_circuit._memory_ops[op_type] = {}
-                for el, B_idx in self._memory_ops[op_type].keys():
-                    new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
 
         # Remove old eigen(freq/vector)s
         new_circuit._efreqs = sqf.array([])
@@ -487,12 +451,7 @@ class Circuit:
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
         
-        pickle_copy = deepcopy(new_circuit)
-
-        # So that it loads correctly
-        pickle_copy._toggle_fullcopy = True
-
-        return pickle_copy
+        return deepcopy(new_circuit)
 
     @property
     def efreqs(self):
