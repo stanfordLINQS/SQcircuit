@@ -38,8 +38,6 @@ from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
 
-import psutil # temp
-
 
 class CircuitEdge:
     """Class that contains the properties of an edge in the circuit.
