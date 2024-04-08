@@ -1970,15 +1970,21 @@ class Circuit:
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 if el.Q:
-                    decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
-                        sqf.operator_inner_product(state1, op, state2)) ** 2
+                    if np.isnan(el.Q(omega, ENV["T"])):
+                        decay = decay + 0
+                    else:
+                        decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
+                            sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                    * unt.hbar * sqf.abs(
-                    sqf.operator_inner_product(state1, op, state2)) ** 2
+                if np.isnan(sqf.numpy(el.Y(omega, ENV["T"]))):
+                    decay = decay + 0
+                else:
+                    decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
+                        * unt.hbar * sqf.abs(
+                        sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
