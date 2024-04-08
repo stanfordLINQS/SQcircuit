@@ -376,19 +376,11 @@ class Inductor(Element):
     @staticmethod
     def _default_Q_ind(omega, T):
         """Default function for inductor quality factor."""
-        omega_offset = 2 * np.pi * 1e9 * 200
-        if omega < omega_offset:
-            omega_prime = omega
-        else:
-            omega_prime = omega_offset
 
-        kn_solver = sqf.get_kn_solver(0)
         alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
-        beta = unt.hbar * sqf.numpy(omega_prime) / (2 * unt.k_B * T)
-        return (
-            500e6*(kn_solver.apply(alpha)*sqf.sinh(alpha))/
-            (kn_solver.apply(beta)*sqf.sinh(beta))
-        )
+        beta = unt.hbar * sqf.numpy(omega) / (2 * unt.k_B * T)
+
+        return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
 
     def get_key(self, edge, B_idx, *_):
         """Return the inductor key.
@@ -590,17 +582,11 @@ class Junction(Element):
         ) -> Union[float, Tensor]:
             """Default function for junction admittance."""
 
-            omega_offset = 2 * np.pi * 1e9 * 200
-            if omega < omega_offset:
-                omega_prime = omega
-            else:
-                omega_prime = omega_offset
-
-            alpha = unt.hbar * omega_prime / (2 * unt.k_B * T)
+            alpha = unt.hbar * omega / (2 * unt.k_B * T)
             kn_solver = sqf.get_kn_solver(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
-                * (2 * (delta * 1.6e-19) / unt.hbar / omega_prime) ** 1.5 \
+                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
                 * x * sqf.sqrt(alpha) * kn_solver.apply(alpha) * sqf.sinh(alpha)
             return y
 
