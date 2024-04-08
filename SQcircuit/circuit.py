@@ -1980,12 +1980,10 @@ class Circuit:
                     * unt.hbar * sqf.abs(
                     sqf.operator_inner_product(state1, op, state2)) ** 2
 
-
-
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
-            op = qt.Qobj()
             for i in range(self.n):
+                op = qt.Qobj()
                 if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
