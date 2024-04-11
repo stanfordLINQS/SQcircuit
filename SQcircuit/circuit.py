@@ -1996,19 +1996,19 @@ class Circuit:
 
                     partial_omega = sqf.abs(sqf.operator_inner_product(state2, op, state2) - sqf.operator_inner_product(state1, op, state1))
                     A = (self.charge_islands[i].A * 2 * unt.e)
-                    decay += self._dephasing(A, partial_omega)
+                    decay = decay + self._dephasing(A, partial_omega)
 
         elif dec_type == "cc":
             for el, B_idx in self._memory_ops['cos']:
                 partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
                 A = el.A * el.get_value()
-                decay += self._dephasing(A, partial_omega)
+                decay = decay + self._dephasing(A, partial_omega)
 
         elif dec_type == "flux":
             for loop in self.loops:
                 partial_omega = self._get_partial_omega_mn(loop, states=states)
                 A = loop.A
-                decay += self._dephasing(A, partial_omega)
+                decay = decay + self._dephasing(A, partial_omega)
 
         return decay
 
