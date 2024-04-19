@@ -38,8 +38,6 @@ from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
 
-import psutil # temp
-
 
 class CircuitEdge:
     """Class that contains the properties of an edge in the circuit.
@@ -406,7 +404,7 @@ class Circuit:
 
     def copy_from_elements(self):
         new_circuit = Circuit(self.elements)
-        new_circuit.set_trunc_nums(self.trunc_nums())
+        new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
     
@@ -416,8 +414,6 @@ class Circuit:
 
         # Explicitly copy any non-leaf tensors
         # (these don't implement a __deepcopy__ method)
-        # We also copy the element values over, since those may not be leaf
-        # tensors
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
@@ -491,12 +487,7 @@ class Circuit:
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
         
-        pickle_copy = deepcopy(new_circuit)
-
-        # So that it loads correctly
-        pickle_copy._toggle_fullcopy = True
-
-        return pickle_copy
+        return deepcopy(new_circuit)
 
     @property
     def efreqs(self):
@@ -2024,22 +2015,26 @@ class Circuit:
             for el, _ in self._memory_ops["ind_hamil"]:
                 op = self._memory_ops["ind_hamil"][(el, _)]
                 if el.Q:
-                    decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
-                        sqf.operator_inner_product(state1, op, state2)) ** 2
+                    if np.isnan(el.Q(omega, ENV["T"])):
+                        decay = decay + 0
+                    else:
+                        decay = decay + tempS / el.Q(omega, ENV["T"]) / el.get_value() * sqf.abs(
+                            sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == "quasiparticle":
             for el, _ in self._memory_ops['sin_half']:
                 op = self._memory_ops['sin_half'][(el, _)]
-                decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
-                    * unt.hbar * sqf.abs(
-                    sqf.operator_inner_product(state1, op, state2)) ** 2
-
-
+                if np.isnan(sqf.numpy(el.Y(omega, ENV["T"]))):
+                    decay = decay + 0
+                else:
+                    decay = decay + tempS * el.Y(omega, ENV["T"]) * omega * el.get_value() \
+                        * unt.hbar * sqf.abs(
+                        sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
             # first derivative of the Hamiltonian with respect to charge noise
-            op = qt.Qobj()
             for i in range(self.n):
+                op = qt.Qobj()
                 if self._is_charge_mode(i):
                     for j in range(self.n):
                         op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
