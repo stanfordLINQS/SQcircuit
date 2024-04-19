@@ -27,7 +27,8 @@ def max_ratio(a, b):
 def function_grad_test(circuit_numpy,
                        function_numpy,
                        circuit_torch,
-                       function_torch, delta=1e-4):
+                       function_torch, 
+                       delta=1e-4):
     """General test function for comparing linear approximation with gradient computed with PyTorch backpropagation.
 
     Parameters
@@ -63,15 +64,19 @@ def function_grad_test(circuit_numpy,
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_plus = function_numpy(circuit_numpy)
+
             # Calculate f(x-delta)
             element_numpy.set_value(scale_factor * element_numpy.get_value(
                 u=element_numpy.unit) - 2 * delta,
-                                    element_numpy.unit
-                                    )
+                                    element_numpy.unit                                    )
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_minus = function_numpy(circuit_numpy)
+
+            # Calculate gradient
             grad_numpy = (val_plus - val_minus) / (2 * delta * all_units[element_numpy.unit])
+
+            # Reset circuit
             element_numpy.set_value(scale_factor * element_numpy.get_value(
                 u=element_numpy.unit) + delta,
                 element_numpy.unit
