@@ -2249,9 +2249,10 @@ class Circuit:
 
         return sqf.abs(partial_omega_m - partial_omega_n)
 
-    def get_partial_vec(self, 
+    def get_partial_vec_old(self, 
                         el: Union[Element, Loop], 
-                        m: int, epsilon=1e-12) -> Qobj:
+                        m: int, 
+                        epsilon=1e-12) -> Qobj:
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
         Parameters

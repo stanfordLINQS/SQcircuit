@@ -10,3 +10,6 @@ from SQcircuit.systems import *
 from SQcircuit.sampler import *
 
 from SQcircuit.settings import set_optim_mode
+
+import qutip
+qutip.settings.auto_tidyup = False
