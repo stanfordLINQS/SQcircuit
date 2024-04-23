@@ -2247,7 +2247,7 @@ class Circuit:
         partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
         partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return sqf.abs(partial_omega_m - partial_omega_n)
+        return partial_omega_m - partial_omega_n
 
     def get_partial_vec(self, 
                         el: Union[Element, Loop], 
