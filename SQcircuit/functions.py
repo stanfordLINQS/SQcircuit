@@ -428,6 +428,17 @@ def mat_to_op(A: Union[ndarray, Tensor]):
 
     return qt.Qobj(A)
 
+def real(x):
+    if isinstance(x, Tensor):
+        return torch.real(x)
+    else:
+        return np.real(x)
+    
+def imag(x):
+    if isinstance(x, Tensor):
+        return torch.imag(x)
+    else:
+        return np.imag(x)
 
 def pow(x, a):
     if get_optim_mode():

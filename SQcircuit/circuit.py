@@ -408,7 +408,7 @@ class Circuit:
         # new_circuit.update()
         return new_circuit
     
-    def safecopy(self):
+    def safecopy(self, save_eigs=False):
         # Instantiate new container
         new_circuit = copy(self)
 
@@ -447,11 +447,11 @@ class Circuit:
                 new_circuit.elem_keys[Inductor].append((edge, new_el, B_idx))
 
             new_circuit.partial_mats = defaultdict(lambda: 0)
-            for el in self.partial_mats.keys():
+            for el, partial_mat in self.partial_mats.items():
                 try:
-                    new_circuit.partial_mats[replacement_dict[el]] = self.partial_mats[el]
+                    new_circuit.partial_mats[replacement_dict[el]] = partial_mat
                 except KeyError:
-                    new_circuit.partial_mats[el] = self.partial_mats[el]
+                    new_circuit.partial_mats[el] = partial_mat
 
             new_circuit._memory_ops = dict()
             problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
@@ -464,8 +464,12 @@ class Circuit:
                         new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
 
         # Remove old eigen(freq/vector)s
-        new_circuit._efreqs = sqf.array([])
-        new_circuit._evecs = []
+        if save_eigs:
+            new_circuit._efreqs = self._efreqs.detach().clone()
+            new_circuit._evecs = self._evecs.detach().clone()
+        else:
+            new_circuit._efreqs = sqf.array([])
+            new_circuit._evecs = []
 
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
@@ -1940,8 +1944,8 @@ class Circuit:
         """
         return (sqf.abs(partial_omega * A)
                 * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
-    
-    def _dec_rate_flux(self, states: Tuple[int, int]) -> float:
+
+    def _dec_rate_flux_np(self, states: Tuple[int, int]) -> float:
         """
         Calculate dephasing rate due to flux noise.
 
@@ -1955,7 +1959,9 @@ class Circuit:
             partial_omega = self._get_partial_omega_mn(loop, states=states)
             decay = decay + self._dephasing(loop.A, partial_omega)
 
-    def _dec_rate_charge(self, states: Tuple[int, int]) -> float:
+        return decay
+
+    def _dec_rate_charge_np(self, states: Tuple[int, int]) -> float:
         """
         Calculate dephasing rate due to charge noise.
 
@@ -1964,8 +1970,8 @@ class Circuit:
             states:
                 A tuple of state to calculate the decoherence rate
         """
-        state1 = self._evecs[states[0]]
-        state2 = self._evecs[states[1]]
+        state_m= self._evecs[states[0]]
+        state_n = self._evecs[states[1]]
 
         decay = 0
         for i in range(self.n):
@@ -1974,11 +1980,14 @@ class Circuit:
                 for j in range(self.n):
                     op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
 
-                partial_omega = sqf.abs(sqf.operator_inner_product(state2, op, state2) - sqf.operator_inner_product(state1, op, state1))
-                A = (self.charge_islands[i].A * 2 * unt.e)
+                partial_omega = sqf.abs(sqf.operator_inner_product(state_m, op, state_m)
+                                        - sqf.operator_inner_product(state_n, op, state_n))
+                A = self.charge_islands[i].A * 2 * unt.e
                 decay = decay + self._dephasing(A, partial_omega)
 
-    def _dec_rate_cc(self, states: Tuple[int, int]) -> float:
+        return decay
+
+    def _dec_rate_cc_np(self, states: Tuple[int, int]) -> float:
         """
         Calculate dephasing rate due to critical current noise.
 
@@ -1987,10 +1996,13 @@ class Circuit:
             states:
                 A tuple of state to calculate the decoherence rate
         """
+        decay = 0
         for el, B_idx in self._memory_ops['cos']:
             partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
             A = el.A * el.get_value()
             decay = decay + self._dephasing(A, partial_omega)
+
+        return decay
 
     def dec_rate(
         self,
@@ -2051,8 +2063,8 @@ class Circuit:
             tempS = down + up
 
         if dec_type == "capacitive":
-            for edge in self.elements.keys():
-                for el in self.elements[edge]:
+            for edge_list in self.elements:
+                for el in edge_list:
                     if isinstance(el, Capacitor):
                         cap = el
                     else:
@@ -2083,13 +2095,13 @@ class Circuit:
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
-            decay = decay + self._dec_rate_charge(states)
+            decay = decay + self._dec_rate_charge_np(states)
 
         elif dec_type == "cc":
-            decay = decay + self._dec_rate_cc(states)
+            decay = decay + self._dec_rate_cc_np(states)
 
         elif dec_type == "flux":
-            decay = decay + self._dec_rate_flux(states)
+            decay = decay + self._dec_rate_flux_np(states)
 
         return decay
 
@@ -2278,12 +2290,13 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        # partial_omega_m = state_m.dag() * (partial_H*state_m)
-        # partial_omega_n = state_n.dag() * (partial_H*state_n)
         partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
         partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return partial_omega_m - partial_omega_n
+        partial_omega_mn = partial_omega_m -  partial_omega_n
+        assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
+
+        return sqf.real(partial_omega_mn)
 
     def get_partial_vec(self, 
                         el: Union[Element, Loop], 
@@ -2316,7 +2329,7 @@ class Circuit:
                 continue
 
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
-            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
+            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n])
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / (delta_omega + epsilon)
 
