@@ -2063,8 +2063,8 @@ class Circuit:
             tempS = down + up
 
         if dec_type == "capacitive":
-            for edge_list in self.elements:
-                for el in edge_list:
+            for edge in self.elements.keys():
+                for el in self.elements[edge]:
                     if isinstance(el, Capacitor):
                         cap = el
                     else:
