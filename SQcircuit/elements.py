@@ -67,6 +67,10 @@ class Element:
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
         min_value = torch.tensor(min_value, dtype=torch.float)
         max_value = torch.tensor(max_value, dtype=torch.float)
+        print(f"sampled_value: {sampled_value}")
+        print(f"min_value: {min_value}")
+        print(f"max_value: {max_value}")
+
         self._value = self.enforce_baseline_value(sampled_value, min_value, max_value)
 
         if not get_optim_mode():
@@ -104,7 +108,7 @@ class Capacitor(Element):
         The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
         the value specifies the charging energy of the capacitor. If ``unit``
         is "fF", "pF", and ,etc., the value specifies the capacitance in
-        farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
+        farad. If ``unit`` is ``None``, the default unit of capacitor is "F".
     requires_grad:
         A boolean variable specifies if the autograd should record operation
         on this element.
@@ -248,7 +252,7 @@ class Inductor(Element):
         The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
         the value specifies the inductive energy of the inductor. If ``unit``
         is "fH", "pH", and ,etc., the value specifies the inductance in henry.
-        If ``unit`` is ``None``, the default unit of inductor is "GHz".
+        If ``unit`` is ``None``, the default unit of inductor is "H".
     requires_grad:
         A boolean variable specifies if the autograd should record operation
         on this element.

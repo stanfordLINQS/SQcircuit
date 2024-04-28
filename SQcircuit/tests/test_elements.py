@@ -24,7 +24,7 @@ def float_torch_to_python(x: Tensor) -> float:
 ###############################################################################
 
 
-def test_capacitor_error_massages():
+def test_capacitor_error_messages():
     with pytest.raises(TypeError, match=UNIT_ERROR):
         Capacitor(10, "H")
 
@@ -69,18 +69,19 @@ def test_capacitor_unit():
 
 def test_capacitor_grad():
 
-    # First check error massages
+    cap_value, cap_unit = 10, 'fF'
+    # First check error messages
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        Capacitor(10, requires_grad=True)
+        Capacitor(cap_value, cap_unit, requires_grad=True)
 
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        assert not Capacitor(10).requires_grad
+        assert not Capacitor(cap_value, cap_unit).requires_grad
 
-    cap_value_no_grad = Capacitor(10).get_value()
+    cap_value_no_grad = Capacitor(cap_value, cap_unit).get_value()
 
     sq.set_optim_mode(True)
 
-    cap_value_with_grad = Capacitor(10, requires_grad=True).get_value()
+    cap_value_with_grad = Capacitor(cap_value, cap_unit, requires_grad=True).get_value()
 
     assert cap_value_no_grad == float_torch_to_python(cap_value_with_grad)
 
@@ -92,7 +93,7 @@ def test_capacitor_grad():
 ###############################################################################
 
 
-def test_inductor_error_massages():
+def test_inductor_error_messages():
     with pytest.raises(TypeError, match=UNIT_ERROR):
         Inductor(10, "F")
 
@@ -138,19 +139,20 @@ def test_inductor_unit():
 
 
 def test_inductor_grad():
+    inductor_value, inductor_unit = 10, 'uH'
 
-    # First check error massages
+    # First check error messages
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        Inductor(10, requires_grad=True)
+        Inductor(inductor_value, inductor_unit, requires_grad=True)
 
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        assert not Inductor(10).requires_grad
+        assert not Inductor(inductor_value, inductor_unit).requires_grad
 
-    ind_value_no_grad = Inductor(10).get_value()
+    ind_value_no_grad = Inductor(inductor_value, inductor_unit).get_value()
 
     sq.set_optim_mode(True)
 
-    ind_value_with_grad = Inductor(10, requires_grad=True).get_value()
+    ind_value_with_grad = Inductor(inductor_value, inductor_unit, requires_grad=True).get_value()
 
     assert ind_value_no_grad == float_torch_to_python(ind_value_with_grad)
 
@@ -161,7 +163,7 @@ def test_inductor_grad():
 ###############################################################################
 
 
-def test_junction_error_massages():
+def test_junction_error_messages():
     with pytest.raises(TypeError, match=UNIT_ERROR):
         Junction(10, "F")
 
@@ -183,7 +185,7 @@ def test_junction_unit():
 
 def test_junction_grad():
 
-    # First check error massages
+    # First check error messages
     with pytest.raises(ValueError, match=OPTIM_ERROR):
         Junction(10, requires_grad=True, min_value=0)
 
