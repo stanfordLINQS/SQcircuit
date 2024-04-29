@@ -20,15 +20,18 @@ def test_convergence():
         )
         return circuit_fluxonium
     trunc_cutoff = 100
-    trunc_range = np.arange(4, trunc_cutoff + 1)
+    trunc_range = np.arange(12, trunc_cutoff + 1)
     cutoff = 3
 
+    num_eigenvalues = 10
     for x in trunc_range:
-        circuit_fluxonium = create_fluxonium(2, 'GHz', 0.46, 'GHz', 10.2, 'GHz')
+        fluxonium = create_fluxonium(2, 'GHz', 0.46, 'GHz', 10.2, 'GHz')
         # Assuming contiguous divergence/convergence trunc nums, find lowest truncation number that converges
-        if circuit_fluxonium.test_convergence([x, ]) is False:
+        fluxonium.set_trunc_nums([x, ])
+        fluxonium.diag(num_eigenvalues)
+        if fluxonium.test_convergence([x, ])[0] is False:
             cutoff = x + 1
-    assert cutoff == 32
+    assert cutoff == 39
 
 def test_circuit_topologies():
     n = 3
