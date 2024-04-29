@@ -243,7 +243,7 @@ def test_grad_fluxonium():
 
     # define the circuit
     elements = {
-        (0, 1): [L, JJ]
+        (0, 1): [C, L, JJ]
     }
     cr = Circuit(elements, flux_dist='all')
     cr.set_trunc_nums([trunc_num])

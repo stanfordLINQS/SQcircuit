@@ -2329,7 +2329,7 @@ class Circuit:
                 continue
 
             state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
-            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n])
+            delta_omega = np.squeeze(sqf.numpy(self._efreqs[m] - self._efreqs[n]))
             partial_state += (state_n.dag()
                               * (partial_H * state_m)) * state_n / (delta_omega + epsilon)
 

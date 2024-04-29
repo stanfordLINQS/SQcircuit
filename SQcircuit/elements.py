@@ -67,9 +67,6 @@ class Element:
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
         min_value = torch.tensor(min_value, dtype=torch.float)
         max_value = torch.tensor(max_value, dtype=torch.float)
-        print(f"sampled_value: {sampled_value}")
-        print(f"min_value: {min_value}")
-        print(f"max_value: {max_value}")
 
         self._value = self.enforce_baseline_value(sampled_value, min_value, max_value)
 
