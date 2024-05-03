@@ -27,7 +27,7 @@ def max_ratio(a, b):
 def function_grad_test(circuit_numpy,
                        function_numpy,
                        circuit_torch,
-                       function_torch, 
+                       function_torch,
                        delta=1e-4):
     """General test function for comparing linear approximation with gradient computed with PyTorch backpropagation.
 
@@ -55,31 +55,34 @@ def function_grad_test(circuit_numpy,
     for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
         for element_idx, element_numpy in enumerate(elements_by_edge):
             set_optim_mode(False)
-            scale_factor = (1 / (2 * np.pi) if type(element_numpy) is Junction else 1)
+            scale_factor = (1 / (2 * np.pi) if isinstance(element_numpy, Junction) else 1)
+
             # Calculate f(x+delta)
-            element_numpy.set_value(scale_factor * element_numpy.get_value(
-                u=element_numpy.unit) + delta,
-                element_numpy.unit
+            elem_value = element_numpy.get_value(u=element_numpy.value_unit)
+            element_numpy.set_value(
+                scale_factor * elem_value * (1 + delta),
+                element_numpy.value_unit
             )
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_plus = function_numpy(circuit_numpy)
 
             # Calculate f(x-delta)
-            element_numpy.set_value(scale_factor * element_numpy.get_value(
-                u=element_numpy.unit) - 2 * delta,
-                                    element_numpy.unit                                    )
+            element_numpy.set_value(
+                scale_factor * elem_value * (1 - delta),
+                element_numpy.value_unit
+            )
             circuit_numpy.update()
             circuit_numpy.diag(eigen_count)
             val_minus = function_numpy(circuit_numpy)
 
             # Calculate gradient
-            grad_numpy = (val_plus - val_minus) / (2 * delta * all_units[element_numpy.unit])
+            grad_numpy = (val_plus - val_minus) / (2 * delta * elem_value * scale_factor * all_units[element_numpy.value_unit])
 
             # Reset circuit
-            element_numpy.set_value(scale_factor * element_numpy.get_value(
-                u=element_numpy.unit) + delta,
-                element_numpy.unit
+            element_numpy.set_value(
+                scale_factor * elem_value,
+                element_numpy.value_unit
             )
 
             edge_elements_torch = list(circuit_torch.elements.values())[0]
@@ -89,10 +92,10 @@ def function_grad_test(circuit_numpy,
                 print(f"value grad: {edge_element._value.grad}")
             grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
             # TODO: Modify Element class so that following gradient scaling is not necessary
-            if type(element_numpy) is Capacitor and element_numpy.unit in unt.freq_list:
+            if type(element_numpy) is Capacitor and element_numpy.value_unit in unt.freq_list:
                 grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
                 grad_torch /= grad_factor
-            elif type(element_numpy) is Inductor and element_numpy.unit in unt.freq_list:
+            elif type(element_numpy) is Inductor and element_numpy.value_unit in unt.freq_list:
                 grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
                 grad_torch /= grad_factor
             if type(element_numpy) is Junction:
@@ -229,9 +232,6 @@ def test_grad_multiple_steps():
     set_optim_mode(False)
 
 
-trunc_num = 240
-
-
 def test_grad_fluxonium():
     """Verify gradient values on more complex circuit, first resonant eigendifference in fluxonium.
     As opposed to previous test with transmon circuit, note that this also involves linear inductor and loop."""
@@ -271,8 +271,6 @@ def test_grad_fluxonium():
     set_optim_mode(False)
 
 
-tolerance = 0.5
-
 def create_fluxonium_numpy():
     loop = Loop()
     loop.set_flux(0)
@@ -284,6 +282,7 @@ def create_fluxonium_numpy():
     circuit_numpy.diag(2)
     return circuit_numpy
 
+
 def create_fluxonium_torch():
     loop = Loop()
     loop.set_flux(0)
@@ -293,6 +292,7 @@ def create_fluxonium_torch():
     circuit_torch = Circuit({(0, 1): [C_torch, L_torch, JJ_torch], }, flux_dist='all')
     circuit_torch.set_trunc_nums([trunc_num, ])
     return circuit_torch
+
 
 def test_spectrum_fluxonium():
     """Verify gradient of first eigendifference omega_1-omega_0 in fluxonium circuit with linearized value."""
@@ -309,6 +309,7 @@ def test_spectrum_fluxonium():
                        circuit_torch,
                        first_eigendifference_torch)
     set_optim_mode(False)
+
 
 def test_T1_fluxonium():
     """Verify gradient of fluxonium for T1 noise sources, including capacitive, inductive, and
@@ -389,6 +390,7 @@ def test_flux_sensitivity():
                        circuit_torch,
                        flux_sensitivity_function(first_eigendifference_torch),
                        delta=1e-4)
+
 
 def test_anharmonicity():
     def anharmonicity_numpy(circuit):

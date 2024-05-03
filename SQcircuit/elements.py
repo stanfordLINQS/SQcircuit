@@ -115,6 +115,7 @@ class Capacitor(Element):
     id_str:
         ID string for the capacitor.
     """
+    value_unit = "F"
 
     def __init__(
         self,
@@ -127,7 +128,6 @@ class Capacitor(Element):
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
-
         # EMERGENCY TODO: Save min/max values in SI units
         self.min_value = min_value
         self.max_value = max_value
@@ -259,6 +259,7 @@ class Inductor(Element):
     id_str:
         ID string for the inductor.
     """
+    value_unit = "H"
 
     def __init__(
             self,
@@ -437,6 +438,7 @@ class Junction(Element):
     id_str:
         ID string for the junction.
     """
+    value_unit = "Hz"
 
     def __init__(
         self,
