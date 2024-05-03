@@ -30,9 +30,11 @@ def eigencircuit(circuit: 'Circuit', n_eig: int):
             Number of eigenvalues to output. The lower `n_eig`, the
                 faster `SQcircuit` finds the eigenvalues.
     """
-    return EigenSolver.apply(torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
-                             circuit, 
-                             n_eig)
+    return EigenSolver.apply(
+        torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
+        circuit,
+        n_eig
+    )
 
 def dec_rate_cc_torch(circuit: Circuit, states: Tuple[int, int]):
     return DecRateCC.apply(
