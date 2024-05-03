@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 
-from SQcircuit import Capacitor, Circuit, Element, Inductor, Junction, Loop
+from SQcircuit import Capacitor, Element, Inductor, Junction, Loop
 from SQcircuit.noise import ENV
 from SQcircuit import functions as sqf
 from SQcircuit import units as unt
@@ -36,7 +36,7 @@ def eigencircuit(circuit: 'Circuit', n_eig: int):
         n_eig
     )
 
-def dec_rate_cc_torch(circuit: Circuit, states: Tuple[int, int]):
+def dec_rate_cc_torch(circuit: 'Circuit', states: Tuple[int, int]):
     return DecRateCC.apply(
         torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
         circuit,
@@ -44,7 +44,7 @@ def dec_rate_cc_torch(circuit: Circuit, states: Tuple[int, int]):
     )
 
 
-def dec_rate_charge_torch(circuit: Circuit, states: Tuple[int, int]):
+def dec_rate_charge_torch(circuit: 'Circuit', states: Tuple[int, int]):
     return DecRateCharge.apply(
         torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
         circuit,
@@ -52,7 +52,7 @@ def dec_rate_charge_torch(circuit: Circuit, states: Tuple[int, int]):
     )
 
 
-def dec_rate_flux_torch(circuit: Circuit, states: Tuple[int, int]):
+def dec_rate_flux_torch(circuit: 'Circuit', states: Tuple[int, int]):
     return DecRateFlux.apply(
         torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
         circuit,
@@ -136,34 +136,13 @@ class EigenSolver(Function):
             axis=(-1, -2))
 
         return torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape), None, None
-    
-
-###############################################################################
-# Special functions
-###############################################################################
-
-def get_kn_solver(n: int):
-    class kn(torch.autograd.Function):
-        @staticmethod
-        def forward(ctx, x):
-            ctx.save_for_backward(x)
-            x = numpy(x)
-            return torch.as_tensor(scipy.special.kn(n, x))
-
-        @staticmethod
-        def backward(ctx, grad_output):
-            z, = ctx.saved_tensors
-            return grad_output * scipy.special.kvp(n, z)
-
-    return kn
-
 
 ###############################################################################
 # Decoherence rate helper functions
 ###############################################################################
 
 def partial_squared_omega(
-    cr: Circuit,
+    cr: 'Circuit',
     grad_el: Element,
     partial_H: qt.Qobj,
     partial_H_squared: qt.Qobj,
@@ -240,7 +219,7 @@ def partial_dephasing_rate(
 
 
 def get_B_idx(
-    cr: Circuit,
+    cr: 'Circuit',
     el: Union[Junction, Inductor]
 ):
     if isinstance(el, Junction):
@@ -260,7 +239,7 @@ def get_B_idx(
 ###############################################################################
 
 def partial_H_ng(
-    cr: Circuit,
+    cr: 'Circuit',
     charge_idx: int
 ):
     """ Calculates the  derivative of the Hamiltonian of `cr` with 
@@ -286,7 +265,7 @@ def partial_H_ng(
 
 
 def partial_squared_H_ng(
-    cr: Circuit,
+    cr: 'Circuit',
     charge_idx: int,
     grad_el: Union[Capacitor, Inductor, Junction]
 ):
@@ -317,7 +296,7 @@ def partial_squared_H_ng(
 
 
 def partial_omega_ng(
-    cr: Circuit,
+    cr: 'Circuit',
     charge_idx: int,
     states: Tuple[int, int]
 ):
@@ -349,7 +328,7 @@ def partial_omega_ng(
 
 
 def partial_squared_omega_mn_ng(
-    cr: Circuit,
+    cr: 'Circuit',
     charge_idx: int,
     grad_el: Union[Capacitor, Inductor, Junction],
     states: Tuple[int, int]
@@ -384,7 +363,7 @@ def partial_squared_omega_mn_ng(
 
 
 def partial_charge_dec(
-    cr: Circuit,
+    cr: 'Circuit',
     grad_el: Element,
     states: Tuple[int, int]
 ):
@@ -461,7 +440,7 @@ class DecRateCharge(Function):
 
 
 def partial_squared_omega_mn_EJ(
-    cr: Circuit,
+    cr: 'Circuit',
     EJ_el: Junction,
     B_idx: int,
     grad_el: Union[Capacitor, Inductor, Junction],
@@ -496,7 +475,7 @@ def partial_squared_omega_mn_EJ(
 
 
 def partial_cc_dec(
-    cr: Circuit,
+    cr: 'Circuit',
     grad_el: Element,
     states: Tuple[int, int]
 ):
@@ -576,7 +555,7 @@ class DecRateCC(Function):
 ###############################################################################
 
 def partial_squared_H_phi(
-    cr: Circuit,
+    cr: 'Circuit',
     loop: Loop,
     grad_el: Union[Capacitor, Inductor, Junction]
 ):
@@ -612,7 +591,7 @@ def partial_squared_H_phi(
 
 
 def partial_squared_omega_mn_phi(
-    cr: Circuit,
+    cr: 'Circuit',
     loop: Loop,
     grad_el: Union[Capacitor, Inductor, Junction],
     states: Tuple[int, int]
@@ -644,7 +623,7 @@ def partial_squared_omega_mn_phi(
 
 
 def partial_flux_dec(
-    cr: Circuit,
+    cr: 'Circuit',
     grad_el: Element,
     states: Tuple[int, int]
 ):

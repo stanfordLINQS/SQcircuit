@@ -7,13 +7,12 @@ from typing import List, Any, Optional, Union, Callable
 import torch
 import numpy as np
 
-from scipy.special import kn
+from scipy.special import kn, kvp
 from torch import Tensor
 from numpy import ndarray
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
-import SQcircuit.torch_extensions as sqtorch
 
 from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_value_out_of_bounds_error
 from SQcircuit.settings import get_optim_mode
@@ -584,7 +583,7 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-            kn_solver = sqtorch.get_kn_solver(0)
+            kn_solver = kn_solver.apply(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
@@ -708,3 +707,19 @@ class Charge:
 
     def setNoise(self, A: float) -> None:
         self.A = A
+
+###############################################################################
+# Special functions
+###############################################################################
+
+class kn_solver(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        x = numpy(x)
+        return torch.as_tensor(kn(n, x))
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        z, = ctx.saved_tensors
+        return grad_output * kvp(n, z)
