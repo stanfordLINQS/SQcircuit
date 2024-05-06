@@ -314,7 +314,6 @@ class Circuit:
 
         # contains the parameters that we want to optimize.
         self._parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
-        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
 
         #######################################################################
         # Transformation related attributes
@@ -407,7 +406,7 @@ class Circuit:
         new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
-    
+
     def safecopy(self, save_eigs=False):
         # Instantiate new container
         new_circuit = copy(self)
@@ -473,7 +472,7 @@ class Circuit:
 
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
-    
+
     def picklecopy(self):
        # Instantiate new container
         new_circuit = copy(self)
@@ -490,7 +489,7 @@ class Circuit:
         # del new_circuit._memory_ops
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
-        
+
         return deepcopy(new_circuit)
 
     @property
@@ -506,11 +505,31 @@ class Circuit:
 
         return list(self._parameters.values())
 
+    @parameters.setter
+    def parameters(self, new_params):
+        for i, element in enumerate(self._parameters.keys()):
+            element._value = new_params[i].clone().detach().requires_grad_(True)
+
+        self.update()
+
     @property
-    def unitless_parameters(self):
+    def parameters_grad(self) -> Union[List[Optional[Tensor]], Tensor]:
         raise_optim_error_if_needed()
 
-        return list(self._unitless_parameters.values())
+        grad_list = []
+        for val in self.parameters:
+            grad_list.append(val.grad)
+
+        if None in grad_list:
+            return grad_list
+
+        return torch.stack(grad_list).detach().clone()
+
+    def zero_parameters_grad(self) -> None:
+        raise_optim_error_if_needed()
+
+        for val in self.parameters:
+            val.grad=None
 
     def add_to_parameters(self, el: Element) -> None:
         """Add elements with ``requires_grad=True`` to parameters.
