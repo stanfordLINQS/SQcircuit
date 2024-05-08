@@ -24,6 +24,7 @@ from torch import Tensor
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
+import SQcircuit.torch_extensions as sqtorch
 
 from SQcircuit.elements import (
     Element,
@@ -1656,7 +1657,7 @@ class Circuit:
             return False, epsilon
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        eigen_solution = sqf.eigencircuit(self, n_eig)
+        eigen_solution = sqtorch.eigencircuit(self, n_eig)
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues
@@ -2114,13 +2115,22 @@ class Circuit:
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
-            decay = decay + self._dec_rate_charge_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_charge_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_charge_np(states)
 
         elif dec_type == "cc":
-            decay = decay + self._dec_rate_cc_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_cc_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_cc_np(states)
 
         elif dec_type == "flux":
-            decay = decay + self._dec_rate_flux_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_cc_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_flux_np(states)
 
         return decay
 

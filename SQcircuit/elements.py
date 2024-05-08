@@ -5,9 +5,10 @@ capacitors, inductors, and josephson junctions.
 from typing import List, Any, Optional, Union, Callable
 
 import torch
+from torch.autograd.function import once_differentiable
 import numpy as np
 
-from scipy.special import kn
+from scipy.special import kn, kvp
 from torch import Tensor
 from numpy import ndarray
 
@@ -21,6 +22,27 @@ from SQcircuit.logs import (
 )
 from SQcircuit.settings import get_optim_mode
 
+###############################################################################
+# Special functions
+###############################################################################
+
+class kn_solver(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, n: int, x):
+        ctx.save_for_backward(x)
+        ctx.order = n
+        x = sqf.numpy(x)
+        return torch.as_tensor(kn(n, x))
+
+    @staticmethod
+    @once_differentiable
+    def backward(ctx, grad_output):
+        z, = ctx.saved_tensors
+        return None, grad_output * kvp(ctx.order, z)
+
+###############################################################################
+# Elements
+###############################################################################
 
 class Element:
     """Class that contains general properties of elements."""
@@ -569,11 +591,10 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-            kn_solver = sqf.get_kn_solver(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * sqf.sqrt(alpha) * kn_solver.apply(alpha) * sqf.sinh(alpha)
+                * x * sqf.sqrt(alpha) * kn_solver.apply(0, alpha) * sqf.sinh(alpha)
             return y
 
         return _default_Y_junc
