@@ -2128,7 +2128,7 @@ class Circuit:
 
         elif dec_type == "flux":
             if get_optim_mode():
-                decay = decay + sqtorch.dec_rate_cc_torch(self, states)
+                decay = decay + sqtorch.dec_rate_flux_torch(self, states)
             else:
                 decay = decay + self._dec_rate_flux_np(states)
 

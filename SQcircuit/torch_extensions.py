@@ -67,7 +67,7 @@ def dec_rate_flux_torch(circuit: 'Circuit', states: Tuple[int, int]):
 class EigenSolver(Function):
     @staticmethod
     def forward(ctx, 
-                element_tensors: Tensor, 
+                element_tensors: Tensor,
                 circuit: 'Circuit',
                 n_eig: int) -> Tensor:
         # Compute forward pass for eigenvalues
