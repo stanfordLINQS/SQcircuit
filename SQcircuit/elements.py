@@ -51,6 +51,14 @@ class Element:
     _value = None
 
     @property
+    def internal_value(self) -> Union[float, Tensor]:
+        return self._value
+
+    @internal_value.setter
+    def internal_value(self, v: Union[float, Tensor]) -> None:
+        self._value = v
+
+    @property
     def error(self) -> float:
         return self._error
 

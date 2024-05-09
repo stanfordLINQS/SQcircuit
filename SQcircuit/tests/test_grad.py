@@ -114,7 +114,7 @@ def function_grad_test(circuit_numpy,
                 grad_torch *= (2 * np.pi)
             print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
 
-            # assert np.sign(grad_torch) == np.sign(grad_numpy)
+            assert np.sign(grad_torch) == np.sign(grad_numpy)
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
     optimizer.zero_grad()
 
