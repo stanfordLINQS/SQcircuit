@@ -529,6 +529,10 @@ class Circuit:
             return grad_list
 
         return torch.stack(grad_list).detach().clone()
+  
+    @property
+    def parameters_dict(self) ->  OrderedDict[Tuple[Element, Tensor]]:
+        return self._parameters
 
     def zero_parameters_grad(self) -> None:
         raise_optim_error_if_needed()
