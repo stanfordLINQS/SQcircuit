@@ -24,6 +24,7 @@ from torch import Tensor
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
+import SQcircuit.torch_extensions as sqtorch
 
 from SQcircuit.elements import (
     Element,
@@ -314,7 +315,6 @@ class Circuit:
 
         # contains the parameters that we want to optimize.
         self._parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
-        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
 
         #######################################################################
         # Transformation related attributes
@@ -407,7 +407,7 @@ class Circuit:
         new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
-    
+
     def safecopy(self, save_eigs=False):
         # Instantiate new container
         new_circuit = copy(self)
@@ -423,7 +423,7 @@ class Circuit:
             for edge in self.elements:
                 for el in self.elements[edge]:
                     new_el = copy(el)
-                    new_el._value = el._value.detach().clone()
+                    new_el.internal_value = el.internal_value.detach().clone()
                     new_elements[edge].append(new_el)
 
                     replacement_dict[el] = new_el
@@ -432,7 +432,7 @@ class Circuit:
             new_circuit._parameters = OrderedDict()
             for el in self._parameters:
                 new_el = replacement_dict[el]
-                new_circuit._parameters[new_el] = new_el._value
+                new_circuit._parameters[new_el] = new_el.internal_value
 
             # Need to fix everything that uses an element as dictionary key
             new_circuit.elem_keys = {
@@ -473,7 +473,7 @@ class Circuit:
 
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
-    
+
     def picklecopy(self):
        # Instantiate new container
         new_circuit = copy(self)
@@ -490,7 +490,7 @@ class Circuit:
         # del new_circuit._memory_ops
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
-        
+
         return deepcopy(new_circuit)
 
     @property
@@ -501,23 +501,51 @@ class Circuit:
         return self._efreqs / (2 * np.pi * unt.get_unit_freq())
 
     @property
+    def evecs(self):
+        return self._evecs
+
+    @property
     def parameters(self):
         raise_optim_error_if_needed()
 
         return list(self._parameters.values())
 
+    @parameters.setter
+    def parameters(self, new_params: Tensor):
+        for i, element in enumerate(self._parameters.keys()):
+            element.internal_value = new_params[i].clone().detach().requires_grad_(True)
+
+        self.update()
+
     @property
-    def unitless_parameters(self):
+    def parameters_grad(self) -> Union[List[Optional[Tensor]], Tensor]:
         raise_optim_error_if_needed()
 
-        return list(self._unitless_parameters.values())
+        grad_list = []
+        for val in self.parameters:
+            grad_list.append(val.grad)
+
+        if None in grad_list:
+            return grad_list
+
+        return torch.stack(grad_list).detach().clone()
+  
+    @property
+    def parameters_dict(self) ->  OrderedDict[Tuple[Element, Tensor]]:
+        return self._parameters
+
+    def zero_parameters_grad(self) -> None:
+        raise_optim_error_if_needed()
+
+        for val in self.parameters:
+            val.grad=None
 
     def add_to_parameters(self, el: Element) -> None:
         """Add elements with ``requires_grad=True`` to parameters.
         """
 
         if el.requires_grad:
-            self._parameters[el] = el._value
+            self._parameters[el] = el.internal_value
 
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -1637,7 +1665,7 @@ class Circuit:
             return False, epsilon
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        eigen_solution = sqf.eigencircuit(self, n_eig)
+        eigen_solution = sqtorch.eigencircuit(self, n_eig)
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues
@@ -2095,13 +2123,22 @@ class Circuit:
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
-            decay = decay + self._dec_rate_charge_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_charge_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_charge_np(states)
 
         elif dec_type == "cc":
-            decay = decay + self._dec_rate_cc_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_cc_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_cc_np(states)
 
         elif dec_type == "flux":
-            decay = decay + self._dec_rate_flux_np(states)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_flux_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_flux_np(states)
 
         return decay
 
@@ -2350,24 +2387,22 @@ class Circuit:
                 for element in elements:
                     # min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=True)
                     # max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=True)
-                    if element._value < element.min_value:
-                        raise_value_out_of_bounds_warning(type(element), element.min_value, element._value.detach().numpy())
+                    if element.internal_value < element.min_value:
+                        raise_value_out_of_bounds_warning(type(element), element.min_value, element.internal_value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
                             element.set_value(element.min_value)
                             element.requires_grad = True
-                    if element._value > element.max_value:
-                        raise_value_out_of_bounds_warning(type(element), element.max_value, element._value.detach().numpy())
+                    if element.internal_value > element.max_value:
+                        raise_value_out_of_bounds_warning(type(element), element.max_value, element.internal_value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
                             element.set_value(element.max_value)
                             element.requires_grad = True
-                    # element._value = sqf.maximum(element._value, min_tensor)
-                    # element._value = sqf.minimum(element._value, max_tensor)
 
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
