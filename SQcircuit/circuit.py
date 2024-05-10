@@ -529,7 +529,7 @@ class Circuit:
             return grad_list
 
         return torch.stack(grad_list).detach().clone()
-  
+
     @property
     def parameters_dict(self) ->  OrderedDict[Tuple[Element, Tensor]]:
         return self._parameters
@@ -2283,19 +2283,17 @@ class Circuit:
 
         """
 
-        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
+        state_m = self._evecs[m]
         partial_H = self._get_partial_H(el, _B_idx)
-        partial_omega_m = state_m.dag() * (partial_H * state_m)
+        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
 
         if subtract_ground:
-            state_0 = sqf.qutip(self._evecs[0], dims=self._get_state_dims())
-            partial_omega_0 = state_0.dag() * (partial_H * state_0)
+            state_0 = self._evecs[0]
+            partial_omega_0 = sqf.operator_inner_product(state_0, partial_H, state_0)
 
-            return (partial_omega_m - partial_omega_0).data[0, 0].real
-
+            return sqf.real(partial_omega_m - partial_omega_0)
         else:
-
-            return partial_omega_m.data[0, 0].real
+            return sqf.real(partial_omega_m)
 
     def _get_partial_omega_mn(
         self,
@@ -2353,30 +2351,25 @@ class Circuit:
                 the ground state and ``m=1`` specifies the first excited state.
         """
 
-        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
-
-        #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
+        state_m = self._evecs[m]
 
         n_eig = len(self._evecs)
 
         partial_H = self._get_partial_H(el)
-        partial_state = qt.Qobj()
+        partial_state = sqf.zeros(state_m.shape)
 
         for n in range(n_eig):
-
             if n == m:
                 continue
+            state_n = self._evecs[n]
 
-            state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
-            # Todo: We should have a function that returns float (sqf.float)
             delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n])
             if isinstance(delta_omega, ndarray):
                 delta_omega = delta_omega[0]
-            # print(type(delta_omega), self._efreqs[m] - self._efreqs[n], delta_omega)
 
             partial_state += (
-                    (state_n.dag() * (partial_H * state_m)) * state_n
-                    / (delta_omega + epsilon)
+                sqf.operator_inner_product(state_n, partial_H, state_m) * state_n
+                / (delta_omega + epsilon)
             )
 
         return partial_state

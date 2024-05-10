@@ -11,4 +11,4 @@ from SQcircuit.systems import *
 from SQcircuit.settings import set_optim_mode
 
 import qutip
-qutip.settings.auto_tidyup = False
+qutip.settings.auto_tidyup = True

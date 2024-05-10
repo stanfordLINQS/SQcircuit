@@ -119,15 +119,16 @@ class EigenSolver(Function):
         for el_idx in range(m):
             for eigen_idx in range(n):
                 # Compute backward pass for eigenvalues
-                partial_omega[
-                    el_idx, eigen_idx] = ctx.circuit.get_partial_omega(
-                    el=elements[el_idx],
-                    m=eigen_idx, subtract_ground=False)
-                # Compute backward pass for eigenvectors
-                partial_tensor = torch.squeeze(
-                    torch.as_tensor(
-                        ctx.circuit.get_partial_vec(el=elements[el_idx],
-                                                m=eigen_idx).full()))
+                partial_omega[el_idx, eigen_idx] = ctx.circuit.get_partial_omega(
+                        el=elements[el_idx],
+                        m=eigen_idx, subtract_ground=False
+                )
+                partial_tensor = torch.squeeze(torch.as_tensor(
+                    ctx.circuit.get_partial_vec(
+                        el=elements[el_idx],
+                        m=eigen_idx
+                    )
+                ))
                 partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
         eigenvalue_grad = torch.sum(
             partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
@@ -169,23 +170,30 @@ def partial_squared_omega(
     """
 
     m, n = states
-    state_m = sqf.qutip(cr._evecs[m], dims=cr._get_state_dims())
+    
+    state_m = cr.evecs[m]
     partial_state_m = cr.get_partial_vec(grad_el, m)
-    state_n = sqf.qutip(cr._evecs[n], dims=cr._get_state_dims())
+    state_n = cr.evecs[n]
     partial_state_n = cr.get_partial_vec(grad_el, n)
 
-    p2_omega_1 = 2 * np.real(
-        partial_state_m.dag() * (partial_H * state_m)
-        - partial_state_n.dag() * (partial_H * state_n)
-    )[0, 0]
-    p2_omega_2 = (
-        state_m.dag() * (partial_H_squared * state_m)
-        - state_n.dag() * (partial_H_squared * state_n)
-    )[0, 0]
+    if partial_H == 0:
+        p2_omega_1 = 0
+    else:
+        p2_omega_1 = 2 * np.real(
+            sqf.operator_inner_product(partial_state_m, partial_H, state_m)
+            - sqf.operator_inner_product(partial_state_n, partial_H, state_n)
+        )
+    if partial_H_squared == 0:
+        p2_omega_2 = 0
+    else:
+        p2_omega_2 = (
+            sqf.operator_inner_product(state_m, partial_H_squared, state_m)
+            - sqf.operator_inner_product(state_n, partial_H_squared, state_n)
+        )
 
     p2_omega = p2_omega_1 + p2_omega_2
 
-    return np.real(p2_omega)
+    return sqf.numpy(p2_omega.real)
 
 
 def partial_dephasing_rate(
@@ -315,16 +323,16 @@ def partial_omega_ng(
     """
     assert cr._is_charge_mode(charge_idx)
 
-    state_m = sqf.qutip(cr._evecs[states[0]], dims=cr._get_state_dims())
-    state_n = sqf.qutip(cr._evecs[states[1]], dims=cr._get_state_dims())
+    state_m = cr.evecs[states[0]]
+    state_n = cr.evecs[states[1]]
     op = partial_H_ng(cr, charge_idx)
 
     partial_omega_mn = (
-        state_m.dag() * (op * state_m)
-        - state_n.dag() * (op * state_n)
-    )[0, 0]
+        sqf.operator_inner_product(state_m, op, state_m)
+        - sqf.operator_inner_product(state_n, op, state_n)
+    )
 
-    return np.real(partial_omega_mn)
+    return sqf.numpy(partial_omega_mn.real)
 
 
 def partial_squared_omega_mn_ng(

@@ -226,24 +226,24 @@ def dense(obj):
 
 def mat_mul(A, B):
     if get_optim_mode():
-        if type(A) is Tensor and type(B) is Tensor:
+        if isinstance(A, Tensor) and isinstance(B, Tensor):
             if A.is_sparse and B.is_sparse:
                 return torch.sparse.mm(A, B)
             if (A.is_sparse and not B.is_sparse) or (not A.is_sparse and B.is_sparse):
                 return torch.sparse.mm(A, B)
             return torch.mm(A, B)
-        elif type(A) is Tensor and type(B) is Qobj:
+        elif isinstance(A, Tensor) and isinstance(B, Qobj):
             B = qobj_to_tensor(B)
             # TODO: Add additional check on input dimensions, to make sure this works
             return torch.transpose(torch.sparse.mm(B, A), 0, 1)
-        elif type(B) is Tensor and type(A) is Qobj:
+        elif isinstance(A, Qobj) and isinstance(B, Tensor):
             A = qobj_to_tensor(A)
             return torch.sparse.mm(A, B)
         A = dense(A)
         B = dense(B)
         return torch.matmul(torch.as_tensor(A, dtype=torch.complex128),
                             torch.as_tensor(B, dtype=torch.complex128))
-    if isinstance(A, qt.Qobj) and isinstance(B, qt.Qobj):
+    if isinstance(A, Qobj) and isinstance(B, Qobj):
         return A * B
     return A @ B
 
