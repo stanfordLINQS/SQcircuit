@@ -626,10 +626,15 @@ class Loop:
         self,
         value: float = 0,
         A: float = 1e-6,
+        requires_grad: bool = False,
         id_str: Optional[str] = None
     ) -> None:
 
-        self.lpValue = value * 2 * np.pi
+        self.set_flux(value)
+
+        if requires_grad:
+            self.requires_grad = requires_grad
+
         self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
@@ -669,6 +674,9 @@ class Loop:
             value:
                 The external flux value
         """
+        if get_optim_mode():
+            value = torch.as_tensor(value)
+
         self.lpValue = value * 2 * np.pi
 
     def add_index(self, index):
@@ -689,6 +697,19 @@ class Loop:
         b[0, 0] = 1
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
+
+    @property
+    def requires_grad(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self.lpValue.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, f: bool) -> None:
+
+        raise_optim_error_if_needed()
+
+        self.lpValue.requires_grad = f
 
 
 class Charge:

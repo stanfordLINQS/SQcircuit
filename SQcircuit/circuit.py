@@ -1054,7 +1054,7 @@ class Circuit:
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
+            phiExt = sqf.numpy(self.loops[i].value()) / 2 / np.pi
             loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
                 phiExt) + txt.tab()
 
@@ -1480,7 +1480,7 @@ class Circuit:
         """
         phi_ext = 0.0
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.value() * self.B[B_idx, i]
+            phi_ext += sqf.numpy(loop.value()) * self.B[B_idx, i]
 
         return phi_ext
 
