@@ -103,6 +103,36 @@ def create_transmon_torch(trunc_num):
     return circuit_torch
 
 
+def create_flux_transmon_numpy(trunc_num, phi_ext):
+    cap_value, ind_value, Q = 7.746, 5, 1e6
+    cap_unit, ind_unit = 'fF', 'GHz'
+    disorder = 1.1
+
+    set_optim_mode(False)
+    loop = Loop(phi_ext)
+    C_numpy = Capacitor(cap_value, cap_unit, Q=Q)
+    J1_numpy = Junction(ind_value, ind_unit, loops=[loop])
+    J2_numpy = Junction(ind_value * disorder, ind_unit, loops=[loop])
+    circuit_numpy = Circuit({(0, 1): [C_numpy, J1_numpy, J2_numpy], })
+    circuit_numpy.set_trunc_nums([trunc_num, ])
+    return circuit_numpy
+
+
+def create_flux_transmon_torch(trunc_num, phi_ext):
+    cap_value, ind_value, Q = 7.746, 5, 1e6
+    cap_unit, ind_unit = 'fF', 'GHz'
+    disorder = 1.1
+
+    set_optim_mode(True)
+    loop_torch = Loop(phi_ext, requires_grad=True)
+    C_torch = Capacitor(cap_value, cap_unit, Q=Q, requires_grad=True)
+    J1_torch = Junction(ind_value, ind_unit, loops=[loop_torch], requires_grad=True)
+    J2_torch = Junction(ind_value * disorder, ind_unit, loops=[loop_torch], requires_grad=True)
+    circuit_torch = Circuit({(0, 1): [C_torch, J1_torch, J2_torch], })
+    circuit_torch.set_trunc_nums([trunc_num, ])
+    return circuit_torch
+
+
 def create_fluxonium_numpy(trunc_num, phi_ext=0):
     set_optim_mode(False)
     loop = Loop(phi_ext)
@@ -117,6 +147,17 @@ def create_fluxonium_numpy(trunc_num, phi_ext=0):
 def create_fluxonium_torch(trunc_num, phi_ext=0):
     set_optim_mode(True)
     loop = Loop(phi_ext)
+    C_torch = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=True)
+    L_torch = Inductor(0.46, 'GHz', Q=500e6, loops=[loop], requires_grad=True)
+    JJ_torch = Junction(10.2, 'GHz', A=1e-7, x=3e-06, loops=[loop], requires_grad=True)
+    circuit_torch = Circuit({(0, 1): [C_torch, L_torch, JJ_torch], }, flux_dist='junctions')
+    circuit_torch.set_trunc_nums([trunc_num, ])
+    return circuit_torch
+
+
+def create_fluxonium_torch_flux(trunc_num, phi_ext=0):
+    set_optim_mode(True)
+    loop = Loop(phi_ext, requires_grad=True)
     C_torch = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=True)
     L_torch = Inductor(0.46, 'GHz', Q=500e6, loops=[loop], requires_grad=True)
     JJ_torch = Junction(10.2, 'GHz', A=1e-7, x=3e-06, loops=[loop], requires_grad=True)

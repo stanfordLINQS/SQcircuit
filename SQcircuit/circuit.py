@@ -136,6 +136,9 @@ class CircuitEdge:
             loop.add_index(B_idx)
             loop.addK1(self.w)
 
+            if get_optim_mode():
+                self.circ.add_to_parameters(loop)
+
     def process_edge_and_update_circ(
         self,
         B_idx: int,
@@ -412,18 +415,29 @@ class Circuit:
         # Instantiate new container
         new_circuit = copy(self)
 
-        # Explicitly copy any non-leaf tensors
-        # (these don't implement a __deepcopy__ method)
+        # Explicitly copy all elements to new circuit, in particular those with
+        # non-leaf `.internal_value`s ((these don't implement a `._deepcopy__`
+        # method)
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
 
+            new_loops: List[Loop] = []
+            replacement_dict: Dict[Union[Loop, Element], Union[Loop, Element]] = {}
+            for loop in self.loops:
+                new_loop = copy(loop)
+                new_loop.internal_value = loop.internal_value.detach().clone()
+                new_loops.append(new_loop)
+                replacement_dict[loop] = new_loop
+            new_circuit.loops = new_loops
+
             new_elements = defaultdict(list)
-            replacement_dict = dict()
             for edge in self.elements:
                 for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el.internal_value = el.internal_value.detach().clone()
+                    if hasattr(el, 'loop'):
+                        new_el.loop = replacement_dict[el.loop]
                     new_elements[edge].append(new_el)
 
                     replacement_dict[el] = new_el
@@ -544,7 +558,7 @@ class Circuit:
         """Add elements with ``requires_grad=True`` to parameters.
         """
 
-        if el.requires_grad:
+        if el.requires_grad and el not in self._parameters:
             self._parameters[el] = el.internal_value
 
     def add_loop(self, loop: Loop) -> None:

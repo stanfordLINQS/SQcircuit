@@ -66,7 +66,7 @@ def dec_rate_flux_torch(circuit: 'Circuit', states: Tuple[int, int]):
 
 class EigenSolver(Function):
     @staticmethod
-    def forward(ctx, 
+    def forward(ctx,
                 element_tensors: Tensor,
                 circuit: 'Circuit',
                 n_eig: int) -> Tensor:
@@ -103,14 +103,14 @@ class EigenSolver(Function):
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output) -> Tuple[Tensor]:
-        # Break grad_output into eigenvalue sub-tensor and eigenvector 
+        # Break grad_output into eigenvalue sub-tensor and eigenvector
         # sub-tensor
         elements = list(ctx.circuit._parameters.keys())
         m, n, l = (
             len(ctx.circuit.parameters), # number of parameters
             ctx.n_eig,                   # number of eigenvalues
             (grad_output.shape[1] - 1),  # length of eigenvectors
-        ) 
+        )
         grad_output_eigenvalue = grad_output[:, 0]
         grad_output_eigenvector = grad_output[:, 1:]
 
@@ -121,7 +121,8 @@ class EigenSolver(Function):
                 # Compute backward pass for eigenvalues
                 partial_omega[el_idx, eigen_idx] = ctx.circuit.get_partial_omega(
                         el=elements[el_idx],
-                        m=eigen_idx, subtract_ground=False
+                        m=eigen_idx,
+                        subtract_ground=False
                 )
                 partial_tensor = torch.squeeze(torch.as_tensor(
                     ctx.circuit.get_partial_vec(

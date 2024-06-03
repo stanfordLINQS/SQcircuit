@@ -711,6 +711,14 @@ class Loop:
 
         self.lpValue.requires_grad = f
 
+    @property
+    def internal_value(self) -> Union[float, Tensor]:
+        return self.lpValue
+
+    @internal_value.setter
+    def internal_value(self, v: Union[float, Tensor]) -> None:
+        self.lpValue = v
+
 
 class Charge:
     """Class that contains the charge island properties.
