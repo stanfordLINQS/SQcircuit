@@ -227,20 +227,25 @@ def partial_dephasing_rate(
     )
 
 
-def get_B_idx(
+def get_B_indices(
     cr: 'Circuit',
     el: Union[Junction, Inductor]
-):
+) -> list[int]:
+    """
+    Return the list of `B_idx`'s with the element `el` (the same element
+    could be placed at multiple branches)
+    """
+    B_indices = []
     if isinstance(el, Junction):
         for _, el_JJ, B_idx, _ in cr.elem_keys[Junction]:
             if el_JJ is el:
-                return B_idx
+                B_indices.append(B_idx)
     elif isinstance(el, Inductor):
         for _, el_ind, B_idx in cr.elem_keys[Inductor]:
             if el_ind is el:
-                return B_idx
+                B_indices.append(B_idx)
 
-    return None
+    return B_indices
 
 
 ###############################################################################
@@ -584,17 +589,22 @@ def partial_squared_H_phi(
         return 0
 
     loop_idx = cr.loops.index(loop)
-    B_idx = get_B_idx(cr, grad_el)
+    B_indices = get_B_indices(cr, grad_el)
 
+    H_squared = 0
     if isinstance(grad_el, Junction):
-        return cr.B[B_idx, loop_idx] * cr._memory_ops['sin'][(grad_el, B_idx)]
+        for B_idx in B_indices:
+            H_squared += cr.B[B_idx, loop_idx] * cr._memory_ops['sin'][(grad_el, B_idx)]
+        return H_squared
     elif isinstance(grad_el, Inductor):
-        return (
-            cr.B[B_idx, loop_idx]
-            / -sqf.numpy(grad_el.get_value()**2)
-            * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
-            * cr._memory_ops["ind_hamil"][(grad_el, B_idx)]
-        )
+        for B_idx in B_indices:
+            H_squared += (
+                cr.B[B_idx, loop_idx]
+                / -sqf.numpy(grad_el.get_value()**2)
+                * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
+                * cr._memory_ops["ind_hamil"][(grad_el, B_idx)]
+            )
+        return H_squared
     else:
         raise NotImplementedError
 
