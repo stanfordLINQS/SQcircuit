@@ -518,3 +518,58 @@ def test_T2_flux():
             num_eigenvalues=50,
             delta=1e-6
         )
+
+def test_T2_cc_phi_ext():
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+    for phi_ext in flux_points:
+        set_optim_mode(False)
+        circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
+
+        # Create torch circuit
+        set_optim_mode(True)
+        circuit_torch = create_fluxonium_torch_flux(trunc_num, phi_ext)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('cc', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('cc', states=(0, 1)),
+            num_eigenvalues=50,
+            delta=1e-6
+        )
+
+def test_T2_charge_phi_ext():
+    charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    phi_ext = 0.5-1e-3
+
+    for ng in charge_offsets:
+        circuit_numpy = create_flux_transmon_numpy(trunc_num, phi_ext)
+        circuit_numpy.set_charge_offset(1, ng)
+
+        circuit_torch = create_flux_transmon_torch(trunc_num, phi_ext)
+        circuit_torch.set_charge_offset(1, ng)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('charge', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('charge', states=(0, 1)),
+            num_eigenvalues=50,
+        )
+
+def test_T2_flux_phi_ext():
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+    for phi_ext in flux_points:
+        circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
+        circuit_torch = create_fluxonium_torch_flux(trunc_num, phi_ext)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('flux', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('flux', states=(0, 1)),
+            num_eigenvalues=50,
+            delta=1e-6
+        )

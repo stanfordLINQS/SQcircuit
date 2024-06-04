@@ -12,14 +12,14 @@ from SQcircuit.noise import ENV
 from SQcircuit import functions as sqf
 from SQcircuit import units as unt
 
-
+SupportedGradElements = Union[Capacitor, Inductor, Junction, Loop]
 
 ###############################################################################
 # Interface to custom torch functions
 ###############################################################################
 
 def eigencircuit(circuit: 'Circuit', n_eig: int):
-    """Given a circuit, computes the concatenated the tensor including both 
+    """Given a circuit, computes the concatenated tensor including both 
     eigenvalues and eigenvectors of a circuit via torch `Function`.
 
     Parameters
@@ -145,7 +145,7 @@ class EigenSolver(Function):
 
 def partial_squared_omega(
     cr: 'Circuit',
-    grad_el: Element,
+    grad_el: SupportedGradElements,
     partial_H: qt.Qobj,
     partial_H_squared: qt.Qobj,
     states: Tuple[int, int]
@@ -171,7 +171,7 @@ def partial_squared_omega(
     """
 
     m, n = states
-    
+
     state_m = cr.evecs[m]
     partial_state_m = cr.get_partial_vec(grad_el, m)
     state_n = cr.evecs[n]
@@ -198,10 +198,10 @@ def partial_squared_omega(
 
 
 def partial_dephasing_rate(
-    A,
-    partial_A,
-    partial_omega_mn,
-    partial_squared_omega_mn
+    A: float,
+    partial_A: float,
+    partial_omega_mn: float,
+    partial_squared_omega_mn: float
 ):
     """
     Calculate the derivative of the dephasing rate with noise amplitude `A`
@@ -281,7 +281,7 @@ def partial_H_ng(
 def partial_squared_H_ng(
     cr: 'Circuit',
     charge_idx: int,
-    grad_el: Union[Capacitor, Inductor, Junction]
+    grad_el: SupportedGradElements
 ):
     """ Calculates the second derivative of the Hamiltonian of `cr` with 
     respect to the gate charge on the `charge_idx` charge mode and `grad_el`.
@@ -344,7 +344,7 @@ def partial_omega_ng(
 def partial_squared_omega_mn_ng(
     cr: 'Circuit',
     charge_idx: int,
-    grad_el: Union[Capacitor, Inductor, Junction],
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """ Calculates the second derivative of the difference between the `m`th 
@@ -378,7 +378,7 @@ def partial_squared_omega_mn_ng(
 
 def partial_charge_dec(
     cr: 'Circuit',
-    grad_el: Element,
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """
@@ -452,12 +452,38 @@ class DecRateCharge(Function):
 # Critical current noise
 ###############################################################################
 
+def partial_squared_H_EJ(
+    cr: 'Circuit',
+    EJ_el: Junction,
+    B_idx: int,
+    grad_el: SupportedGradElements
+):
+    """ Calculates the second derivative of the Hamiltonian of `cr` with 
+    respect to the Josephson energy of`EJ_el` charge mode and `grad_el`.
+
+    Parameters
+    ----------
+        cr:
+            The `Circuit` object to differentiate the Hamiltonian of.
+        EJ_el:
+            The Josephson junction to differentiate with respect to.
+        B_idx:
+            The index of the `cr.B` matrix identifying which branch the 
+            `EJ_el` is on.
+        grad_el:
+            The circuit element to differentiate with respect to.
+    """
+    if not isinstance(grad_el, Loop):
+        return 0
+
+    loop_idx = cr.loops.index(grad_el)
+    return cr.B[B_idx, loop_idx] * cr._memory_ops['sin'][(EJ_el, B_idx)]
 
 def partial_squared_omega_mn_EJ(
     cr: 'Circuit',
     EJ_el: Junction,
     B_idx: int,
-    grad_el: Union[Capacitor, Inductor, Junction],
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """ Calculates the second derivative of the difference between the `m`th 
@@ -477,7 +503,7 @@ def partial_squared_omega_mn_EJ(
             The numbers `(m, n)` of the eigenfrequencies to differentiate.
     """
     partial_H = cr._get_partial_H(EJ_el, _B_idx = B_idx)
-    partial_H_squared = 0
+    partial_H_squared = partial_squared_H_EJ(cr, EJ_el, B_idx, grad_el)
 
     return partial_squared_omega(
         cr,
@@ -490,7 +516,7 @@ def partial_squared_omega_mn_EJ(
 
 def partial_cc_dec(
     cr: 'Circuit',
-    grad_el: Element,
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """ Calculate the derivative of the critical current decoherence between the 
@@ -571,7 +597,7 @@ class DecRateCC(Function):
 def partial_squared_H_phi(
     cr: 'Circuit',
     loop: Loop,
-    grad_el: Union[Capacitor, Inductor, Junction]
+    grad_el: SupportedGradElements
 ):
     """ Calculates the second derivative of the Hamiltonian of `cr` with 
     respect to the external flux through `loop` and `grad_el`
@@ -605,6 +631,17 @@ def partial_squared_H_phi(
                 * cr._memory_ops["ind_hamil"][(grad_el, B_idx)]
             )
         return H_squared
+    elif isinstance(grad_el, Loop):
+        loop_idx_1 = cr.loops.index(loop)
+        loop_idx_2 = cr.loops.index(grad_el)
+        for edge, el_JJ, B_idx, W_idx in cr.elem_keys[Junction]:
+            H_squared += (
+                sqf.numpy(el_JJ.get_value())
+                * cr.B[B_idx, loop_idx_2]
+                * cr.B[B_idx, loop_idx_1]
+                * cr._memory_ops['cos'][(el_JJ, B_idx)]
+            )
+        return H_squared
     else:
         raise NotImplementedError
 
@@ -612,7 +649,7 @@ def partial_squared_H_phi(
 def partial_squared_omega_mn_phi(
     cr: 'Circuit',
     loop: Loop,
-    grad_el: Union[Capacitor, Inductor, Junction],
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """ Calculate the second derivative of the difference between the `m`th 
@@ -643,7 +680,7 @@ def partial_squared_omega_mn_phi(
 
 def partial_flux_dec(
     cr: 'Circuit',
-    grad_el: Element,
+    grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ):
     """ Calculate the derivative of the flux decoherence between the states 
