@@ -25,6 +25,7 @@ class QubitTest:
 
     def test_transform_process(self):
         # load the data
+        set_optim_mode(False)
         data = SQdata.load(DATADIR + "/" + self.fileName)
 
         # build the new circuit based on data circuit parameters
