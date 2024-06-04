@@ -122,6 +122,8 @@ def function_grad_test(circuit_numpy: Circuit,
         set_optim_mode(False)
 
         loop_flux = loop.internal_value / 2 / np.pi
+        # assert 0 + delta < loop_flux < 1 - delta
+
         # Calculate f(x+delta)
         loop.set_flux(loop_flux + delta)
         circuit_numpy.diag(num_eigenvalues)
@@ -143,6 +145,7 @@ def function_grad_test(circuit_numpy: Circuit,
 
         grad_torch = circuit_torch.loops[loop_idx].internal_value.grad
         if grad_torch is not None:
+            print(f"loop #: {loop_idx}")
             print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
             grad_torch = grad_torch.detach().numpy()
             assert np.sign(grad_torch) == np.sign(grad_numpy)
@@ -209,6 +212,13 @@ def test_omega_flux_fluxonium():
     set_optim_mode(False)
 
 
+def T1_inv(circuit):
+    return (
+        circuit.dec_rate('capacitive', (0, 1)) 
+        + circuit.dec_rate('inductive', (0, 1))
+        +  circuit.dec_rate('quasiparticle', (0, 1))
+    )
+
 def test_T1_transmon():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and 
     quasiparticle noise in transmon circuit with linearized value."""
@@ -217,18 +227,28 @@ def test_T1_transmon():
     circuit_numpy = create_transmon_numpy(trunc_num)
     circuit_torch = create_transmon_torch(trunc_num)
 
-    def T1_inv(circuit):
-        return (
-            circuit.dec_rate('capacitive', (0, 1)) 
-            + circuit.dec_rate('inductive', (0, 1))
-            +  circuit.dec_rate('quasiparticle', (0, 1))
-        )
-
     function_grad_test(circuit_numpy,
                        T1_inv,
                        circuit_torch,
                        T1_inv,
                        delta=1e-6)
+    set_optim_mode(False)
+
+def test_T1_transmon_flux():
+    """Compare gradient of T1 decoherence due to capacitive, inductive, and 
+    quasiparticle noise in transmon circuit with linearized value."""
+
+    # Create circuits
+    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+        print('flux point:', flux_point)
+        circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
+        circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
+
+        function_grad_test(circuit_numpy,
+                        T1_inv,
+                        circuit_torch,
+                        T1_inv,
+                        delta=1e-6)
     set_optim_mode(False)
 
 
