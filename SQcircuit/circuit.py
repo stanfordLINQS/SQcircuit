@@ -722,7 +722,7 @@ class Circuit:
         return S1, R1
 
     @staticmethod
-    def _independentRows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
+    def _independent_rows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
         """Use Gram–Schmidt to find the linear independent rows of matrix A
         and return the list of row indices of A and list of the rows.
 
@@ -736,10 +736,15 @@ class Circuit:
         # normalize the row of matrix A
         A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
 
+        # Get the row of each A that has the highest norm in descending order.
+        # This is important for the case of JJ capacitively coupled to JL.
+        sorted_index = np.argsort(-np.linalg.norm(A, axis=1))
+
         basis = []
         idx_list = []
 
-        for i, a in enumerate(A_norm):
+        for i in sorted_index:
+            a = A_norm[i, :]
             a_prime = a - sum([np.dot(a, e) * e for e in basis])
             if (np.abs(a_prime) > ACC["Gram–Schmidt"]).any():
                 idx_list.append(i)
@@ -773,7 +778,7 @@ class Circuit:
 
         return rounded_W
 
-    def _is_JJ_in_circuit(self) -> bool:
+    def _is_junction_in_circuit(self) -> bool:
         """Check if there is any Josephson junction in the circuit."""
 
         return len(self.W) != 0
@@ -806,12 +811,12 @@ class Circuit:
 
             while len(basis) != nq:
                 if len(basis) == 0:
-                    indList, basis = self._independentRows(wQ)
+                    indList, basis = self._independent_rows(wQ)
                 else:
                     # to complete the basis
                     X = list(np.random.randn(nq - len(basis), nq))
                     basisComplete = np.array(basis + X)
-                    _, basis = self._independentRows(basisComplete)
+                    _, basis = self._independent_rows(basisComplete)
 
             # the second S and R matrix are:
             F = np.array(list(wQ[indList, :]) + X)
@@ -874,7 +879,7 @@ class Circuit:
                 continue
 
             # for harmonic modes
-            elif self._is_JJ_in_circuit():
+            elif self._is_junction_in_circuit():
 
                 # note: alpha here is absolute value of alpha (alpha is pure
                 # imaginary)
@@ -914,7 +919,7 @@ class Circuit:
         # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvTrans) * np.diag(self.lTrans))
 
-        if self._is_JJ_in_circuit():
+        if self._is_junction_in_circuit():
             # get the second transformation
             self.S2, self.R2 = self._get_and_apply_transformation_2()
 

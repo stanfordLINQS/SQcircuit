@@ -13,6 +13,7 @@ from SQcircuit import functions as sqf
 from SQcircuit import units as unt
 
 SupportedGradElements = Union[Capacitor, Inductor, Junction, Loop]
+EIGENVECTOR_MAX_GRAD = 2
 
 ###############################################################################
 # Interface to custom torch functions
@@ -69,7 +70,8 @@ class EigenSolver(Function):
     def forward(ctx,
                 element_tensors: Tensor,
                 circuit: 'Circuit',
-                n_eig: int) -> Tensor:
+                n_eig: int,
+                eigenvector_max_grad: int=EIGENVECTOR_MAX_GRAD) -> Tensor:
         # Compute forward pass for eigenvalues
         eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
         eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
@@ -94,6 +96,9 @@ class EigenSolver(Function):
 
         ## Number of eigenvalues
         ctx.n_eig = n_eig
+
+        # Number of eigenvectors to use in computation of partial_omega
+        ctx.eigenvector_max_grad = eigenvector_max_grad
 
         ## Output shape
         ctx.out_shape = element_tensors.shape
@@ -124,20 +129,21 @@ class EigenSolver(Function):
                         m=eigen_idx,
                         subtract_ground=False
                 )
-                partial_tensor = torch.squeeze(torch.as_tensor(
-                    ctx.circuit.get_partial_vec(
-                        el=elements[el_idx],
-                        m=eigen_idx
-                    )
-                ))
-                partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
+                if eigen_idx < ctx.eigenvector_max_grad:
+                    partial_tensor = torch.squeeze(torch.as_tensor(
+                        ctx.circuit.get_partial_vec(
+                            el=elements[el_idx],
+                            m=eigen_idx
+                        )
+                    ))
+                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
         eigenvalue_grad = torch.sum(
             partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
         eigenvector_grad = torch.sum(
             partial_eigenvec * torch.conj(grad_output_eigenvector),
             axis=(-1, -2))
 
-        return torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape), None, None
+        return torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape), None, None, None
 
 ###############################################################################
 # Decoherence rate helper functions
