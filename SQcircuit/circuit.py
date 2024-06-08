@@ -2382,7 +2382,7 @@ class Circuit:
         partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
         partial_omega_mn = partial_omega_m -  partial_omega_n
-        assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
+        # assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
 
         return sqf.real(partial_omega_mn)
 

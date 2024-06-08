@@ -20,6 +20,8 @@ from SQcircuit.tests.conftest import (
     create_flux_transmon_numpy,
     create_flux_transmon_torch,
     create_fluxonium_torch_flux,
+    create_JJL_numpy,
+    create_JJL_torch,
 )
 
 
@@ -573,3 +575,20 @@ def test_T2_flux_phi_ext():
             num_eigenvalues=50,
             delta=1e-6
         )
+
+# def test_T2_flux_JJL():
+#     flux_points = [0.5] #, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+#     for phi_ext in flux_points:
+#         print('phi_ext', phi_ext)
+#         circuit_numpy = create_JJL_numpy(45, phi_ext)
+#         circuit_torch = create_JJL_torch(45, phi_ext)
+
+#         function_grad_test(
+#             circuit_numpy,
+#             first_eigendifference_numpy, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             circuit_torch,
+#             first_eigendifference_torch, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             num_eigenvalues=50,
+#             delta=1e-4
+#         )

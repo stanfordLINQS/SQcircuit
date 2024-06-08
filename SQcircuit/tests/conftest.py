@@ -165,3 +165,49 @@ def create_fluxonium_torch_flux(trunc_num, phi_ext=0):
     circuit_torch = Circuit({(0, 1): [C_torch, L_torch, JJ_torch], }, flux_dist='junctions')
     circuit_torch.set_trunc_nums([trunc_num, ])
     return circuit_torch
+
+def create_JJL_numpy(trunc_num, phi_ext):
+    set_optim_mode(False)
+    Cs = [3.6, 1.2, 2.0]
+    Js = [10.2, 6.8]
+    Ls = [0.46]
+    loop = Loop(phi_ext)
+    C1 = Capacitor(Cs[0], 'GHz', requires_grad=False)
+    C2 = Capacitor(Cs[1], 'GHz', requires_grad=False)
+    C3 = Capacitor(Cs[2], 'GHz', requires_grad=False)
+    L = Inductor(Ls[0], 'GHz', loops=[loop], requires_grad=False)
+    J1 = Junction(Js[0], 'GHz',loops=[loop], requires_grad=False)
+    J2 = Junction(Js[1], 'GHz',loops=[loop], requires_grad=False)
+
+    circuit_numpy = Circuit(
+        {(0, 1): [C1, J1],
+         (1, 2): [C2, J2],
+         (2, 0): [L, C3]
+         },
+        flux_dist='junctions'
+    )
+    circuit_numpy.set_trunc_nums([trunc_num, trunc_num])
+    return circuit_numpy
+
+def create_JJL_torch(trunc_num, phi_ext):
+    set_optim_mode(True)
+    Cs = [3.6, 1.2, 2.0]
+    Js = [10.2, 6.8]
+    Ls = [0.46]
+    loop = Loop(phi_ext, requires_grad=False)
+    C1 = Capacitor(Cs[0], 'GHz', requires_grad=True)
+    C2 = Capacitor(Cs[1], 'GHz', requires_grad=True)
+    C3 = Capacitor(Cs[2], 'GHz', requires_grad=True)
+    L = Inductor(Ls[0], 'GHz', loops=[loop], requires_grad=True)
+    J1 = Junction(Js[0], 'GHz',loops=[loop], requires_grad=True)
+    J2 = Junction(Js[1], 'GHz',loops=[loop], requires_grad=True)
+
+    circuit_torch = Circuit(
+        {(0, 1): [C1, J1],
+         (1, 2): [C2, J2],
+         (2, 0): [L, C3]
+         },
+        flux_dist='junctions'
+    )
+    circuit_torch.set_trunc_nums([trunc_num, trunc_num])
+    return circuit_torch
