@@ -16,7 +16,12 @@ from SQcircuit.tests.conftest import (
     create_fluxonium_numpy,
     create_fluxonium_torch,
     create_transmon_numpy,
-    create_transmon_torch
+    create_transmon_torch,
+    create_flux_transmon_numpy,
+    create_flux_transmon_torch,
+    create_fluxonium_torch_flux,
+    create_JJL_numpy,
+    create_JJL_torch,
 )
 
 
@@ -30,9 +35,9 @@ all_units = unt.farad_list | unt.freq_list | unt.henry_list
 def max_ratio(a, b):
     return np.max([np.abs(b / a), np.abs(a / b)])
 
-def function_grad_test(circuit_numpy,
+def function_grad_test(circuit_numpy: Circuit,
                        function_numpy,
-                       circuit_torch,
+                       circuit_torch: Circuit,
                        function_torch,
                        num_eigenvalues=20,
                        delta=1e-4):
@@ -60,7 +65,6 @@ def function_grad_test(circuit_numpy,
     set_optim_mode(True)
     circuit_torch.diag(num_eigenvalues)
     tensor_val = function_torch(circuit_torch)
-    optimizer = torch.optim.SGD(circuit_torch.parameters, lr=1)
     tensor_val.backward()
 
     for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
@@ -101,7 +105,7 @@ def function_grad_test(circuit_numpy,
                 print(f"edge element: {edge_element}")
                 print(f"value: {edge_element._value}")
                 print(f"value grad: {edge_element._value.grad}")
-            grad_torch = edge_elements_torch[element_idx]._value.grad.detach().numpy()
+            grad_torch = edge_elements_torch[element_idx].internal_value.grad.detach().numpy()
             # TODO: Modify Element class so that following gradient scaling is not necessary
 
             if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
@@ -116,7 +120,41 @@ def function_grad_test(circuit_numpy,
 
             assert np.sign(grad_torch) == np.sign(grad_numpy)
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
-    optimizer.zero_grad()
+    for loop_idx, loop in enumerate(circuit_numpy.loops):
+        set_optim_mode(False)
+
+        loop_flux = loop.internal_value / 2 / np.pi
+        # assert 0 + delta < loop_flux < 1 - delta
+
+        # Calculate f(x+delta)
+        loop.set_flux(loop_flux + delta)
+        circuit_numpy.diag(num_eigenvalues)
+        val_plus = function_numpy(circuit_numpy)
+
+        # Calculate f(x-delta)
+        loop.set_flux(loop_flux - delta)
+        circuit_numpy.diag(num_eigenvalues)
+        val_minus = function_numpy(circuit_numpy)
+
+        # Calculate gradient, being careful for flux insensitivity
+        if val_plus == val_minus:
+            grad_numpy = 0
+        else:
+            grad_numpy = (val_plus - val_minus) / (2 * delta * 2 * np.pi)
+
+        # Reset circuit
+        loop.set_flux(loop_flux)
+
+        grad_torch = circuit_torch.loops[loop_idx].internal_value.grad
+        if grad_torch is not None:
+            print(f"loop #: {loop_idx}")
+            print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
+            grad_torch = grad_torch.detach().numpy()
+            assert np.sign(grad_torch) == np.sign(grad_numpy)
+            assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+
+    set_optim_mode(True)
+    circuit_torch.zero_parameters_grad()
 
 def first_eigendifference_numpy(circuit):
     return circuit._efreqs[1] - circuit._efreqs[0]
@@ -141,6 +179,47 @@ def test_omega_transmon():
                        first_eigendifference_torch)
     set_optim_mode(False)
 
+def test_omega_flux_transmon():
+    """Verify gradient of first eigendifference omega_1-omega_0 
+    in transmon circuit with linearized value."""
+
+    # Create circuits
+
+    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+        print('flux point:', flux_point)
+        circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
+        circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
+
+        function_grad_test(circuit_numpy,
+                           first_eigendifference_numpy,
+                           circuit_torch,
+                           first_eigendifference_torch)
+    set_optim_mode(False)
+
+def test_omega_flux_fluxonium():
+    """Verify gradient of first eigendifference omega_1-omega_0 
+    in transmon circuit with linearized value."""
+
+    # Create circuits
+
+    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+        print('flux point:', flux_point)
+        circuit_numpy = create_fluxonium_numpy(trunc_num, flux_point)
+        circuit_torch = create_fluxonium_torch_flux(trunc_num, flux_point)
+
+        function_grad_test(circuit_numpy,
+                           first_eigendifference_numpy,
+                           circuit_torch,
+                           first_eigendifference_torch)
+    set_optim_mode(False)
+
+
+def T1_inv(circuit):
+    return (
+        circuit.dec_rate('capacitive', (0, 1)) 
+        + circuit.dec_rate('inductive', (0, 1))
+        +  circuit.dec_rate('quasiparticle', (0, 1))
+    )
 
 def test_T1_transmon():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and 
@@ -150,18 +229,28 @@ def test_T1_transmon():
     circuit_numpy = create_transmon_numpy(trunc_num)
     circuit_torch = create_transmon_torch(trunc_num)
 
-    def T1_inv(circuit):
-        return (
-            circuit.dec_rate('capacitive', (0, 1)) 
-            + circuit.dec_rate('inductive', (0, 1))
-            +  circuit.dec_rate('quasiparticle', (0, 1))
-        )
-
     function_grad_test(circuit_numpy,
                        T1_inv,
                        circuit_torch,
                        T1_inv,
                        delta=1e-6)
+    set_optim_mode(False)
+
+def test_T1_transmon_flux():
+    """Compare gradient of T1 decoherence due to capacitive, inductive, and 
+    quasiparticle noise in transmon circuit with linearized value."""
+
+    # Create circuits
+    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+        print('flux point:', flux_point)
+        circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
+        circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
+
+        function_grad_test(circuit_numpy,
+                        T1_inv,
+                        circuit_torch,
+                        T1_inv,
+                        delta=1e-6)
     set_optim_mode(False)
 
 
@@ -431,3 +520,75 @@ def test_T2_flux():
             num_eigenvalues=50,
             delta=1e-6
         )
+
+def test_T2_cc_phi_ext():
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+    for phi_ext in flux_points:
+        set_optim_mode(False)
+        circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
+
+        # Create torch circuit
+        set_optim_mode(True)
+        circuit_torch = create_fluxonium_torch_flux(trunc_num, phi_ext)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('cc', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('cc', states=(0, 1)),
+            num_eigenvalues=50,
+            delta=1e-6
+        )
+
+def test_T2_charge_phi_ext():
+    charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    phi_ext = 0.5-1e-3
+
+    for ng in charge_offsets:
+        circuit_numpy = create_flux_transmon_numpy(trunc_num, phi_ext)
+        circuit_numpy.set_charge_offset(1, ng)
+
+        circuit_torch = create_flux_transmon_torch(trunc_num, phi_ext)
+        circuit_torch.set_charge_offset(1, ng)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('charge', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('charge', states=(0, 1)),
+            num_eigenvalues=50,
+        )
+
+def test_T2_flux_phi_ext():
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+    for phi_ext in flux_points:
+        circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
+        circuit_torch = create_fluxonium_torch_flux(trunc_num, phi_ext)
+
+        function_grad_test(
+            circuit_numpy,
+            lambda cr: cr.dec_rate('flux', states=(0, 1)),
+            circuit_torch,
+            lambda cr: cr.dec_rate('flux', states=(0, 1)),
+            num_eigenvalues=50,
+            delta=1e-6
+        )
+
+# def test_T2_flux_JJL():
+#     flux_points = [0.5] #, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+
+#     for phi_ext in flux_points:
+#         print('phi_ext', phi_ext)
+#         circuit_numpy = create_JJL_numpy(45, phi_ext)
+#         circuit_torch = create_JJL_torch(45, phi_ext)
+
+#         function_grad_test(
+#             circuit_numpy,
+#             first_eigendifference_numpy, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             circuit_torch,
+#             first_eigendifference_torch, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             num_eigenvalues=50,
+#             delta=1e-4
+#         )

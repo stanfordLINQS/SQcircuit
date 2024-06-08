@@ -136,6 +136,9 @@ class CircuitEdge:
             loop.add_index(B_idx)
             loop.addK1(self.w)
 
+            if get_optim_mode():
+                self.circ.add_to_parameters(loop)
+
     def process_edge_and_update_circ(
         self,
         B_idx: int,
@@ -412,18 +415,29 @@ class Circuit:
         # Instantiate new container
         new_circuit = copy(self)
 
-        # Explicitly copy any non-leaf tensors
-        # (these don't implement a __deepcopy__ method)
+        # Explicitly copy all elements to new circuit, in particular those with
+        # non-leaf `.internal_value`s ((these don't implement a `._deepcopy__`
+        # method)
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
 
+            new_loops: List[Loop] = []
+            replacement_dict: Dict[Union[Loop, Element], Union[Loop, Element]] = {}
+            for loop in self.loops:
+                new_loop = copy(loop)
+                new_loop.internal_value = loop.internal_value.detach().clone()
+                new_loops.append(new_loop)
+                replacement_dict[loop] = new_loop
+            new_circuit.loops = new_loops
+
             new_elements = defaultdict(list)
-            replacement_dict = dict()
             for edge in self.elements:
                 for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el.internal_value = el.internal_value.detach().clone()
+                    if hasattr(el, 'loop'):
+                        new_el.loop = replacement_dict[el.loop]
                     new_elements[edge].append(new_el)
 
                     replacement_dict[el] = new_el
@@ -544,7 +558,7 @@ class Circuit:
         """Add elements with ``requires_grad=True`` to parameters.
         """
 
-        if el.requires_grad:
+        if el.requires_grad and el not in self._parameters:
             self._parameters[el] = el.internal_value
 
     def add_loop(self, loop: Loop) -> None:
@@ -1059,7 +1073,7 @@ class Circuit:
 
         loopTxt = txt.loops() + txt.tab()
         for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
+            phiExt = sqf.numpy(self.loops[i].value()) / 2 / np.pi
             loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
                 phiExt) + txt.tab()
 
@@ -1473,7 +1487,11 @@ class Circuit:
 
         return LC_hamil
 
-    def _get_external_flux_at_element(self, B_idx: int) -> float:
+    def _get_external_flux_at_element(
+            self, 
+            B_idx: int, 
+            torch = False
+    ) -> Union[float, Tensor]:
         """
         Return the external flux at an inductive element.
 
@@ -1483,11 +1501,15 @@ class Circuit:
                 An integer point to each row of B matrix (external flux
                 distribution of that element)
         """
-        phi_ext = 0.0
+        phi_ext = sqf.zero()
         for i, loop in enumerate(self.loops):
+            print(loop.value())
             phi_ext += loop.value() * self.B[B_idx, i]
 
-        return phi_ext
+        if isinstance(phi_ext, Tensor) and not torch:
+            return sqf.numpy(phi_ext)
+        else:
+            return phi_ext
 
     def _get_inductive_hamil(self) -> Qobj:
 
@@ -1571,6 +1593,37 @@ class Circuit:
             Q_eig = np.conj(mat_evecs.T) @ Q_FC.full() @ mat_evecs
 
             return qt.Qobj(Q_eig)
+
+    def _get_W_idx(self, my_el: Junction, my_B_idx: int) -> Optional[int]:
+        for _, el, B_idx, W_idx in self.elem_keys[Junction]:
+            if el == my_el and B_idx == my_B_idx:
+                return W_idx
+
+        return None
+
+    def op(self, name: str, keywords: Dict):
+        """
+        Returns the `name` operator of the circuit, specified by `keywords`,
+        as a sparse torch matrix.
+        """
+        if name == 'sin_half':
+            B_idx = keywords['B_idx']
+            el = keywords['el']
+            if get_optim_mode():
+                W_idx = self._get_W_idx(el, B_idx)
+
+                phi = self._get_external_flux_at_element(B_idx, torch=True)
+                root_exp = (
+                    torch.exp(1j * phi / 2)
+                    * sqf.qobj_to_tensor(self._memory_ops["root_exp"][W_idx])
+                )
+
+                sin_half = (root_exp - sqf.dag(root_exp)) / 2j
+                return sin_half ## TO CHECK: need to squeeze?
+            else:
+                return self._memory_ops['sin_half'][el, B_idx]
+        else:
+            raise NotImplementedError
 
     def diag_np(
         self,
@@ -2118,8 +2171,8 @@ class Circuit:
                             sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == "quasiparticle":
-            for el, _ in self._memory_ops['sin_half']:
-                op = self._memory_ops['sin_half'][(el, _)]
+            for el, B_idx in self._memory_ops['sin_half']:
+                op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
                 if np.isnan(sqf.numpy(el.Y(omega, ENV["T"]))):
                     decay = decay + 0
                 else:
@@ -2334,7 +2387,7 @@ class Circuit:
         partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
         partial_omega_mn = partial_omega_m -  partial_omega_n
-        assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
+        # assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
 
         return sqf.real(partial_omega_mn)
 

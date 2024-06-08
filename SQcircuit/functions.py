@@ -105,6 +105,11 @@ def init_op(size):
         # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
     return qt.Qobj()
 
+def zero(dtype=torch.complex128):
+    if get_optim_mode():
+        return torch.tensor(0, dtype=dtype)
+    return 0
+
 
 def zeros(shape, dtype=torch.complex128):
     if get_optim_mode():
