@@ -5,39 +5,58 @@ capacitors, inductors, and josephson junctions.
 from typing import List, Any, Optional, Union, Callable
 
 import torch
+from torch.autograd.function import once_differentiable
 import numpy as np
 
-from scipy.special import kn
+from scipy.special import kn, kvp
 from torch import Tensor
 from numpy import ndarray
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import raise_unit_error, raise_optim_error_if_needed, raise_value_out_of_bounds_error
+from SQcircuit.logs import (
+    raise_unit_error,
+    raise_optim_error_if_needed,
+    raise_value_out_of_bounds_error
+)
 from SQcircuit.settings import get_optim_mode
 
+###############################################################################
+# Special functions
+###############################################################################
 
-def enforce_baseline_value(value, min_value, max_value, epsilon = 0.01):
-    if value < min_value * (1 - epsilon):
-        raise_value_out_of_bounds_error(min_value, value)
-        return min_value
-    elif value > max_value * (1 + epsilon):
-        raise_value_out_of_bounds_error(max_value, value)
-        return max_value
-    return value
+class kn_solver(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, n: int, x):
+        ctx.save_for_backward(x)
+        ctx.order = n
+        x = sqf.numpy(x)
+        return torch.as_tensor(kn(n, x))
+
+    @staticmethod
+    @once_differentiable
+    def backward(ctx, grad_output):
+        z, = ctx.saved_tensors
+        return None, grad_output * kvp(ctx.order, z)
+
+###############################################################################
+# Elements
+###############################################################################
 
 class Element:
     """Class that contains general properties of elements."""
 
-    _unit = None
     _error = None
     _value = None
 
-
     @property
-    def unit(self) -> str:
-        return self._unit
+    def internal_value(self) -> Union[float, Tensor]:
+        return self._value
+
+    @internal_value.setter
+    def internal_value(self, v: Union[float, Tensor]) -> None:
+        self._value = v
 
     @property
     def error(self) -> float:
@@ -60,6 +79,15 @@ class Element:
 
         self._value.requires_grad = f
 
+    def enforce_baseline_value(self, value, min_value, max_value, epsilon=0.01):
+        if value < min_value * (1 - epsilon):
+            raise_value_out_of_bounds_error(type(self), min_value, value)
+            return min_value
+        elif value > max_value * (1 + epsilon):
+            raise_value_out_of_bounds_error(type(self), max_value, value)
+            return max_value
+        return value
+
     def set_value_with_error(self, mean: float, error: float, min_value: float, max_value: float) -> None:
         mean_th = torch.as_tensor(mean, dtype=float)
         error_th = torch.as_tensor(error, dtype=float)
@@ -67,13 +95,13 @@ class Element:
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
         min_value = torch.tensor(min_value, dtype=torch.float)
         max_value = torch.tensor(max_value, dtype=torch.float)
-        self._value = enforce_baseline_value(sampled_value, min_value, max_value)
+        self._value = self.enforce_baseline_value(sampled_value, min_value, max_value)
 
         if not get_optim_mode():
             self._value = float(self._value.detach().cpu().numpy())
 
     def get_value(self) -> Union[float, Tensor]:
-        pass
+        raise NotImplementedError
 
     @staticmethod
     def get_default_id_str(s: str, v: float, u: str) -> str:
@@ -117,6 +145,7 @@ class Capacitor(Element):
     id_str:
         ID string for the capacitor.
     """
+    value_unit = "F"
 
     def __init__(
         self,
@@ -129,10 +158,14 @@ class Capacitor(Element):
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
-
         # EMERGENCY TODO: Save min/max values in SI units
         self.min_value = min_value
         self.max_value = max_value
+       
+        if unit is None:
+            unit = unt.get_unit_cap()
+        else:
+            self._check_unit_format(unit)
 
         self.set_value(value, unit, error)
         self.type = type(self)
@@ -153,23 +186,13 @@ class Capacitor(Element):
             self.id_str = id_str
 
     @staticmethod
-    def _check_unit_format(u):
+    def _check_unit_format(u: str):
         """Check if the unit input has the correct format."""
 
         if (u not in unt.freq_list and
                 u not in unt.farad_list and
                 u is not None):
             raise_unit_error()
-
-    @Element.unit.setter
-    def unit(self, u: Optional[str]) -> None:
-
-        self._check_unit_format(u)
-
-        if u is None:
-            self._unit = unt.get_unit_cap()
-        else:
-            self._unit = u
 
     def set_value(self, v: float, u: str = 'F', e: float = 0.0) -> None:
         """Set the value for the capacitor.
@@ -183,13 +206,13 @@ class Capacitor(Element):
             e:
                 The fabrication error in percentage.
         """
-        self.unit = u
+        self._check_unit_format(u)
         self.error = e
 
-        if self.unit in unt.farad_list:
-            mean = v * unt.farad_list[self.unit]
+        if u in unt.farad_list:
+            mean = v * unt.farad_list[u]
         else:
-            E_c = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
+            E_c = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
             mean = unt.e ** 2 / 2 / E_c
 
         self.set_value_with_error(mean, e, self.min_value, self.max_value)
@@ -234,7 +257,7 @@ class VerySmallCap(Capacitor):
 class VeryLargeCap(Capacitor):
 
     def __init__(self):
-        super().__init__(1e20, "F", Q=None, max_value=float('inf'))
+        super().__init__(1e20, "F", Q=None, max_value=1e20)
 
 
 class Inductor(Element):
@@ -266,6 +289,7 @@ class Inductor(Element):
     id_str:
         ID string for the inductor.
     """
+    value_unit = "H"
 
     def __init__(
             self,
@@ -273,7 +297,7 @@ class Inductor(Element):
             unit: str = None,
             requires_grad: bool = False,
             min_value: float = 1e-13,
-            max_value: float = 1e-6,
+            max_value: float = 1e-4, #1e-6,
             cap: Optional["Capacitor"] = None,
             Q: Union[Any, Callable[[float, float], float]] = "default",
             error: float = 0,
@@ -283,6 +307,12 @@ class Inductor(Element):
 
         self.min_value = min_value
         self.max_value = max_value
+
+        if unit is None:
+            unit = unt.get_unit_ind()
+        else:
+            self._check_unit_format(unit)
+
         self.set_value(value, unit, error)
         self.type = type(self)
 
@@ -320,16 +350,6 @@ class Inductor(Element):
                 u is not None):
             raise_unit_error()
 
-    @Element.unit.setter
-    def unit(self, u: Optional[str]) -> None:
-
-        self._check_unit_format(u)
-
-        if u is None:
-            self._unit = unt.get_unit_ind()
-        else:
-            self._unit = u
-
     def set_value(self, v: float, u: str = 'H', e: float = 0.0) -> None:
         """Set the value for the element.
         
@@ -342,13 +362,13 @@ class Inductor(Element):
             e:
                 The fabrication error in percentage.
         """
-        self.unit = u
+        self._check_unit_format(u)
         self.error = e
 
-        if self.unit in unt.henry_list:
-            mean = v * unt.henry_list[self.unit]
+        if u in unt.henry_list:
+            mean = v * unt.henry_list[u]
         else:
-            E_l = v * unt.freq_list[self.unit] * (2*np.pi*unt.hbar)
+            E_l = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
             mean = (unt.Phi0/2/np.pi)**2 / E_l
 
         self.set_value_with_error(mean, e, self.min_value, self.max_value)
@@ -448,6 +468,7 @@ class Junction(Element):
     id_str:
         ID string for the junction.
     """
+    value_unit = "Hz"
 
     def __init__(
         self,
@@ -455,7 +476,7 @@ class Junction(Element):
         unit: Optional[str] = None,
         requires_grad: bool = False,
         min_value: float = 1e9,
-        max_value: float = 1e10,
+        max_value: float = 1e12, #1e10,
         cap: Optional[Capacitor] = None,
         A: float = 1e-7,
         x: float = 3e-06,
@@ -468,6 +489,12 @@ class Junction(Element):
 
         self.min_value = min_value
         self.max_value = max_value
+
+        if unit is None:
+            unit = unt.get_unit_JJ()
+        else:
+            self._check_unit_format(unit)
+
         self.set_value(value, unit, error)
         self.type = type(self)
         self.A = A
@@ -502,16 +529,6 @@ class Junction(Element):
         if u not in unt.freq_list and u is not None:
             raise_unit_error()
 
-    @Element.unit.setter
-    def unit(self, u: Optional[str]) -> None:
-
-        self._check_unit_format(u)
-
-        if u is None:
-            self._unit = unt.get_unit_JJ()
-        else:
-            self._unit = u
-
     def set_value(self, v: float, u: str = 'Hz', e: float = 0.0) -> None:
         """Set the value for the element.
         
@@ -524,10 +541,10 @@ class Junction(Element):
             e:
                 The fabrication error in percentage.
         """
-        self.unit = u
+        self._check_unit_format(u)
         self.error = e
 
-        mean = v * unt.freq_list[self.unit] * 2 * np.pi
+        mean = v * unt.freq_list[u] * 2 * np.pi
 
         self.set_value_with_error(mean, e, self.min_value, self.max_value)
 
@@ -542,7 +559,6 @@ class Junction(Element):
 
         if u in unt.freq_list:
             return self._value / unt.freq_list[u]
-
         else:
             raise_unit_error()
 
@@ -583,11 +599,10 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-            kn_solver = sqf.get_kn_solver(0)
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * sqf.sqrt(alpha) * kn_solver.apply(alpha) * sqf.sinh(alpha)
+                * x * sqf.sqrt(alpha) * kn_solver.apply(0, alpha) * sqf.sinh(alpha)
             return y
 
         return _default_Y_junc
@@ -611,10 +626,15 @@ class Loop:
         self,
         value: float = 0,
         A: float = 1e-6,
+        requires_grad: bool = False,
         id_str: Optional[str] = None
     ) -> None:
 
-        self.lpValue = value * 2 * np.pi
+        self.set_flux(value)
+
+        if requires_grad:
+            self.requires_grad = requires_grad
+
         self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
@@ -654,6 +674,9 @@ class Loop:
             value:
                 The external flux value
         """
+        if get_optim_mode():
+            value = torch.as_tensor(value)
+
         self.lpValue = value * 2 * np.pi
 
     def add_index(self, index):
@@ -674,6 +697,27 @@ class Loop:
         b[0, 0] = 1
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
+
+    @property
+    def requires_grad(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self.lpValue.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, f: bool) -> None:
+
+        raise_optim_error_if_needed()
+
+        self.lpValue.requires_grad = f
+
+    @property
+    def internal_value(self) -> Union[float, Tensor]:
+        return self.lpValue
+
+    @internal_value.setter
+    def internal_value(self, v: Union[float, Tensor]) -> None:
+        self.lpValue = v
 
 
 class Charge:
