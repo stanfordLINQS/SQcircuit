@@ -34,7 +34,8 @@ from SQcircuit.elements import (
     Loop,
     Charge
 )
-from SQcircuit.texts import is_notebook, HamilTxt
+from SQcircuit.texts import HamilTxt, is_notebook
+import SQcircuit.symbolic as symbolic
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
@@ -373,6 +374,15 @@ class Circuit:
             "sin": {},  # List of sine operators
             "sin_half": {},  # list of sin(phi/2)
             "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
+        }
+
+        # TODO: fix typing; add comments etc.
+        self.descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
+            "omega": [], 
+            "phi_zp": [], 
+            "ng": [],
+            "EC": None,
+            "EJ" : None
         }
 
         # LC part of the Hamiltonian
@@ -926,10 +936,69 @@ class Circuit:
         # scaling the modes by third transformation
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
+    def compute_params(self):
+        # calculate coefficients normalized in units of angular frequency
+
+        ## dimensions of modes of circuit
+        self.descrip_vars['n_modes'] = self.n
+        self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
+        harDim = self.descrip_vars['har_dim']
+        self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
+        self.descrip_vars['omega'] = self.omega \
+                                        / (2 * np.pi * unt.get_unit_freq())
+        
+        self.descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
+            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
+                                        / np.diag(self.cInvTrans)[:harDim])))
+        self.descrip_vars['ng'] = [self.charge_islands[i].value() \
+                                    for i in range(harDim, self.n)]
+        self.descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
+                                       * unt.get_unit_freq())) \
+                                    * np.diag(np.repeat(0.5, self.n)) \
+                                    * self.cInvTrans
+        
+        self.descrip_vars['W'] = np.round(self.wTrans, 6)
+        self.descrip_vars['S'] = np.round(self.S, 3)
+        if self.loops:
+            self.descrip_vars['B'] = np.round(self.B, 2)
+        else:
+            self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
+                          + len(self.elem_keys[Inductor]), 1))
+
+        ## values of elements
+        def elem_value(val):
+            if get_optim_mode(): return val.item()
+            else: return val
+
+        self.descrip_vars['EJ'] = [] 
+        for _, el, _, _ in self.elem_keys[Junction]:
+            self.descrip_vars['EJ'].append(elem_value(el.get_value()) / \
+                                            (2 * np.pi * unt.get_unit_freq()))
+        self.descrip_vars['EL'] = [] 
+        self.descrip_vars['EL_incl'] = []
+        for _, el, B_idx in self.elem_keys[Inductor]:
+            self.descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
+            self.descrip_vars['EL_incl'].append(
+                np.sum(np.abs(self.descrip_vars['B'][B_idx, :])) != 0)
+
+        self.descrip_vars['EC'] = dict()
+        for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
+            for j in range(i, self.descrip_vars['n_modes']):
+                self.descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
+                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
+                                self.cInvTrans[i, j]
+                if i == j:
+                    self.descrip_vars['EC'][(i,j)] /= 2   
+
+        ## values of loops
+        self.descrip_vars['n_loops'] = len(self.loops)
+        self.descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
+                                       for i in range(len(self.loops))]
+
     def description(
-        self,
-        tp: Optional[str] = None,
-        _test: bool = False,
+            self,
+            tp: Optional[str] = None,
+            _test: bool = False,
     ) -> Optional[str]:
         """
         Print out Hamiltonian and a listing of the modes (whether they are
@@ -942,11 +1011,11 @@ class Circuit:
                 If ``None`` prints out the output as Latex if SQcircuit is
                 running in a Jupyter notebook and as text if SQcircuit is
                 running in Python terminal. If ``tp`` is ``"ltx"``,
-                the output is in Latex format if ``tp`` is ``"txt"`` the
+                the output is in Latex format, and if ``tp`` is ``"txt"`` the
                 output is in text format.
             _test:
                 if True, return the entire description as string
-                text. (use only for testing the function)
+                text (use only for testing the function).
         """
         if tp is None:
             if is_notebook():
@@ -956,130 +1025,12 @@ class Circuit:
         else:
             txt = HamilTxt(tp)
 
-        hamilTxt = txt.H()
-        harDim = np.sum(self.omega != 0)
-        chDim = np.sum(self.omega == 0)
-        W = np.round(self.wTrans, 6)
-        S = np.round(self.S, 3)
+        # txt.print_descript(self)
 
-        # If circuit has any loop:
-        if self.loops:
-            B = np.round(self.B, 2)
-        else:
-            B = np.zeros((len(self.elem_keys[Junction])
-                          + len(self.elem_keys[Inductor]), 1))
-        EJLst = []
-        ELLst = []
+        self.compute_params()
+        self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
-        for i in range(harDim):
-            hamilTxt += txt.omega(i + 1) + txt.ad(i + 1) + \
-                        txt.a(i + 1) + txt.p()
-
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    hamilTxt += txt.Ec(harDim + i + 1, harDim + j + 1) + \
-                                txt.n(harDim + i + 1, harDim + j + 1) + txt.p()
-
-        JJHamilTxt = ""
-        indHamilTxt = ""
-
-        for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
-            if get_optim_mode():
-                EJLst.append(el.get_value().detach().numpy()  / 2 / np.pi / unt.get_unit_freq())
-            else:
-                EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
-            junTxt = txt.Ej(i + 1) + txt.cos() + "("
-            # if B_idx is not None:
-            junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
-                txt.linear(txt.phiExt, B[B_idx, :], st=False)
-            # else:
-            #     junTxt += txt.linear(txt.phi, W[W_idx, :])
-            JJHamilTxt += junTxt + ")" + txt.p()
-
-        for i, (edge, el, B_idx) in enumerate(self.elem_keys[Inductor]):
-
-            # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
-            if np.sum(np.abs(B[B_idx, :])) == 0:
-                continue
-            if get_optim_mode():
-                ELLst.append(el.get_value("GHz").detach().numpy())
-            else:
-                ELLst.append(el.get_value("GHz"))
-            indTxt = txt.El(i + 1) + "("
-            if 0 in edge:
-                w = S[edge[0] + edge[1] - 1, :]
-            else:
-                w = S[edge[0] - 1, :] - S[edge[1] - 1, :]
-            w = np.round(w[:harDim], 3)
-
-            indTxt += txt.linear(txt.phi, w) + ")(" + \
-                txt.linear(txt.phiExt, B[B_idx, :])
-            indHamilTxt += indTxt + ")" + txt.p()
-
-        hamilTxt += indHamilTxt + JJHamilTxt
-
-        if '+' in hamilTxt[-3:-1]:
-            hamilTxt = hamilTxt[0:-2] + '\n'
-
-        modeTxt = ''
-        for i in range(harDim):
-            modeTxt += txt.mode(i + 1) + txt.tab() + txt.har()
-
-            modeTxt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
-                + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
-
-            omega = np.round(self.omega[i] / 2 / np.pi / unt.get_unit_freq(), 5)
-            zp = 2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
-                self.cInvTrans[i, i] / self.lTrans[i, i]))
-            zpTxt = "{:.2e}".format(zp)
-
-            modeTxt += txt.tab() + txt.omega(i + 1, False) + txt.eq() + str(
-                omega) + txt.tab() + txt.zp(i + 1) + txt.eq() + zpTxt
-
-            modeTxt += '\n'
-        for i in range(chDim):
-            modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].value(), 3)
-            modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
-            modeTxt += '\n'
-
-        paramTxt = txt.param() + txt.tab()
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    paramTxt += txt.Ec(harDim + i + 1,
-                                       harDim + j + 1) + txt.eq()
-
-                    if i == j:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j] / 2
-                    else:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j]
-
-                    paramTxt += str(np.round(Ec, 3)) + txt.tab()
-        for i in range(len(ELLst)):
-            paramTxt += txt.El(i + 1) + txt.eq() + str(
-                np.round(ELLst[i], 3)) + txt.tab()
-        for i in range(len(EJLst)):
-            paramTxt += txt.Ej(i + 1) + txt.eq() + str(
-                np.round(EJLst[i], 3)) + txt.tab()
-        paramTxt += '\n'
-
-        loopTxt = txt.loops() + txt.tab()
-        for i in range(len(self.loops)):
-            phiExt = sqf.numpy(self.loops[i].value()) / 2 / np.pi
-            loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
-                phiExt) + txt.tab()
-
-        finalTxt = hamilTxt + txt.line + modeTxt + txt.line + paramTxt + loopTxt
-
-        txt.display(finalTxt)
+        finalTxt = txt.print_circuit_description(self.descrip_vars)
 
         if _test:
             return finalTxt
@@ -1095,58 +1046,10 @@ class Circuit:
                 text. (use only for testing the function)
 
         """
-
-        # maximum length of element ID strings
-        nr = max(
-            [len(el.id_str) for _, el, _, _ in self.elem_keys[Junction]]
-            + [len(el.id_str) for _, el, _ in self.elem_keys[Inductor]]
-        )
-
-        # maximum length of loop ID strings
-        nh = max([len(lp.id_str) for lp in self.loops])
-
-        # number of loops
-        nl = len(self.loops)
-
-        # space between elements in rows
-        ns = 5
-
-        loop_description_txt = ''
-
-        header = (nr + ns + len(", b1:")) * " "
-        for i in range(nl):
-            lp = self.loops[i]
-            header += ("{}" + (nh + 10 - len(lp.id_str)) * " ").format(
-                lp.id_str)
-
-        loop_description_txt += header + '\n'
-
-        # add line under header
-        loop_description_txt += "-" * len(header) + '\n'
-        for i in range(self.B.shape[0]):
-
-            el = None
-            for _, el_ind, B_idx in self.elem_keys[Inductor]:
-                if i == B_idx:
-                    el = el_ind
-            for _, el_ind, B_idx, W_idx in self.elem_keys[Junction]:
-                if i == B_idx:
-                    el = el_ind
-
-            id = el.id_str
-            row = id + (nr - len(id)) * " "
-            bStr = f", b{i + 1}:"
-            row += bStr
-            row += (ns + len(", b1:") - len(bStr)) * " "
-            for j in range(nl):
-                b = np.round(np.abs(self.B[i, j]), 2)
-                row += ("{}" + (nh + 10 - len(str(b))) * " ").format(b)
-            loop_description_txt += row + '\n'
+        loop_description_txt = HamilTxt.print_loop_description(self)
 
         if _test:
             return loop_description_txt
-        else:
-            print(loop_description_txt)
 
     @property
     def trunc_nums(self) -> List[int]:
