@@ -59,12 +59,12 @@ def test_capacitor_Q():
 def test_capacitor_unit():
     cap = Capacitor(10)
     val = cap.get_value()
-    assert cap.unit == "GHz"
+    assert np.isclose(val, 2e-15)
 
     sq.set_unit_cap("F")
     cap = Capacitor(val)
     assert cap.get_value("GHz") == 10
-    assert cap.unit == "F"
+    sq.set_unit_cap("GHz") ## this is global, so need to set back
 
 
 def test_capacitor_grad():
@@ -129,13 +129,12 @@ def test_inductor_Q():
 def test_inductor_unit():
     ind = Inductor(10)
     val = ind.get_value()
-    assert ind.unit == "GHz"
+    assert np.isclose(val, 1.6346e-8)
 
     sq.set_unit_ind("H")
     ind = Inductor(val)
     assert ind.get_value("GHz") == 10
-    assert ind.unit == "H"
-
+    sq.set_unit_ind("GHz") ## this is global, so need to set back
 
 def test_inductor_grad():
 
@@ -174,12 +173,13 @@ def test_junction_Y():
 
 def test_junction_unit():
     JJ = Junction(10)
-    assert JJ.unit == "GHz"
+    val = JJ.get_value()
+    assert np.isclose(val, 10 * 2 * np.pi * 1e9)
 
-    sq.set_unit_JJ("MHz")
-    JJ = Junction(10, min_value=0)
-
-    assert JJ.unit == "MHz"
+    sq.set_unit_JJ("Hz")
+    JJ = Junction(val / 2 / np.pi, min_value=0)
+    assert np.isclose(JJ.get_value("GHz"),  10 * 2 * np.pi)
+    sq.set_unit_JJ("GHz") ## this is global, so need to set back
 
 def test_junction_grad():
 
@@ -199,4 +199,3 @@ def test_junction_grad():
     assert junc_value_no_grad == float_torch_to_python(junc_value_with_grad)
 
     sq.set_optim_mode(False)
-

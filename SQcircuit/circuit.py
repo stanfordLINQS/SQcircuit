@@ -24,6 +24,7 @@ from torch import Tensor
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
+import SQcircuit.torch_extensions as sqtorch
 
 from SQcircuit.elements import (
     Element,
@@ -33,7 +34,8 @@ from SQcircuit.elements import (
     Loop,
     Charge
 )
-from SQcircuit.texts import is_notebook, HamilTxt
+from SQcircuit.texts import HamilTxt, is_notebook
+import SQcircuit.symbolic as symbolic
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
 from SQcircuit.logs import raise_optim_error_if_needed, raise_value_out_of_bounds_warning
@@ -134,6 +136,9 @@ class CircuitEdge:
             self.circ.add_loop(loop)
             loop.add_index(B_idx)
             loop.addK1(self.w)
+
+            if get_optim_mode():
+                self.circ.add_to_parameters(loop)
 
     def process_edge_and_update_circ(
         self,
@@ -314,7 +319,6 @@ class Circuit:
 
         # contains the parameters that we want to optimize.
         self._parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
-        self._unitless_parameters: OrderedDict[Tuple[Element, Tensor]] = OrderedDict()
 
         #######################################################################
         # Transformation related attributes
@@ -372,6 +376,15 @@ class Circuit:
             "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
         }
 
+        # TODO: fix typing; add comments etc.
+        self.descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
+            "omega": [], 
+            "phi_zp": [], 
+            "ng": [],
+            "EC": None,
+            "EJ" : None
+        }
+
         # LC part of the Hamiltonian
         self._LC_hamil = qt.Qobj()
 
@@ -407,23 +420,34 @@ class Circuit:
         new_circuit.set_trunc_nums(self.m)
         # new_circuit.update()
         return new_circuit
-    
-    def safecopy(self):
+
+    def safecopy(self, save_eigs=False):
         # Instantiate new container
         new_circuit = copy(self)
 
-        # Explicitly copy any non-leaf tensors
-        # (these don't implement a __deepcopy__ method)
+        # Explicitly copy all elements to new circuit, in particular those with
+        # non-leaf `.internal_value`s ((these don't implement a `._deepcopy__`
+        # method)
         if get_optim_mode():
             new_circuit.C = new_circuit.C.detach()
             new_circuit.L = new_circuit.L.detach()
 
+            new_loops: List[Loop] = []
+            replacement_dict: Dict[Union[Loop, Element], Union[Loop, Element]] = {}
+            for loop in self.loops:
+                new_loop = copy(loop)
+                new_loop.internal_value = loop.internal_value.detach().clone()
+                new_loops.append(new_loop)
+                replacement_dict[loop] = new_loop
+            new_circuit.loops = new_loops
+
             new_elements = defaultdict(list)
-            replacement_dict = dict()
             for edge in self.elements:
                 for el in self.elements[edge]:
                     new_el = copy(el)
-                    new_el._value = el._value.detach().clone()
+                    new_el.internal_value = el.internal_value.detach().clone()
+                    if hasattr(el, 'loop'):
+                        new_el.loop = replacement_dict[el.loop]
                     new_elements[edge].append(new_el)
 
                     replacement_dict[el] = new_el
@@ -432,7 +456,7 @@ class Circuit:
             new_circuit._parameters = OrderedDict()
             for el in self._parameters:
                 new_el = replacement_dict[el]
-                new_circuit._parameters[new_el] = new_el._value
+                new_circuit._parameters[new_el] = new_el.internal_value
 
             # Need to fix everything that uses an element as dictionary key
             new_circuit.elem_keys = {
@@ -447,11 +471,11 @@ class Circuit:
                 new_circuit.elem_keys[Inductor].append((edge, new_el, B_idx))
 
             new_circuit.partial_mats = defaultdict(lambda: 0)
-            for el in self.partial_mats.keys():
+            for el, partial_mat in self.partial_mats.items():
                 try:
-                    new_circuit.partial_mats[replacement_dict[el]] = self.partial_mats[el]
+                    new_circuit.partial_mats[replacement_dict[el]] = partial_mat
                 except KeyError:
-                    new_circuit.partial_mats[el] = self.partial_mats[el]
+                    new_circuit.partial_mats[el] = partial_mat
 
             new_circuit._memory_ops = dict()
             problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
@@ -464,12 +488,16 @@ class Circuit:
                         new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
 
         # Remove old eigen(freq/vector)s
-        new_circuit._efreqs = sqf.array([])
-        new_circuit._evecs = []
+        if save_eigs:
+            new_circuit._efreqs = self._efreqs.detach().clone()
+            new_circuit._evecs = self._evecs.detach().clone()
+        else:
+            new_circuit._efreqs = sqf.array([])
+            new_circuit._evecs = []
 
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
-    
+
     def picklecopy(self):
        # Instantiate new container
         new_circuit = copy(self)
@@ -486,7 +514,7 @@ class Circuit:
         # del new_circuit._memory_ops
         # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
-        
+
         return deepcopy(new_circuit)
 
     @property
@@ -497,23 +525,51 @@ class Circuit:
         return self._efreqs / (2 * np.pi * unt.get_unit_freq())
 
     @property
+    def evecs(self):
+        return self._evecs
+
+    @property
     def parameters(self):
         raise_optim_error_if_needed()
 
         return list(self._parameters.values())
 
+    @parameters.setter
+    def parameters(self, new_params: Tensor):
+        for i, element in enumerate(self._parameters.keys()):
+            element.internal_value = new_params[i].clone().detach().requires_grad_(True)
+
+        self.update()
+
     @property
-    def unitless_parameters(self):
+    def parameters_grad(self) -> Union[List[Optional[Tensor]], Tensor]:
         raise_optim_error_if_needed()
 
-        return list(self._unitless_parameters.values())
+        grad_list = []
+        for val in self.parameters:
+            grad_list.append(val.grad)
+
+        if None in grad_list:
+            return grad_list
+
+        return torch.stack(grad_list).detach().clone()
+
+    @property
+    def parameters_dict(self) ->  OrderedDict[Tuple[Element, Tensor]]:
+        return self._parameters
+
+    def zero_parameters_grad(self) -> None:
+        raise_optim_error_if_needed()
+
+        for val in self.parameters:
+            val.grad=None
 
     def add_to_parameters(self, el: Element) -> None:
         """Add elements with ``requires_grad=True`` to parameters.
         """
 
-        if el.requires_grad:
-            self._parameters[el] = el._value
+        if el.requires_grad and el not in self._parameters:
+            self._parameters[el] = el.internal_value
 
     def add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
@@ -676,7 +732,7 @@ class Circuit:
         return S1, R1
 
     @staticmethod
-    def _independentRows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
+    def _independent_rows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
         """Use Gram–Schmidt to find the linear independent rows of matrix A
         and return the list of row indices of A and list of the rows.
 
@@ -690,10 +746,15 @@ class Circuit:
         # normalize the row of matrix A
         A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
 
+        # Get the row of each A that has the highest norm in descending order.
+        # This is important for the case of JJ capacitively coupled to JL.
+        sorted_index = np.argsort(-np.linalg.norm(A, axis=1))
+
         basis = []
         idx_list = []
 
-        for i, a in enumerate(A_norm):
+        for i in sorted_index:
+            a = A_norm[i, :]
             a_prime = a - sum([np.dot(a, e) * e for e in basis])
             if (np.abs(a_prime) > ACC["Gram–Schmidt"]).any():
                 idx_list.append(i)
@@ -727,7 +788,7 @@ class Circuit:
 
         return rounded_W
 
-    def _is_JJ_in_circuit(self) -> bool:
+    def _is_junction_in_circuit(self) -> bool:
         """Check if there is any Josephson junction in the circuit."""
 
         return len(self.W) != 0
@@ -760,12 +821,12 @@ class Circuit:
 
             while len(basis) != nq:
                 if len(basis) == 0:
-                    indList, basis = self._independentRows(wQ)
+                    indList, basis = self._independent_rows(wQ)
                 else:
                     # to complete the basis
                     X = list(np.random.randn(nq - len(basis), nq))
                     basisComplete = np.array(basis + X)
-                    _, basis = self._independentRows(basisComplete)
+                    _, basis = self._independent_rows(basisComplete)
 
             # the second S and R matrix are:
             F = np.array(list(wQ[indList, :]) + X)
@@ -828,7 +889,7 @@ class Circuit:
                 continue
 
             # for harmonic modes
-            elif self._is_JJ_in_circuit():
+            elif self._is_junction_in_circuit():
 
                 # note: alpha here is absolute value of alpha (alpha is pure
                 # imaginary)
@@ -868,17 +929,76 @@ class Circuit:
         # natural frequencies of the circuit(zero for modes in charge basis)
         self.omega = np.sqrt(np.diag(self.cInvTrans) * np.diag(self.lTrans))
 
-        if self._is_JJ_in_circuit():
+        if self._is_junction_in_circuit():
             # get the second transformation
             self.S2, self.R2 = self._get_and_apply_transformation_2()
 
         # scaling the modes by third transformation
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
+    def compute_params(self):
+        # calculate coefficients normalized in units of angular frequency
+
+        ## dimensions of modes of circuit
+        self.descrip_vars['n_modes'] = self.n
+        self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
+        harDim = self.descrip_vars['har_dim']
+        self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
+        self.descrip_vars['omega'] = self.omega \
+                                        / (2 * np.pi * unt.get_unit_freq())
+        
+        self.descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
+            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
+                                        / np.diag(self.cInvTrans)[:harDim])))
+        self.descrip_vars['ng'] = [self.charge_islands[i].value() \
+                                    for i in range(harDim, self.n)]
+        self.descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
+                                       * unt.get_unit_freq())) \
+                                    * np.diag(np.repeat(0.5, self.n)) \
+                                    * self.cInvTrans
+        
+        self.descrip_vars['W'] = np.round(self.wTrans, 6)
+        self.descrip_vars['S'] = np.round(self.S, 3)
+        if self.loops:
+            self.descrip_vars['B'] = np.round(self.B, 2)
+        else:
+            self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
+                          + len(self.elem_keys[Inductor]), 1))
+
+        ## values of elements
+        def elem_value(val):
+            if get_optim_mode(): return val.item()
+            else: return val
+
+        self.descrip_vars['EJ'] = [] 
+        for _, el, _, _ in self.elem_keys[Junction]:
+            self.descrip_vars['EJ'].append(elem_value(el.get_value()) / \
+                                            (2 * np.pi * unt.get_unit_freq()))
+        self.descrip_vars['EL'] = [] 
+        self.descrip_vars['EL_incl'] = []
+        for _, el, B_idx in self.elem_keys[Inductor]:
+            self.descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
+            self.descrip_vars['EL_incl'].append(
+                np.sum(np.abs(self.descrip_vars['B'][B_idx, :])) != 0)
+
+        self.descrip_vars['EC'] = dict()
+        for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
+            for j in range(i, self.descrip_vars['n_modes']):
+                self.descrip_vars['EC'][(i,j)] =  (2 * unt.e) ** 2 / ( \
+                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
+                                self.cInvTrans[i, j]
+                if i == j:
+                    self.descrip_vars['EC'][(i,j)] /= 2   
+
+        ## values of loops
+        self.descrip_vars['n_loops'] = len(self.loops)
+        self.descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
+                                       for i in range(len(self.loops))]
+
     def description(
-        self,
-        tp: Optional[str] = None,
-        _test: bool = False,
+            self,
+            tp: Optional[str] = None,
+            _test: bool = False,
     ) -> Optional[str]:
         """
         Print out Hamiltonian and a listing of the modes (whether they are
@@ -891,11 +1011,11 @@ class Circuit:
                 If ``None`` prints out the output as Latex if SQcircuit is
                 running in a Jupyter notebook and as text if SQcircuit is
                 running in Python terminal. If ``tp`` is ``"ltx"``,
-                the output is in Latex format if ``tp`` is ``"txt"`` the
+                the output is in Latex format, and if ``tp`` is ``"txt"`` the
                 output is in text format.
             _test:
                 if True, return the entire description as string
-                text. (use only for testing the function)
+                text (use only for testing the function).
         """
         if tp is None:
             if is_notebook():
@@ -905,130 +1025,12 @@ class Circuit:
         else:
             txt = HamilTxt(tp)
 
-        hamilTxt = txt.H()
-        harDim = np.sum(self.omega != 0)
-        chDim = np.sum(self.omega == 0)
-        W = np.round(self.wTrans, 6)
-        S = np.round(self.S, 3)
+        # txt.print_descript(self)
 
-        # If circuit has any loop:
-        if self.loops:
-            B = np.round(self.B, 2)
-        else:
-            B = np.zeros((len(self.elem_keys[Junction])
-                          + len(self.elem_keys[Inductor]), 1))
-        EJLst = []
-        ELLst = []
+        self.compute_params()
+        self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
-        for i in range(harDim):
-            hamilTxt += txt.omega(i + 1) + txt.ad(i + 1) + \
-                        txt.a(i + 1) + txt.p()
-
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    hamilTxt += txt.Ec(harDim + i + 1, harDim + j + 1) + \
-                                txt.n(harDim + i + 1, harDim + j + 1) + txt.p()
-
-        JJHamilTxt = ""
-        indHamilTxt = ""
-
-        for i, (edge, el, B_idx, W_idx) in enumerate(self.elem_keys[Junction]):
-            if get_optim_mode():
-                EJLst.append(el.get_value().detach().numpy()  / 2 / np.pi / unt.get_unit_freq())
-            else:
-                EJLst.append(el.get_value() / 2 / np.pi / unt.get_unit_freq())
-            junTxt = txt.Ej(i + 1) + txt.cos() + "("
-            # if B_idx is not None:
-            junTxt += txt.linear(txt.phi, W[W_idx, :]) + \
-                txt.linear(txt.phiExt, B[B_idx, :], st=False)
-            # else:
-            #     junTxt += txt.linear(txt.phi, W[W_idx, :])
-            JJHamilTxt += junTxt + ")" + txt.p()
-
-        for i, (edge, el, B_idx) in enumerate(self.elem_keys[Inductor]):
-
-            # if np.sum(np.abs(B[B_idx, :])) == 0 or B_idx is None:
-            if np.sum(np.abs(B[B_idx, :])) == 0:
-                continue
-            if get_optim_mode():
-                ELLst.append(el.get_value("GHz").detach().numpy())
-            else:
-                ELLst.append(el.get_value("GHz"))
-            indTxt = txt.El(i + 1) + "("
-            if 0 in edge:
-                w = S[edge[0] + edge[1] - 1, :]
-            else:
-                w = S[edge[0] - 1, :] - S[edge[1] - 1, :]
-            w = np.round(w[:harDim], 3)
-
-            indTxt += txt.linear(txt.phi, w) + ")(" + \
-                txt.linear(txt.phiExt, B[B_idx, :])
-            indHamilTxt += indTxt + ")" + txt.p()
-
-        hamilTxt += indHamilTxt + JJHamilTxt
-
-        if '+' in hamilTxt[-3:-1]:
-            hamilTxt = hamilTxt[0:-2] + '\n'
-
-        modeTxt = ''
-        for i in range(harDim):
-            modeTxt += txt.mode(i + 1) + txt.tab() + txt.har()
-
-            modeTxt += txt.tab() + txt.phi(i + 1) + txt.eq() + txt.zp(i + 1) \
-                + "(" + txt.a(i + 1) + "+" + txt.ad(i + 1) + ")"
-
-            omega = np.round(self.omega[i] / 2 / np.pi / unt.get_unit_freq(), 5)
-            zp = 2 * np.pi / unt.Phi0 * np.sqrt(unt.hbar / 2 * np.sqrt(
-                self.cInvTrans[i, i] / self.lTrans[i, i]))
-            zpTxt = "{:.2e}".format(zp)
-
-            modeTxt += txt.tab() + txt.omega(i + 1, False) + txt.eq() + str(
-                omega) + txt.tab() + txt.zp(i + 1) + txt.eq() + zpTxt
-
-            modeTxt += '\n'
-        for i in range(chDim):
-            modeTxt += txt.mode(harDim + i + 1) + txt.tab() + txt.ch()
-            ng = np.round(self.charge_islands[harDim + i].value(), 3)
-            modeTxt += txt.tab() + txt.ng(harDim + i + 1) + txt.eq() + str(ng)
-            modeTxt += '\n'
-
-        paramTxt = txt.param() + txt.tab()
-        for i in range(chDim):
-            for j in range(chDim):
-                if j >= i:
-                    paramTxt += txt.Ec(harDim + i + 1,
-                                       harDim + j + 1) + txt.eq()
-
-                    if i == j:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j] / 2
-                    else:
-                        Ec = (2 * unt.e) ** 2 / (
-                                unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
-                             self.cInvTrans[
-                                 harDim + i, harDim + j]
-
-                    paramTxt += str(np.round(Ec, 3)) + txt.tab()
-        for i in range(len(ELLst)):
-            paramTxt += txt.El(i + 1) + txt.eq() + str(
-                np.round(ELLst[i], 3)) + txt.tab()
-        for i in range(len(EJLst)):
-            paramTxt += txt.Ej(i + 1) + txt.eq() + str(
-                np.round(EJLst[i], 3)) + txt.tab()
-        paramTxt += '\n'
-
-        loopTxt = txt.loops() + txt.tab()
-        for i in range(len(self.loops)):
-            phiExt = self.loops[i].value() / 2 / np.pi
-            loopTxt += txt.phiExt(i + 1) + txt.tPi() + txt.eq() + str(
-                phiExt) + txt.tab()
-
-        finalTxt = hamilTxt + txt.line + modeTxt + txt.line + paramTxt + loopTxt
-
-        txt.display(finalTxt)
+        finalTxt = txt.print_circuit_description(self.descrip_vars)
 
         if _test:
             return finalTxt
@@ -1044,58 +1046,10 @@ class Circuit:
                 text. (use only for testing the function)
 
         """
-
-        # maximum length of element ID strings
-        nr = max(
-            [len(el.id_str) for _, el, _, _ in self.elem_keys[Junction]]
-            + [len(el.id_str) for _, el, _ in self.elem_keys[Inductor]]
-        )
-
-        # maximum length of loop ID strings
-        nh = max([len(lp.id_str) for lp in self.loops])
-
-        # number of loops
-        nl = len(self.loops)
-
-        # space between elements in rows
-        ns = 5
-
-        loop_description_txt = ''
-
-        header = (nr + ns + len(", b1:")) * " "
-        for i in range(nl):
-            lp = self.loops[i]
-            header += ("{}" + (nh + 10 - len(lp.id_str)) * " ").format(
-                lp.id_str)
-
-        loop_description_txt += header + '\n'
-
-        # add line under header
-        loop_description_txt += "-" * len(header) + '\n'
-        for i in range(self.B.shape[0]):
-
-            el = None
-            for _, el_ind, B_idx in self.elem_keys[Inductor]:
-                if i == B_idx:
-                    el = el_ind
-            for _, el_ind, B_idx, W_idx in self.elem_keys[Junction]:
-                if i == B_idx:
-                    el = el_ind
-
-            id = el.id_str
-            row = id + (nr - len(id)) * " "
-            bStr = f", b{i + 1}:"
-            row += bStr
-            row += (ns + len(", b1:") - len(bStr)) * " "
-            for j in range(nl):
-                b = np.round(np.abs(self.B[i, j]), 2)
-                row += ("{}" + (nh + 10 - len(str(b))) * " ").format(b)
-            loop_description_txt += row + '\n'
+        loop_description_txt = HamilTxt.print_loop_description(self)
 
         if _test:
             return loop_description_txt
-        else:
-            print(loop_description_txt)
 
     @property
     def trunc_nums(self) -> List[int]:
@@ -1436,7 +1390,11 @@ class Circuit:
 
         return LC_hamil
 
-    def _get_external_flux_at_element(self, B_idx: int) -> float:
+    def _get_external_flux_at_element(
+            self, 
+            B_idx: int, 
+            torch = False
+    ) -> Union[float, Tensor]:
         """
         Return the external flux at an inductive element.
 
@@ -1446,11 +1404,15 @@ class Circuit:
                 An integer point to each row of B matrix (external flux
                 distribution of that element)
         """
-        phi_ext = 0.0
+        phi_ext = sqf.zero()
         for i, loop in enumerate(self.loops):
+            print(loop.value())
             phi_ext += loop.value() * self.B[B_idx, i]
 
-        return phi_ext
+        if isinstance(phi_ext, Tensor) and not torch:
+            return sqf.numpy(phi_ext)
+        else:
+            return phi_ext
 
     def _get_inductive_hamil(self) -> Qobj:
 
@@ -1534,6 +1496,37 @@ class Circuit:
             Q_eig = np.conj(mat_evecs.T) @ Q_FC.full() @ mat_evecs
 
             return qt.Qobj(Q_eig)
+
+    def _get_W_idx(self, my_el: Junction, my_B_idx: int) -> Optional[int]:
+        for _, el, B_idx, W_idx in self.elem_keys[Junction]:
+            if el == my_el and B_idx == my_B_idx:
+                return W_idx
+
+        return None
+
+    def op(self, name: str, keywords: Dict):
+        """
+        Returns the `name` operator of the circuit, specified by `keywords`,
+        as a sparse torch matrix.
+        """
+        if name == 'sin_half':
+            B_idx = keywords['B_idx']
+            el = keywords['el']
+            if get_optim_mode():
+                W_idx = self._get_W_idx(el, B_idx)
+
+                phi = self._get_external_flux_at_element(B_idx, torch=True)
+                root_exp = (
+                    torch.exp(1j * phi / 2)
+                    * sqf.qobj_to_tensor(self._memory_ops["root_exp"][W_idx])
+                )
+
+                sin_half = (root_exp - sqf.dag(root_exp)) / 2j
+                return sin_half ## TO CHECK: need to squeeze?
+            else:
+                return self._memory_ops['sin_half'][el, B_idx]
+        else:
+            raise NotImplementedError
 
     def diag_np(
         self,
@@ -1633,7 +1626,7 @@ class Circuit:
             return False, epsilon
 
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        eigen_solution = sqf.eigencircuit(self, n_eig)
+        eigen_solution = sqtorch.eigencircuit(self, n_eig)
         eigenvalues = torch.real(eigen_solution[:, 0])
         eigenvectors = eigen_solution[:, 1:]
         self._efreqs = eigenvalues
@@ -1941,6 +1934,65 @@ class Circuit:
         return (sqf.abs(partial_omega * A)
                 * np.sqrt(2 * np.abs(np.log(ENV["omega_low"] * ENV["t_exp"]))))
 
+    def _dec_rate_flux_np(self, states: Tuple[int, int]) -> float:
+        """
+        Calculate dephasing rate due to flux noise.
+
+        Parameters
+        ----------
+            states:
+                A tuple of state to calculate the decoherence rate
+        """
+        decay = 0
+        for loop in self.loops:
+            partial_omega = self._get_partial_omega_mn(loop, states=states)
+            decay = decay + self._dephasing(loop.A, partial_omega)
+
+        return decay
+
+    def _dec_rate_charge_np(self, states: Tuple[int, int]) -> float:
+        """
+        Calculate dephasing rate due to charge noise.
+
+        Parameters
+        ----------
+            states:
+                A tuple of state to calculate the decoherence rate
+        """
+        state_m= self._evecs[states[0]]
+        state_n = self._evecs[states[1]]
+
+        decay = 0
+        for i in range(self.n):
+            op = qt.Qobj()
+            if self._is_charge_mode(i):
+                for j in range(self.n):
+                    op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
+
+                partial_omega = sqf.abs(sqf.operator_inner_product(state_m, op, state_m)
+                                        - sqf.operator_inner_product(state_n, op, state_n))
+                A = self.charge_islands[i].A * 2 * unt.e
+                decay = decay + self._dephasing(A, partial_omega)
+
+        return decay
+
+    def _dec_rate_cc_np(self, states: Tuple[int, int]) -> float:
+        """
+        Calculate dephasing rate due to critical current noise.
+
+        Parameters
+        ----------
+            states:
+                A tuple of state to calculate the decoherence rate
+        """
+        decay = 0
+        for el, B_idx in self._memory_ops['cos']:
+            partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
+            A = el.A * el.get_value()
+            decay = decay + self._dephasing(A, partial_omega)
+
+        return decay
+
     def dec_rate(
         self,
         dec_type: str,
@@ -2022,8 +2074,8 @@ class Circuit:
                             sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == "quasiparticle":
-            for el, _ in self._memory_ops['sin_half']:
-                op = self._memory_ops['sin_half'][(el, _)]
+            for el, B_idx in self._memory_ops['sin_half']:
+                op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
                 if np.isnan(sqf.numpy(el.Y(omega, ENV["T"]))):
                     decay = decay + 0
                 else:
@@ -2032,28 +2084,22 @@ class Circuit:
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
         elif dec_type == "charge":
-            # first derivative of the Hamiltonian with respect to charge noise
-            for i in range(self.n):
-                op = qt.Qobj()
-                if self._is_charge_mode(i):
-                    for j in range(self.n):
-                        op += (self.cInvTrans[i, j] * self._memory_ops["Q"][j] / np.sqrt(unt.hbar))
-
-                    partial_omega = sqf.abs(sqf.operator_inner_product(state2, op, state2) - sqf.operator_inner_product(state1, op, state1))
-                    A = (self.charge_islands[i].A * 2 * unt.e)
-                    decay = decay + self._dephasing(A, partial_omega)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_charge_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_charge_np(states)
 
         elif dec_type == "cc":
-            for el, B_idx in self._memory_ops['cos']:
-                partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
-                A = el.A * el.get_value()
-                decay = decay + self._dephasing(A, partial_omega)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_cc_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_cc_np(states)
 
         elif dec_type == "flux":
-            for loop in self.loops:
-                partial_omega = self._get_partial_omega_mn(loop, states=states)
-                A = loop.A
-                decay = decay + self._dephasing(A, partial_omega)
+            if get_optim_mode():
+                decay = decay + sqtorch.dec_rate_flux_torch(self, states)
+            else:
+                decay = decay + self._dec_rate_flux_np(states)
 
         return decay
 
@@ -2198,19 +2244,17 @@ class Circuit:
 
         """
 
-        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
+        state_m = self._evecs[m]
         partial_H = self._get_partial_H(el, _B_idx)
-        partial_omega_m = state_m.dag() * (partial_H * state_m)
+        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
 
         if subtract_ground:
-            state_0 = sqf.qutip(self._evecs[0], dims=self._get_state_dims())
-            partial_omega_0 = state_0.dag() * (partial_H * state_0)
+            state_0 = self._evecs[0]
+            partial_omega_0 = sqf.operator_inner_product(state_0, partial_H, state_0)
 
-            return (partial_omega_m - partial_omega_0).data[0, 0].real
-
+            return sqf.real(partial_omega_m - partial_omega_0)
         else:
-
-            return partial_omega_m.data[0, 0].real
+            return sqf.real(partial_omega_m)
 
     def _get_partial_omega_mn(
         self,
@@ -2242,16 +2286,20 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        # partial_omega_m = state_m.dag() * (partial_H*state_m)
-        # partial_omega_n = state_n.dag() * (partial_H*state_n)
         partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
         partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
 
-        return sqf.abs(partial_omega_m - partial_omega_n)
+        partial_omega_mn = partial_omega_m -  partial_omega_n
+        # assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
 
-    def get_partial_vec(self, 
-                        el: Union[Element, Loop], 
-                        m: int, epsilon=1e-12) -> Qobj:
+        return sqf.real(partial_omega_mn)
+
+    def get_partial_vec(
+        self,
+        el: Union[Element, Loop],
+        m: int,
+        epsilon=1e-12
+    ) -> Qobj:
         """Return the gradient of the eigenvectors with respect to
         elements or loop as ``qutip.Qobj`` format.
         Parameters
@@ -2264,24 +2312,26 @@ class Circuit:
                 the ground state and ``m=1`` specifies the first excited state.
         """
 
-        state_m = sqf.qutip(self._evecs[m], dims=self._get_state_dims())
-
-        #     state_m = state_m*np.exp(-1j*np.angle(state_m[0,0]))
+        state_m = self._evecs[m]
 
         n_eig = len(self._evecs)
 
         partial_H = self._get_partial_H(el)
-        partial_state = qt.Qobj()
+        partial_state = sqf.zeros(state_m.shape)
 
         for n in range(n_eig):
-
             if n == m:
                 continue
+            state_n = self._evecs[n]
 
-            state_n = sqf.qutip(self._evecs[n], dims=self._get_state_dims())
-            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n]).item()
-            partial_state += (state_n.dag()
-                              * (partial_H * state_m)) * state_n / (delta_omega + epsilon)
+            delta_omega = sqf.numpy(self._efreqs[m] - self._efreqs[n])
+            if isinstance(delta_omega, ndarray):
+                delta_omega = delta_omega[0]
+
+            partial_state += (
+                sqf.operator_inner_product(state_n, partial_H, state_m) * state_n
+                / (delta_omega + epsilon)
+            )
 
         return partial_state
 
@@ -2291,24 +2341,22 @@ class Circuit:
                 for element in elements:
                     # min_tensor = sqf.cast(element.min_value, dtype=torch.float, requires_grad=True)
                     # max_tensor = sqf.cast(element.max_value, dtype=torch.float, requires_grad=True)
-                    if element._value < element.min_value:
-                        raise_value_out_of_bounds_warning(type(element), element.min_value, element._value.detach().numpy())
+                    if element.internal_value < element.min_value:
+                        raise_value_out_of_bounds_warning(type(element), element.min_value, element.internal_value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
                             element.set_value(element.min_value)
                             element.requires_grad = True
-                    if element._value > element.max_value:
-                        raise_value_out_of_bounds_warning(type(element), element.max_value, element._value.detach().numpy())
+                    if element.internal_value > element.max_value:
+                        raise_value_out_of_bounds_warning(type(element), element.max_value, element.internal_value.detach().numpy())
                         if type(element) is Junction:
                             element.set_value(element.min_value / 2 / np.pi)
                             element.requires_grad = True
                         else:
                             element.set_value(element.max_value)
                             element.requires_grad = True
-                    # element._value = sqf.maximum(element._value, min_tensor)
-                    # element._value = sqf.minimum(element._value, max_tensor)
 
     def update(self):
         """Update the circuit Hamiltonian to reflect changes made to the
