@@ -1406,7 +1406,6 @@ class Circuit:
         """
         phi_ext = sqf.zero()
         for i, loop in enumerate(self.loops):
-            print(loop.value())
             phi_ext += loop.value() * self.B[B_idx, i]
 
         if isinstance(phi_ext, Tensor) and not torch:
