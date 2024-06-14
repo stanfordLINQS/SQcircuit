@@ -20,7 +20,7 @@ class ExplicitSymbol(sm.Symbol):
 
     def _latex(self, printer):
         return printer.doprint(self.lsymbol)
-        
+
 
 class qOperator(Operator):
     """
@@ -36,7 +36,7 @@ class qOperator(Operator):
         self.opname = name
         self.sub = subscript
         return self
-    
+
     def _latex(self, printer):
         if self.opname[-1] == 'd':
             tex = fr'\hat{{{self.opname[:-1]}}}^\dagger'
@@ -51,7 +51,7 @@ def phi_op(i):
                           fr'\hat{{\varphi}}_{{{i}}}')
 
 def a(i):
-    return qOperator('a', i) 
+    return qOperator('a', i)
 
 def ad(i):
     return qOperator('ad', i)
@@ -137,12 +137,12 @@ def jj_hamil(elem_keys, coeff_dict):
                                         sm.nsimplify(B_sym.dot(phi_exts)),
                                         evaluate=False))
     return hamil
-                    
+
 def construct_hamiltonian(cr):
     LC_hamil = sm.Add(har_mode_hamil(cr.descrip_vars),
                       charge_mode_hamil(cr.descrip_vars), evaluate=False)
     Ind_hamil = inductive_hamil(cr.elem_keys, cr.descrip_vars)
     JJ_hamil = jj_hamil(cr.elem_keys, cr.descrip_vars)
-            
+
     return sm.Add(*[H for H in [LC_hamil, Ind_hamil, JJ_hamil] if H!=0], 
                   evaluate=False)
