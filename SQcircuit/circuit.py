@@ -495,6 +495,8 @@ class Circuit:
             new_circuit._efreqs = sqf.array([])
             new_circuit._evecs = []
 
+        new_circuit.descrip_vars = None # TODO -- long-term change
+
         # Deepcopy the whole thing
         return deepcopy(new_circuit)
 
@@ -946,9 +948,9 @@ class Circuit:
         self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
         self.descrip_vars['omega'] = self.omega \
                                         / (2 * np.pi * unt.get_unit_freq())
-        
+
         self.descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
-            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim] 
+            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim]
                                         / np.diag(self.cInvTrans)[:harDim])))
         self.descrip_vars['ng'] = [self.charge_islands[i].value() \
                                     for i in range(harDim, self.n)]
@@ -956,7 +958,7 @@ class Circuit:
                                        * unt.get_unit_freq())) \
                                     * np.diag(np.repeat(0.5, self.n)) \
                                     * self.cInvTrans
-        
+
         self.descrip_vars['W'] = np.round(self.wTrans, 6)
         self.descrip_vars['S'] = np.round(self.S, 3)
         if self.loops:
@@ -965,19 +967,14 @@ class Circuit:
             self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
                           + len(self.elem_keys[Inductor]), 1))
 
-        ## values of elements
-        def elem_value(val):
-            if get_optim_mode(): return val.item()
-            else: return val
-
-        self.descrip_vars['EJ'] = [] 
+        self.descrip_vars['EJ'] = []
         for _, el, _, _ in self.elem_keys[Junction]:
-            self.descrip_vars['EJ'].append(elem_value(el.get_value()) / \
+            self.descrip_vars['EJ'].append(sqf.numpy(el.get_value()) / \
                                             (2 * np.pi * unt.get_unit_freq()))
-        self.descrip_vars['EL'] = [] 
+        self.descrip_vars['EL'] = []
         self.descrip_vars['EL_incl'] = []
         for _, el, B_idx in self.elem_keys[Inductor]:
-            self.descrip_vars['EL'].append(elem_value(el.get_value(unt._unit_ind)))
+            self.descrip_vars['EL'].append(sqf.numpy(el.get_value(unt._unit_ind)))
             self.descrip_vars['EL_incl'].append(
                 np.sum(np.abs(self.descrip_vars['B'][B_idx, :])) != 0)
 
@@ -988,12 +985,12 @@ class Circuit:
                                 unt.hbar * 2 * np.pi * unt.get_unit_freq()) * \
                                 self.cInvTrans[i, j]
                 if i == j:
-                    self.descrip_vars['EC'][(i,j)] /= 2   
+                    self.descrip_vars['EC'][(i,j)] /= 2
 
         ## values of loops
         self.descrip_vars['n_loops'] = len(self.loops)
-        self.descrip_vars['loops'] = [self.loops[i].value() / 2 / np.pi \
-                                       for i in range(len(self.loops))]
+        self.descrip_vars['loops'] = [sqf.numpy(self.loops[i].value()) / 2 / np.pi \
+                                      for i in range(len(self.loops))]
 
     def description(
             self,
