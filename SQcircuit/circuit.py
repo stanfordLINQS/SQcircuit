@@ -1537,7 +1537,7 @@ class Circuit:
 
         # get the data out of qutip variable and use sparse scipy eigen
         # solver which is faster.
-        efreqs, evecs = scipy.sparse.linalg.eigs(H.data, n_eig, which='SR')
+        efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, ncv = 10 * n_eig, which='SR')
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
