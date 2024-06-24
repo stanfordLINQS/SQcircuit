@@ -19,6 +19,7 @@ from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermite, eval_hermitenorm, hyperu
+from scipy.sparse.linalg import ArpackNoConvergence
 
 from torch import Tensor
 
@@ -1537,7 +1538,10 @@ class Circuit:
 
         # get the data out of qutip variable and use sparse scipy eigen
         # solver which is faster.
-        efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, ncv = 10 * n_eig, which='SR')
+        try:
+            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, which='SR')
+        except ArpackNoConvergence:
+            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, ncv=10 * n_eig, which='SR')
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
