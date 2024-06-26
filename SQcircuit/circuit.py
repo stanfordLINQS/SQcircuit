@@ -2454,15 +2454,9 @@ class Circuit:
             )
         self._update_H()
 
-    def get_all_circuit_elements(self):
-        def flatten(l):
-            return [item for sublist in l for item in sublist]
-        elements = flatten(list(self.elements.values()))
-        return elements
-
     def get_params_type(self) -> list:
 
-        elements_flattened = self.get_all_circuit_elements()
+        elements_flattened = list(self._parameters.keys())
 
         params_type = [type(element) for element in elements_flattened]
 
