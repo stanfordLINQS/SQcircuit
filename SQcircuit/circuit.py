@@ -19,6 +19,7 @@ from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermite, eval_hermitenorm, hyperu
+from scipy.sparse.linalg import ArpackNoConvergence
 
 from torch import Tensor
 
@@ -1537,7 +1538,10 @@ class Circuit:
 
         # get the data out of qutip variable and use sparse scipy eigen
         # solver which is faster.
-        efreqs, evecs = scipy.sparse.linalg.eigs(H.data, n_eig, which='SR')
+        try:
+            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, which='SR')
+        except ArpackNoConvergence:
+            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, ncv=10 * n_eig, which='SR')
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
@@ -2450,15 +2454,9 @@ class Circuit:
             )
         self._update_H()
 
-    def get_all_circuit_elements(self):
-        def flatten(l):
-            return [item for sublist in l for item in sublist]
-        elements = flatten(list(self.elements.values()))
-        return elements
-
     def get_params_type(self) -> list:
 
-        elements_flattened = self.get_all_circuit_elements()
+        elements_flattened = list(self._parameters.keys())
 
         params_type = [type(element) for element in elements_flattened]
 
