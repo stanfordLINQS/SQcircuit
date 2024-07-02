@@ -161,7 +161,7 @@ class Capacitor(Element):
         # EMERGENCY TODO: Save min/max values in SI units
         self.min_value = min_value
         self.max_value = max_value
-       
+
         if unit is None:
             unit = unt.get_unit_cap()
         else:

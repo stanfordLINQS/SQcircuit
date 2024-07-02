@@ -403,7 +403,7 @@ class Circuit:
         # type_attrs = type(self).__dict__
 
         # Attributes that we are avoiding to store for reducing the size of
-        # the saved file( Qutip objects and Quantum operators usually).
+        # the saved file (Qutip objects and Quantum operators usually).
         if self._toggle_fullcopy:
             avoid_attrs = []
         else:
@@ -447,8 +447,11 @@ class Circuit:
                 for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el.internal_value = el.internal_value.detach().clone()
-                    if hasattr(el, 'loop'):
-                        new_el.loop = replacement_dict[el.loop]
+                    if hasattr(el, 'loops'):
+                        new_loops = []
+                        for l in el.loops:
+                            new_loops.append(replacement_dict[l])
+                        new_el.loops = new_loops
                     new_elements[edge].append(new_el)
 
                     replacement_dict[el] = new_el
@@ -478,13 +481,13 @@ class Circuit:
                 except KeyError:
                     new_circuit.partial_mats[el] = partial_mat
 
-            new_circuit._memory_ops = dict()
+            new_circuit._memory_ops = {}
             problem_types = ['cos', 'sin', 'sin_half', 'ind_hamil']
             for op_type in self._memory_ops:
                 if op_type not in problem_types:
                     new_circuit._memory_ops[op_type] = self._memory_ops[op_type]
                 else:
-                    new_circuit._memory_ops[op_type] = dict()
+                    new_circuit._memory_ops[op_type] = {}
                     for el, B_idx in self._memory_ops[op_type].keys():
                         new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
 
@@ -532,7 +535,7 @@ class Circuit:
         return self._evecs
 
     @property
-    def parameters(self):
+    def parameters(self) -> List[Tensor]:
         raise_optim_error_if_needed()
 
         return list(self._parameters.values())
@@ -558,8 +561,12 @@ class Circuit:
         return torch.stack(grad_list).detach().clone()
 
     @property
-    def parameters_dict(self) ->  OrderedDict[Tuple[Element, Tensor]]:
+    def parameters_dict(self) ->  OrderedDict[Tuple[Union[Element, Loop], Tensor]]:
         return self._parameters
+    
+    @property
+    def parameters_elems(self) -> List[Union[Element, Loop]]:
+        return list(self._parameters.keys())
 
     def zero_parameters_grad(self) -> None:
         raise_optim_error_if_needed()
