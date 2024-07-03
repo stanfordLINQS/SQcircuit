@@ -563,7 +563,7 @@ class Circuit:
     @property
     def parameters_dict(self) ->  OrderedDict[Tuple[Union[Element, Loop], Tensor]]:
         return self._parameters
-    
+
     @property
     def parameters_elems(self) -> List[Union[Element, Loop]]:
         return list(self._parameters.keys())

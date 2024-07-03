@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from SQcircuit.elements import Capacitor, Junction, Inductor, Loop
-from SQcircuit.settings import set_optim_mode
+from SQcircuit.settings import get_optim_mode, set_optim_mode
 from SQcircuit.circuit import Circuit, unt
 import SQcircuit.functions as sqf
 from SQcircuit.tests.conftest import (
@@ -123,16 +123,16 @@ def function_grad_test(circuit_numpy: Circuit,
     for loop_idx, loop in enumerate(circuit_numpy.loops):
         set_optim_mode(False)
 
-        loop_flux = loop.internal_value / 2 / np.pi
+        loop_flux = loop.internal_value
         # assert 0 + delta < loop_flux < 1 - delta
 
         # Calculate f(x+delta)
-        loop.set_flux(loop_flux + delta)
+        loop.internal_value = loop_flux + delta * 2 * np.pi
         circuit_numpy.diag(num_eigenvalues)
         val_plus = function_numpy(circuit_numpy)
 
         # Calculate f(x-delta)
-        loop.set_flux(loop_flux - delta)
+        loop.internal_value = loop_flux - delta * 2 * np.pi
         circuit_numpy.diag(num_eigenvalues)
         val_minus = function_numpy(circuit_numpy)
 
@@ -143,7 +143,7 @@ def function_grad_test(circuit_numpy: Circuit,
             grad_numpy = (val_plus - val_minus) / (2 * delta * 2 * np.pi)
 
         # Reset circuit
-        loop.set_flux(loop_flux)
+        loop.internal_value = loop_flux
 
         grad_torch = circuit_torch.loops[loop_idx].internal_value.grad
         if grad_torch is not None:
@@ -411,22 +411,27 @@ def flux_sensitivity_function(sensitivity_function,
                               flux_point=0.4,
                               delta=0.1):
     def flux_sensitivity(circuit):
-        S = sqf.cast(0)
-        for loop_idx, loop in enumerate(circuit.loops):
+        Ss = []
+
+        for loop_idx, _ in enumerate(circuit.loops):
             first_harmonic_values = []
             for offset in (-delta, 0, delta):
-                new_circuit = copy(circuit)
-                new_loop = Loop()
-                new_loop.set_flux(flux_point + offset)
-                new_circuit.loops[loop_idx] = new_loop
-                _ = new_circuit.diag(2)
-                first_harmonic = sensitivity_function(new_circuit)
+                circuit.loops[loop_idx].set_flux(flux_point + offset)
+                circuit.diag(2)
+                first_harmonic = sensitivity_function(circuit)
                 first_harmonic_values.append(first_harmonic)
-            (f_minus, f_0, f_plus) = first_harmonic_values
+            f_minus, f_0, f_plus = first_harmonic_values
+
             S = ((f_0 - f_minus) / delta) ** 2 + ((f_plus - f_0) / delta) ** 2
             # Normalize loss function
             S /= sqf.abs(f_0 / delta) ** 2
-        return S
+            Ss.append(S)
+
+        if get_optim_mode():
+            return torch.mean(torch.stack(Ss))
+        else:
+            return np.mean(Ss)
+
     return flux_sensitivity
 
 
