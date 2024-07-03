@@ -400,7 +400,6 @@ class Circuit:
 
     def __getstate__(self):
         attrs = self.__dict__
-        # type_attrs = type(self).__dict__
 
         # Attributes that we are avoiding to store for reducing the size of
         # the saved file (Qutip objects and Quantum operators usually).
@@ -415,6 +414,7 @@ class Circuit:
 
     def __setstate__(self, state):
         self.__dict__ = state
+        self._toggle_fullcopy = True
 
     def copy_from_elements(self):
         new_circuit = Circuit(self.elements)
@@ -508,20 +508,10 @@ class Circuit:
        # Instantiate new container
         new_circuit = copy(self)
 
-        # Explicitly copy any non-leaf tensors
-        # (these don't implement a __deepcopy__ method)
-        if get_optim_mode():
-            new_circuit.C = new_circuit.C.detach()
-            new_circuit.L = new_circuit.L.detach()
-            new_circuit._efreqs = new_circuit._efreqs.detach()
-            new_circuit._evecs = new_circuit._efreqs.detach()
-
         # Remove large objects
-        # del new_circuit._memory_ops
-        # del new_circuit._LC_hamil
         new_circuit._toggle_fullcopy = False
 
-        return deepcopy(new_circuit)
+        return new_circuit
 
     @property
     def efreqs(self):
