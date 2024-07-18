@@ -30,13 +30,13 @@ def test_capacitor_error_massages():
 
 
 def test_capacitor_energy():
-    cap = Capacitor(10, "GHz", min_value=0)
+    cap = Capacitor(10, "GHz")
     assert cap.get_value("GHz") == 10
 
     assert cap.get_value("MHz") == 10 * 1000
 
     val = cap.get_value()
-    cap2 = Capacitor(val, "F", min_value=0)
+    cap2 = Capacitor(val, "F")
     assert cap2.get_value("GHz") == 10
 
 
@@ -64,7 +64,8 @@ def test_capacitor_unit():
     sq.set_unit_cap("F")
     cap = Capacitor(val)
     assert cap.get_value("GHz") == 10
-    sq.set_unit_cap("GHz") ## this is global, so need to set back
+    # this is global, so need to set back
+    sq.set_unit_cap("GHz")
 
 
 def test_capacitor_grad():
@@ -134,7 +135,8 @@ def test_inductor_unit():
     sq.set_unit_ind("H")
     ind = Inductor(val)
     assert ind.get_value("GHz") == 10
-    sq.set_unit_ind("GHz") ## this is global, so need to set back
+    # this is global, so need to set back
+    sq.set_unit_ind("GHz")
 
 def test_inductor_grad():
 
@@ -177,24 +179,26 @@ def test_junction_unit():
     assert np.isclose(val, 10 * 2 * np.pi * 1e9)
 
     sq.set_unit_JJ("Hz")
-    JJ = Junction(val / 2 / np.pi, min_value=0)
+    JJ = Junction(val / 2 / np.pi)
     assert np.isclose(JJ.get_value("GHz"),  10 * 2 * np.pi)
-    sq.set_unit_JJ("GHz") ## this is global, so need to set back
+    # this is global, so need to set back
+    sq.set_unit_JJ("GHz")
+
 
 def test_junction_grad():
 
     # First check error massages
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        Junction(10, requires_grad=True, min_value=0)
+        Junction(10, requires_grad=True)
 
     with pytest.raises(ValueError, match=OPTIM_ERROR):
-        assert not Junction(10, min_value=0).requires_grad
+        assert not Junction(10).requires_grad
 
-    junc_value_no_grad = Junction(10, min_value=0).get_value()
+    junc_value_no_grad = Junction(10).get_value()
 
     sq.set_optim_mode(True)
 
-    junc_value_with_grad = Junction(10, requires_grad=True, min_value=0).get_value()
+    junc_value_with_grad = Junction(10, requires_grad=True).get_value()
 
     assert junc_value_no_grad == float_torch_to_python(junc_value_with_grad)
 

@@ -16,7 +16,7 @@ import mpmath
 from numpy import ndarray
 from qutip.qobj import Qobj
 from scipy.linalg import sqrtm, block_diag
-from scipy.special import eval_hermite, eval_hermitenorm, hyperu
+from scipy.special import eval_hermitenorm, hyperu
 from scipy.sparse.linalg import ArpackNoConvergence
 
 from torch import Tensor
@@ -615,7 +615,6 @@ class Circuit:
 
         return params_type
 
-
     def zero_parameters_grad(self) -> None:
         """Set the gradient of all values in `self.parameters` to `None`.
         """
@@ -1098,7 +1097,7 @@ class Circuit:
                 if i == j:
                     self.descrip_vars['EC'][(i,j)] /= 2
 
-        ## values of loops
+        # values of loops
         self.descrip_vars['n_loops'] = len(self.loops)
         self.descrip_vars['loops'] = [sqf.numpy(self.loops[i].value()) / 2 / np.pi \
                                       for i in range(len(self.loops))]
@@ -1858,12 +1857,14 @@ class Circuit:
             for mode in self.omega:
                 # charge mode
                 if mode == 0:
-                    trunc_nums.append(np.ceil(trunc_num_average))
+                    trunc_nums.append(int(np.ceil(trunc_num_average)))
                 else:
                     h = (A * trunc_num_average) / mode
-                    trunc_nums.append(np.ceil(h))
+                    trunc_nums.append(int(np.ceil(h)))
         else:
-            trunc_nums = [np.ceil(trunc_num_average) for _ in range(len(self.omega))]
+            trunc_nums = [
+                int(np.ceil(trunc_num_average)) for _ in range(len(self.omega))
+            ]
 
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
@@ -2685,65 +2686,3 @@ class Circuit:
 
         self._efreqs = sqf.array([])
         self._evecs = []
-
-    def _update_element(
-        self,
-        element: Union[Capacitor, Inductor, Junction, Loop],
-        value: float,
-        unit: str,
-        update_H: bool = True
-    ) -> None:
-        """Update a single circuit element with a given element value and unit.
-        If the unit is `None` (not specified), the element's units will not be
-        altered.
-
-        Parameters
-        ----------
-            element:
-                The element value to update
-            value:
-                The scalar value to set for a given element, which can be the
-                capacitance, inductance, Josephson energy, or loop flux.
-            unit:
-                The units corresponding to the input value, which must 
-                correspond to the type of element used.
-            update_H:
-                Whether to update the circuit Hamiltonian after updating the
-                element value.
-        """
-
-        if element.type not in [Capacitor, Inductor, Junction, Loop]:
-            raise ValueError("Element type must be one of Capacitor, Inductor, "
-                             "Junction, or Loop.")
-        element.set_value(value, unit)
-
-        if update_H:
-            self.update()
-
-    def update_elements(
-        self,
-        elements: List[Union[Capacitor, Inductor, Junction, Loop]],
-        values_units: List[Tuple[float, str]]
-    ) -> None:
-        """Updates an input list of circuit elements with new scalar parameter
-        values, using the units already specified for that element.
-
-        Parameters
-        ----------
-            elements:
-                List of circuit elements, which must be of the type `Capacitor`,
-                `Inductor`, `Junction`, or `Loop`.
-            values_units:
-                List of tuples (of the same length as `elements`) for which
-                the first tuple element is the value to update with, and the
-                second is the unit corresponding to that value.
-        """
-
-        for el, (val, val_unt) in zip(elements, values_units):
-            self._update_element(
-                el,
-                val,
-                val_unt,
-                update_H=False
-            )
-        self.update()
