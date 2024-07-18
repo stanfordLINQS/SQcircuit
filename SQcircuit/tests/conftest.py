@@ -3,8 +3,6 @@ conftest.py contains the general test classes.
 """
 import os
 
-import numpy as np
-
 from SQcircuit import set_optim_mode
 from SQcircuit.sweep import *
 from SQcircuit.storage import SQdata
