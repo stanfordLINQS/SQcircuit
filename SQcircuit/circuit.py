@@ -1823,7 +1823,7 @@ class Circuit:
         else:
             return self.diag_np(n_eig)
 
-    def truncate_circuit(self, K: int, heuristic=True) -> List[int]:
+    def truncate_circuit(self, K: int, heuristic=False) -> List[int]:
         """
         Set truncation numbers of circuit to ``k=ceil(K^{1/n})`` for all modes, 
         where ``n`` is the number of modes in the circuit. 
