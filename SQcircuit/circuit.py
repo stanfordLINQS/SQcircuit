@@ -1858,12 +1858,12 @@ class Circuit:
             for mode in self.omega:
                 # charge mode
                 if mode == 0:
-                    trunc_nums.append(np.ceil(trunc_num_average))
+                    trunc_nums.append(int(np.ceil(trunc_num_average)))
                 else:
                     h = (A * trunc_num_average) / mode
                     trunc_nums.append(np.ceil(h))
         else:
-            trunc_nums = [np.ceil(trunc_num_average) for _ in range(len(self.omega))]
+            trunc_nums = [int(np.ceil(trunc_num_average)) for _ in range(len(self.omega))]
 
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
