@@ -1861,7 +1861,7 @@ class Circuit:
                     trunc_nums.append(int(np.ceil(trunc_num_average)))
                 else:
                     h = (A * trunc_num_average) / mode
-                    trunc_nums.append(np.ceil(h))
+                    trunc_nums.append(int(np.ceil(h)))
         else:
             trunc_nums = [int(np.ceil(trunc_num_average)) for _ in range(len(self.omega))]
 
