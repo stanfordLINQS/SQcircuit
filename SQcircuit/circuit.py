@@ -604,7 +604,7 @@ class Circuit:
         """The elements in the circuit which require gradient.
         """
         return list(self._parameters.keys())
-    
+
     def get_params_type(self) -> list:
         """List of the types for each element in the circuit's parameters.
         """
@@ -1618,8 +1618,8 @@ class Circuit:
             mode:
                 Integer that specifies the mode number.
             basis:
-                String that specifies the basis. It can be either ``"FC"``
-                for original Fock/Charge basis or ``"eig"`` for eigenbasis.
+                String that specifies the basis. It can be either ``'FC'``
+                for original Fock/Charge basis or ``'eig'`` for eigenbasis.
 
         Returns
         ----------
@@ -1689,9 +1689,9 @@ class Circuit:
         Parameters
         ----------
             typ:
-                Type of saved operator 
+                Type of saved operator.
             keywords:
-                Dictionary specifying which operator of type ``typ`` to return
+                Dictionary specifying which operator of type ``typ`` to return.
 
         Returns
         ----------
@@ -1731,7 +1731,7 @@ class Circuit:
         Returns
         ----------
             efreqs:
-                Array of eigenfrequencies in frequency unit of SQcircuit
+                Array of eigenfrequencies in frequency unit of SQcircuit.
             evecs:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on optimization mode.
@@ -1768,10 +1768,14 @@ class Circuit:
         self._evecs = evecs_sorted
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
-    
+
     def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         """Diagonalize the circuit using a Torch Function, so that the 
         calculated eigenvalues/vectors are backpropagatable.
+
+        To restrict the number ``n`` of eigenvectors for which the gradient is
+        computed, call ``set_max_eigenvector_grad(n)`` before
+        diagonalizing.
         
         Parameters
         ----------
@@ -1781,9 +1785,9 @@ class Circuit:
         Returns
         ----------
             efreqs:
-                Tensor of eigenfrequencies
+                Tensor of eigenfrequencies.
             evecs:
-                Tensor of eigenvectors
+                Tensor of eigenvectors.
         """
         eigen_solution = sqtorch.eigencircuit(self, n_eig)
         eigenvalues = torch.real(eigen_solution[:, 0])
@@ -1812,7 +1816,7 @@ class Circuit:
         ----------
             efreqs:
                 ndarray of eigenfrequencies in frequency unit of SQcircuit
-                (gigahertz by default)
+                (gigahertz by default).
             evecs:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on optimization mode.
@@ -1868,10 +1872,9 @@ class Circuit:
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
 
-    def test_convergence(self, eig_vec_idx=1, t=10, epsilon=0.01):
+    def check_convergence(self, eig_vec_idx=1, t=10, threshold=1e-5):
         """
         Check whether the diaganalization of the circuit has converged. 
-        TODO: update to match paper
 
         Parameters
         ----------
@@ -1879,23 +1882,25 @@ class Circuit:
                 Index of eigenvector to use to test convergence.
             t:
                 Number of entries of eigenvector to use to test convergence.
-            epsilon:
+            threshold:
                 Cutoff for convergence.
 
         Returns
         ----------
-            trunc_nums:
-                List of truncation numbers for each mode of circuit
+            convergence_succeeded:
+                Truthy value of whether the circuit converged
+            epsilon:
+                Calculated value for convergence test
         """
 
         assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
 
-        criterion = np.sum(np.abs(sqf.numpy(self._evecs[eig_vec_idx])[-t:]))
+        reshaped_evec = sqf.numpy(self.evecs[eig_vec_idx]).reshape(self.m)
+        restricted_evec = reshaped_evec[(slice(-t),)*len(self.m)]
 
-        if criterion < epsilon:
-            return True, epsilon
-        else:
-            return False, epsilon
+        epsilon = 1 - np.sum(np.abs(restricted_evec)**2)
+
+        return (epsilon < threshold), epsilon
 
     ###########################################################################
     # Methods that calculate circuit properties
@@ -1914,7 +1919,7 @@ class Circuit:
 
         Returns
         ----------
-            Matrix giving coordinate transformation for `var_type` coordinates.
+            Matrix giving coordinate transformation for ``var_type`` coordinates.
         """
         if var_type == "charge" or var_type == "Charge":
             return np.linalg.inv(self.R)
@@ -1926,7 +1931,7 @@ class Circuit:
     def hamiltonian(self) -> Qobj:
         """
         Returns the transformed hamiltonian of the circuit as
-        qutip.Qobj format.
+        ``qutip.Qobj`` format.
 
         Returns
         ----------
