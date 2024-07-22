@@ -89,22 +89,30 @@ def EJ(i):
 H = qOperator('H')
 
 
-def har_mode_hamil(coeff_dict):
-    hamil = sm.Add(*[sm.Mul(omega(i+1), ad(i+1), a(i+1), evaluate=False) \
-                    for i in range(coeff_dict['har_dim'])], evaluate=False)
-    return hamil
+def har_mode_hamil(coeff_dict, do_sum=True):
+    terms =  [sm.Mul(omega(i+1), ad(i+1), a(i+1), evaluate=False) \
+              for i in range(coeff_dict['har_dim'])]
+    if do_sum:
+        return sm.Add(*terms, evaluate=False)
+    else:
+        return terms
 
-def charge_mode_hamil(coeff_dict):
+def charge_mode_hamil(coeff_dict, do_sum=True):
     hamil = 0
     for i in range(coeff_dict['har_dim'], coeff_dict['n_modes']):
         for j in range(i, coeff_dict['n_modes']):
-            hamil += EC(i+1,j+1) * (n(i+1) - ng(i+1)) * (n(i+1) -ng(j+1))
-    return hamil
+            hamil += EC(i+1,j+1) * (n(i+1) - ng(i+1)) * (n(i+1) - ng(j+1))
 
-def inductive_hamil(elem_keys, coeff_dict):
+    if do_sum:
+        return hamil
+    else:
+        return sm.Add.make_args(hamil)
+
+def inductive_hamil(elem_keys, coeff_dict, do_sum=True):
     S = coeff_dict['S']
     B = coeff_dict['B']
-    hamil = 0
+
+    terms = []
     for i, (edge, el, B_idx) in enumerate(elem_keys[Inductor]):
         if np.sum(np.abs(B[B_idx, :])) == 0:
             continue
@@ -120,12 +128,15 @@ def inductive_hamil(elem_keys, coeff_dict):
         phis = [phi_op(i+1) for i in range(len(w_sym))]
         phi_exts = [phi_ext(i+1) for i in range(len(B_sym))]
 
-        hamil += sm.Mul(EL(i+1), sm.nsimplify(w_sym.dot(phis)), 
-                        sm.nsimplify(B_sym.dot(phi_exts)), evaluate=False)
-    return hamil
+        terms.append(sm.Mul(EL(i+1), sm.nsimplify(w_sym.dot(phis)),
+                            sm.nsimplify(B_sym.dot(phi_exts)), evaluate=False))
+    if do_sum:
+        return sum(terms)
+    else:
+        return terms
 
-def jj_hamil(elem_keys, coeff_dict):
-    hamil = 0
+def jj_hamil(elem_keys, coeff_dict, do_sum=True):
+    terms = []
     for i, (edge, el, B_idx, W_idx) in enumerate(elem_keys[Junction]):
         W_sym = sm.Matrix(coeff_dict['W'][W_idx, :])
         phis = [phi_op(i+1) for i in range(len(W_sym))]
@@ -133,16 +144,24 @@ def jj_hamil(elem_keys, coeff_dict):
         B_sym = sm.Matrix(coeff_dict['B'][B_idx, :])
         phi_exts = [phi_ext(i+1) for i in range(len(B_sym))]
 
-        hamil += EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
-                                        sm.nsimplify(B_sym.dot(phi_exts)),
-                                        evaluate=False))
-    return hamil
+        terms.append(EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
+                                             sm.nsimplify(B_sym.dot(phi_exts))
+                                             ))
+        )
+    if do_sum:
+        return sum(terms)
+    else:
+        return terms
 
 def construct_hamiltonian(cr):
-    LC_hamil = sm.Add(har_mode_hamil(cr.descrip_vars),
-                      charge_mode_hamil(cr.descrip_vars), evaluate=False)
-    Ind_hamil = inductive_hamil(cr.elem_keys, cr.descrip_vars)
-    JJ_hamil = jj_hamil(cr.elem_keys, cr.descrip_vars)
+    har_terms = har_mode_hamil(cr.descrip_vars, do_sum=False)
+    charge_terms = charge_mode_hamil(cr.descrip_vars, do_sum=False)
+    ind_terms = inductive_hamil(cr.elem_keys, cr.descrip_vars, do_sum=False)
+    JJ_terms = jj_hamil(cr.elem_keys, cr.descrip_vars, do_sum=False)
 
-    return sm.Add(*[H for H in [LC_hamil, Ind_hamil, JJ_hamil] if H!=0], 
-                  evaluate=False)
+    all_terms = []
+    for terms in [har_terms, charge_terms, ind_terms, JJ_terms]:
+        if sum(terms) != 0:
+            all_terms += terms
+
+    return sm.Add(*all_terms, evaluate=False)
