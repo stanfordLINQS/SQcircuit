@@ -571,7 +571,7 @@ class Circuit:
     @parameters.setter
     def parameters(self, new_params: Union[Tensor, List[Tensor]]) -> None:
         for i, element in enumerate(self._parameters.keys()):
-            element.internal_value = new_params[i].clone().detach().requires_grad_(True)
+            element.internal_value = new_params[i]
 
         self.update()
 
@@ -617,7 +617,7 @@ class Circuit:
 
 
     def zero_parameters_grad(self) -> None:
-        """Set the gradient of all values in `self.parameters` to `None`.
+        """Set the gradient of all values in ``self.parameters`` to ``None``.
         """
         raise_optim_error_if_needed()
 
@@ -633,8 +633,7 @@ class Circuit:
                 An element to add to ``.parameters``, if the element requires
                 gradient and is not already present.
         """
-
-        if el.requires_grad and el not in self._parameters:
+        if (el.requires_grad or not el.is_leaf) and el not in self._parameters:
             self._parameters[el] = el.internal_value
 
     def add_loop(self, loop: Loop) -> None:
@@ -2659,6 +2658,8 @@ class Circuit:
             Junction: [],
         }
         self.loops: List[Loop] = []
+
+        self._parameters = OrderedDict()
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
         self.R, self.S = np.eye(self.n), np.eye(self.n)

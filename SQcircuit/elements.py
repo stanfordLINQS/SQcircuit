@@ -70,7 +70,13 @@ class Element:
     def requires_grad(self) -> bool:
         raise_optim_error_if_needed()
 
-        return self._value.requires_grad
+        return self.internal_value.requires_grad
+
+    @property
+    def is_leaf(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self.internal_value.is_leaf
 
     @requires_grad.setter
     def requires_grad(self, f: bool) -> None:
@@ -710,6 +716,12 @@ class Loop:
         raise_optim_error_if_needed()
 
         self.lpValue.requires_grad = f
+
+    @property
+    def is_leaf(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self.internal_value.is_leaf
 
     @property
     def internal_value(self) -> Union[float, Tensor]:
