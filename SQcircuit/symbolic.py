@@ -1,5 +1,9 @@
 import numpy as np
 import sympy as sm
+from sympy import (
+    Expr,
+    Symbol
+)
 from sympy.physics.quantum import Operator
 
 from SQcircuit.elements import (
@@ -12,10 +16,10 @@ from SQcircuit.elements import (
 
 from sympy.printing.latex import LatexPrinter
 
-class ExplicitSymbol(sm.Symbol):
+class ExplicitSymbol(Symbol):
     def __new__(cls, plainname, latexname):
         self = super().__new__(cls, plainname)
-        self.lsymbol = sm.Symbol(latexname)
+        self.lsymbol = Symbol(latexname)
         return self
 
     def _latex(self, printer):
@@ -44,45 +48,45 @@ class qOperator(Operator):
             tex = fr'\hat{{{self.opname}}}'
         if self.sub:
             tex  += fr'_{{{self.sub}}}'
-        return printer.doprint(sm.Symbol(tex))
+        return printer.doprint(Symbol(tex))
 
 def phi_op(i):
     return ExplicitSymbol(f'phi_{i}',
                           fr'\hat{{\varphi}}_{{{i}}}')
 
-def a(i):
+def a(i: int) -> qOperator:
     return qOperator('a', i)
 
-def ad(i):
+def ad(i: int) -> qOperator:
     return qOperator('ad', i)
 
-def n(i):
+def n(i: int) -> qOperator:
     return qOperator('n', i)
 
-def phi_ext(i):
+def phi_ext(i: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'phi_e{i}',
                           r'\varphi_{\text{ext}_{' + str(i) + '}}')
 
-def phi_zp(i):
+def phi_zp(i: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'zp_{i}',
                           r'\varphi_{\text{zp}_{' + str(i) + '}}')
 
-def omega(i):
-    return sm.Symbol(rf'omega_{i}')
+def omega(i: int) -> Symbol:
+    return Symbol(rf'omega_{i}')
 
-def ng(i):
+def ng(i: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'ng_{i}',
                           fr'n_{{g_{{{i}}}}}')
 
-def EC(i,j):
+def EC(i: int, j: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'EC_{i}{j}',
                           fr'E_{{C_{{{i}{j}}}}}')
 
-def EL(i):
+def EL(i: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'EL_{i}',
                           fr'E_{{L_{{{i}}}}}')
 
-def EJ(i):
+def EJ(i: int) -> ExplicitSymbol:
     return ExplicitSymbol(f'EJ_{i}',
                           fr'E_{{J_{{{i}}}}}')
 
@@ -138,7 +142,7 @@ def jj_hamil(elem_keys, coeff_dict):
                                         evaluate=False))
     return hamil
 
-def construct_hamiltonian(cr):
+def construct_hamiltonian(cr) -> Expr:
     LC_hamil = sm.Add(har_mode_hamil(cr.descrip_vars),
                       charge_mode_hamil(cr.descrip_vars), evaluate=False)
     Ind_hamil = inductive_hamil(cr.elem_keys, cr.descrip_vars)

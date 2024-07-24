@@ -5,10 +5,10 @@
 
 # SQcircuit: Superconducting Quantum Circuit Analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
-|[**Installation**](#Installation)
-|[**Documentation**](#Documentation)
-|[**Examples**](#Examples)
-|[**Contribution**](#Contribution)
+| [**Installation**](#Installation)
+| [**Documentation**](#Documentation)
+| [**Examples**](#Examples)
+| [**Contribution**](#Contribution)
 
 [![license](https://img.shields.io/badge/license-New%20BSD-orange.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![codecov](https://codecov.io/gh/stanfordLINQS/SQcircuit/branch/main/graph/badge.svg?token=6FT6L9ZPHP)](https://codecov.io/gh/stanfordLINQS/SQcircuit)
