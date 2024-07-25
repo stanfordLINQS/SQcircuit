@@ -3,8 +3,6 @@ conftest.py contains the general test classes.
 """
 import os
 
-import numpy as np
-
 from SQcircuit import set_optim_mode
 from SQcircuit.sweep import *
 from SQcircuit.storage import SQdata
@@ -92,6 +90,7 @@ def create_transmon_numpy(trunc_num):
     circuit_numpy.set_trunc_nums([trunc_num, ])
     return circuit_numpy
 
+
 def create_transmon_torch(trunc_num):
     cap_value, ind_value, Q = 7.746, 5, 1e6
     cap_unit, ind_unit = 'fF', 'GHz'
@@ -166,6 +165,7 @@ def create_fluxonium_torch_flux(trunc_num, phi_ext=0):
     circuit_torch.set_trunc_nums([trunc_num, ])
     return circuit_torch
 
+
 def create_JJL_numpy(trunc_num, phi_ext):
     set_optim_mode(False)
     Cs = [3.6, 1.2, 2.0]
@@ -188,6 +188,7 @@ def create_JJL_numpy(trunc_num, phi_ext):
     )
     circuit_numpy.set_trunc_nums([trunc_num, trunc_num])
     return circuit_numpy
+
 
 def create_JJL_torch(trunc_num, phi_ext):
     set_optim_mode(True)

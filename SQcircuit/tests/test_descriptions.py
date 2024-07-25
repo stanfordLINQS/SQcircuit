@@ -35,15 +35,15 @@ def test_zeropi_description():
 
     txt = cr.description(tp='txt', _test=True)
 
-    f = open(DATADIR + '/zero_pi_junctions_txt.txt', 'r')
-    txt_data = f.read().replace("\\n", "\n")
+    with open(DATADIR + '/zero_pi_junctions_txt.txt', 'r') as f:
+        txt_data = f.read()
 
     assert txt == txt_data
 
     ltx = cr.description(tp='ltx', _test=True)
 
-    f = open(DATADIR + '/zero_pi_junctions_ltx.txt', 'r')
-    ltx_data = (f.read().replace("\\n", "\n")).replace("\\\\", "\\")
+    with open(DATADIR + '/zero_pi_junctions_ltx.txt', 'r') as f:
+        ltx_data = f.read()
 
     assert ltx_data == ltx
 
@@ -55,15 +55,15 @@ def test_zeropi_description():
 
     txt = cr.description(tp='txt', _test=True)
 
-    f = open(DATADIR + '/zero_pi_inductors_txt.txt', 'r')
-    txt_data = f.read().replace("\\n", "\n")
+    with open(DATADIR + '/zero_pi_inductors_txt.txt', 'r') as f:
+        txt_data = f.read()
 
     assert txt == txt_data
 
     ltx = cr.description(tp='ltx', _test=True)
 
-    f = open(DATADIR + '/zero_pi_inductors_ltx.txt', 'r')
-    ltx_data = (f.read().replace("\\n", "\n")).replace("\\\\", "\\")
+    with open(DATADIR + '/zero_pi_inductors_ltx.txt', 'r') as f:
+        ltx_data = f.read()
 
     assert ltx_data == ltx
 
@@ -91,8 +91,8 @@ def test_loop_description():
     cr = sq.Circuit(elements, flux_dist='all')
     desc = cr.loop_description(_test=True)
 
-    f = open(DATADIR + '/flux_dist_all.txt', 'r')
-    desc_data = f.read().replace("\\n", "\n")
+    with open(DATADIR + '/flux_dist_all.txt', 'r') as f:
+        desc_data = f.read()
 
     assert desc == desc_data
 
@@ -103,8 +103,8 @@ def test_loop_description():
     cr = sq.Circuit(elements, flux_dist='inductors')
     desc = cr.loop_description(_test=True)
 
-    f = open(DATADIR + '/flux_dist_inductors.txt', 'r')
-    desc_data = f.read().replace("\\n", "\n")
+    with open(DATADIR + '/flux_dist_inductors.txt', 'r') as f:
+        desc_data = f.read()
 
     assert desc == desc_data
 
@@ -115,7 +115,7 @@ def test_loop_description():
     cr = sq.Circuit(elements, flux_dist='junctions')
     desc = cr.loop_description(_test=True)
 
-    f = open(DATADIR + '/flux_dist_junctions.txt', 'r')
-    desc_data = f.read().replace("\\n", "\n")
+    with open(DATADIR + '/flux_dist_junctions.txt', 'r') as f:
+        desc_data = f.read()
 
     assert desc == desc_data

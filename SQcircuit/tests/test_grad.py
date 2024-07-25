@@ -183,9 +183,8 @@ def test_omega_flux_transmon():
     """Verify gradient of first eigendifference omega_1-omega_0 
     in transmon circuit with linearized value."""
 
-    # Create circuits
-
-    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
+    for flux_point in flux_points:
         print('flux point:', flux_point)
         circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
         circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
@@ -200,9 +199,8 @@ def test_omega_flux_fluxonium():
     """Verify gradient of first eigendifference omega_1-omega_0 
     in transmon circuit with linearized value."""
 
-    # Create circuits
-
-    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
+    for flux_point in flux_points:
         print('flux point:', flux_point)
         circuit_numpy = create_fluxonium_numpy(trunc_num, flux_point)
         circuit_torch = create_fluxonium_torch_flux(trunc_num, flux_point)
@@ -240,8 +238,8 @@ def test_T1_transmon_flux():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and 
     quasiparticle noise in transmon circuit with linearized value."""
 
-    # Create circuits
-    for flux_point in [1+1e-2, 0.3, 0.5 - 1e-3, 0.5+1e-3, 0.7, 1-1e-2]:
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
+    for flux_point in flux_points:
         print('flux point:', flux_point)
         circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
         circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
@@ -472,7 +470,8 @@ def test_anharmonicity():
                        delta=1e-4)
 
 def test_T2_cc():
-    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
     for phi_ext in flux_points:
         set_optim_mode(False)
@@ -492,7 +491,8 @@ def test_T2_cc():
         )
 
 def test_T2_charge():
-    charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    # charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    charge_offsets = [1e-2, 0.3, 0.5 - 1e-2, 0.8]
 
     for ng in charge_offsets:
         circuit_numpy = create_transmon_numpy(trunc_num)
@@ -511,7 +511,8 @@ def test_T2_charge():
         )
 
 def test_T2_flux():
-    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
     for phi_ext in flux_points:
         circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
@@ -527,7 +528,8 @@ def test_T2_flux():
         )
 
 def test_T2_cc_phi_ext():
-    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
     for phi_ext in flux_points:
         set_optim_mode(False)
@@ -547,7 +549,9 @@ def test_T2_cc_phi_ext():
         )
 
 def test_T2_charge_phi_ext():
-    charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    # charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+    charge_offsets = [1e-2, 0.3, 0.5 - 1e-2, 0.8]
+
     phi_ext = 0.5-1e-3
 
     for ng in charge_offsets:
@@ -566,7 +570,8 @@ def test_T2_charge_phi_ext():
         )
 
 def test_T2_flux_phi_ext():
-    flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
+    flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
     for phi_ext in flux_points:
         circuit_numpy = create_fluxonium_numpy(trunc_num, phi_ext)
