@@ -5,6 +5,7 @@ from IPython.display import display, Latex, Math
 import sympy as sm
 from sympy.printing.latex import LatexPrinter
 from sympy.printing.pretty.pretty import PrettyPrinter
+from sympy.printing.pretty.stringpict import prettyForm
 from sympy.printing.pretty.stringpict import prettyForm, stringPict
 from typing import List
 
@@ -35,6 +36,7 @@ def is_notebook():
     except NameError:
         return False  # Probably standard Python interpreter
 
+
 def newDiv(self, den, slashed=False):
     """
     prettyForm division to always be inline x/y
@@ -62,7 +64,7 @@ class HamilTxt:
             return 11*"~"
         elif self.tp == 'txt':
             return 7*" "
-        
+
     def plaintxt(self, text):
         if self.tp == 'ltx':
             return rf'\text{{{text}}}'
@@ -72,7 +74,7 @@ class HamilTxt:
     def ham_txt(self, coeff_dict):
         sym_ham = coeff_dict['H']
         return self.printer.doprint(sm.Eq(sym.H, sym_ham)) + '\n'
-    
+
     def mode_txt(self, coeff_dict):
         txt = ''
         for i in range(coeff_dict['n_modes']):
@@ -98,18 +100,18 @@ class HamilTxt:
         for key in coeff_dict['EC']:
             i,j = key
             params.append(sm.Eq(sym.EC(i+1,j+1),
-                                np.round(coeff_dict['EC'][(i,j)], 2)))
+                                np.round(coeff_dict['EC'][(i,j)], 3)))
         for i, EL_val in enumerate(coeff_dict['EL']):
             if coeff_dict['EL_incl'][i]:
                 params.append(sm.Eq(sym.EL(i+1),
                                     np.round(EL_val, 3)))
         for i, EJ_val in enumerate(coeff_dict['EJ']):
-            params.append(sm.Eq(sym.EJ(i+1), 
+            params.append(sm.Eq(sym.EJ(i+1),
                                 np.round(EJ_val, 3)))
         txt = self.plaintxt('parameters:') + self.tab() \
                 + self.tab().join([self.printer.doprint(p) for p in params])
         return txt + '\n'
-    
+
     def loop_txt(self, coeff_dict):
         info = [sm.Eq(sym.phi_ext(i+1)/(2*sm.pi), 
                       np.round(coeff_dict['loops'][i], 2)) \
@@ -117,7 +119,7 @@ class HamilTxt:
         txt = self.plaintxt('loops:') + self.tab() \
                 + self.tab().join([self.printer.doprint(l) for l in info])
         return txt
-    
+
     def print_circuit_description(self, coeff_dict):
         finalTxt = self.ham_txt(coeff_dict) + self.line \
                     + self.mode_txt(coeff_dict) + self.line \
