@@ -40,7 +40,7 @@ def test_capacitor_energy():
     assert cap2.get_value("GHz") == 10
 
 
-def test_capacitor_Q():
+def test_capacitor_q():
     cap = Capacitor(10, "GHz", Q=1)
     assert cap.Q(-1) == 1
     assert cap.Q(10) == 1
@@ -107,7 +107,7 @@ def test_inductor_energy():
     assert ind2.get_value("GHz") == 10
 
 
-def test_inductor_Q():
+def test_inductor_q():
     ind = Inductor(10, "GHz", Q=1)
     assert ind.Q(-1, 0) == 1
     assert ind.Q(10, 12) == 1
@@ -138,6 +138,7 @@ def test_inductor_unit():
     # this is global, so need to set back
     sq.set_unit_ind("GHz")
 
+
 def test_inductor_grad():
 
     # First check error massages
@@ -167,7 +168,7 @@ def test_junction_error_massages():
         Junction(10, "F")
 
 
-def test_junction_Y():
+def test_junction_y():
     y_func = lambda omega, T: omega * T
     JJ = Junction(10, "GHz", Y=y_func)
     assert JJ.Y(10, 2) == 20

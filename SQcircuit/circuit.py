@@ -3,7 +3,7 @@
 
 from collections import defaultdict, OrderedDict
 from copy import copy, deepcopy
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, Type
 from typing_extensions import Self
 
 import numpy as np
@@ -48,13 +48,7 @@ class CircuitEdge:
         circ:
             Circuit that edge is part of.
         edge:
-            The tuple represent the edge in the circuit.
-        edge_elems:
-            The list of the elements at that edge.
-        edge_idx:
-            Index of the edge.
-        n_node:
-            Number of nodes.
+            The tuple represents the edge of the circuit.
     """
 
     def __init__(
@@ -172,7 +166,9 @@ class CircuitEdge:
                 if get_optim_mode():
                     self.circ.add_to_parameters(el.cap)
                     if hasattr(el.cap, "partial_mat"):
-                        self.circ.partial_mats[el.cap] += el.cap.partial_mat(self.mat_rep)
+                        self.circ.partial_mats[el.cap] += (
+                            el.cap.partial_mat(self.mat_rep)
+                        )
 
                 self.circ.elem_keys[el.type].append(
                     el.get_key(self.edge, B_idx, W_idx)
@@ -255,7 +251,7 @@ class Circuit:
         * Coupling operators
         * Matrix elements
         * Decoherence rates
-        * Gradients of Hamiltonian and eigenvalues/vectors
+        * Gradients of Hamiltonian, eigenvalues/vectors , and Decoherence
 
     Parameters
     ----------
@@ -371,12 +367,12 @@ class Circuit:
         }
 
         # TODO: fix typing; add comments etc.
-        self.descrip_vars : Dict[str, Union[List[float], np.ndarray]] = {
-            "omega": [], 
-            "phi_zp": [], 
+        self.descrip_vars: Dict[str, Union[List[float], np.ndarray]] = {
+            "omega": [],
+            "phi_zp": [],
             "ng": [],
             "EC": None,
-            "EJ" : None
+            "EJ": None
         }
 
         # LC part of the Hamiltonian
@@ -390,6 +386,49 @@ class Circuit:
         # Toggle whether we need to copy all elements (namely the
         # _memory_ops and _LC_hamil; see .__getstate__)
         self._toggle_fullcopy = True
+
+    def update(self) -> None:
+        """Update the circuit Hamiltonian to reflect in-place changes made to
+        the scalar values used for circuit elements (ex. C, L, J...).
+        """
+
+        self.elem_keys = {
+            Inductor: [],
+            Junction: [],
+        }
+        self.loops: List[Loop] = []
+
+        self.C, self.L, self.W, self.B = self._get_LCWB()
+        self.R, self.S = np.eye(self.n), np.eye(self.n)
+        self.cInvTrans, self.lTrans, self.wTrans = (
+            np.linalg.inv(sqf.numpy(self.C)),
+            sqf.numpy(self.L).copy(),
+            self.W.copy()
+        )
+        self.omega = np.zeros(self.n)
+        self._transform_hamil()
+
+        self._memory_ops: Dict[
+            str, Union[List[Qobj], List[List[Qobj]], dict]
+        ] = {
+            "Q": [],  # list of charge operators (normalized by 1/sqrt(hbar))
+            "QQ": [[]],  # list of charge times charge operators
+            "phi": [],  # list of flux operators (normalized by 1/sqrt(hbar))
+            "N": [],  # list of number operators
+            "exp": [],  # List of exponential operators
+            "root_exp": [],  # List of square root of exponential operators
+            "cos": {},  # List of cosine operators
+            "sin": {},  # List of sine operators
+            "sin_half": {},  # list of sin(phi/2)
+            "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
+        }
+
+        self._build_op_memory()
+        self._LC_hamil = self._get_LC_hamil()
+        self._build_exp_ops()
+
+        self._efreqs = sqf.array([])
+        self._evecs = []
 
     def __getstate__(self) -> dict[str, Any]:
         attrs = self.__dict__
@@ -412,6 +451,134 @@ class Circuit:
         # state when initializing a circuit, but is often set to ``False`` when
         # pickling the circuit.
         self._toggle_fullcopy = True
+
+    @property
+    def efreqs(self) -> Union[ndarray, Tensor]:
+        """Eigenfrequencies in the chosen frequency unit for SQcircuit. If the
+        SQcircuit engine is ``PyTorch``, the efreqs will be in ``Tensor``
+        format; otherwise, they will be in ``ndarray`` format."""
+        assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
+
+        return self._efreqs / (2 * np.pi * unt.get_unit_freq())
+
+    @property
+    def evecs(self) -> Union[List[Qobj], Tensor]:
+        """List of circuit eigenvectors. If the SQcircuit engine is ``PyTorch``,
+        each eigenvector will be in ``Tensor`` format; otherwise, they will be
+        in ``Qutip.Qobj`` format."""
+
+        assert len(self._evecs) != 0, "Please diagonalize the circuit first."
+
+        return self._evecs
+
+    @property
+    def trunc_nums(self) -> List[int]:
+        """List of truncation numbers of the circuit. For harmonic modes, these
+        are N where the Hilbert space is 0, 1, …, (N-1) and for charge modes
+        these are N where the Hilbert space is -(N-1), …, 0, …, (N-1).
+        """
+        trunc_nums = []
+        for i in range(self.n):
+            if self._is_charge_mode(i):
+                trunc_nums.append(int((self.m[i] + 1)/2))
+            else:
+                trunc_nums.append(self.m[i])
+        return trunc_nums
+
+    @property
+    def parameters(self) -> List[Tensor]:
+        """The values of the elements in the circuit which require gradient.
+        The parameters can be set by a list of new values for each of the
+        elements. Only valid if ``get_optim_mode() = True`` or we are
+        using ``PyTorch`` engine of SQcircuit.
+        """
+        raise_optim_error_if_needed()
+
+        return list(self._parameters.values())
+
+    @parameters.setter
+    def parameters(self, new_params: Union[Tensor, List[Tensor]]) -> None:
+        for i, element in enumerate(self._parameters.keys()):
+            element.internal_value = (
+                new_params[i].clone().detach().requires_grad_(True)
+            )
+
+        self.update()
+
+    @property
+    def parameters_grad(self) -> Union[List[Optional[Tensor]], Tensor]:
+        """Return the gradients of the tensors in ``.parameters``. If all values
+        are not ``None``, it is returned as a stacked ``Tensor``, otherwise as a
+        list of individual values.
+        """
+        raise_optim_error_if_needed()
+
+        grad_list = []
+        for val in self.parameters:
+            grad_list.append(val.grad)
+
+        if None in grad_list:
+            return grad_list
+
+        return torch.stack(grad_list).detach().clone()
+
+    @property
+    def parameters_dict(
+            self
+    ) -> OrderedDict[Tuple[Union[Element, Loop], Tensor]]:
+        """The dictionary of (element, value) pairs for the elements in
+        the circuit which require gradient.
+        """
+        return self._parameters
+
+    @property
+    def parameters_elems(self) -> List[Union[Element, Loop]]:
+        """The elements in the circuit which require gradient.
+        """
+        return list(self._parameters.keys())
+
+    def get_params_type(self) -> List[Union[Type[Element], Type[Loop]]]:
+        """List of the types for each element in the circuit's parameters.
+        """
+
+        elements_flattened = list(self._parameters.keys())
+
+        params_type = [type(element) for element in elements_flattened]
+
+        return params_type
+
+    def zero_parameters_grad(self) -> None:
+        """Set the gradient of all values in `self.parameters` to `None`.
+        """
+        raise_optim_error_if_needed()
+
+        for val in self.parameters:
+            val.grad=None
+
+    def add_to_parameters(self, el: Element) -> None:
+        """Add an element with ``requires_grad=True`` to parameters.
+
+        Parameters
+        ----------
+            el:
+                An element to add to ``.parameters``, if the element requires
+                gradient and is not already present.
+        """
+
+        if el.requires_grad and el not in self._parameters:
+            self._parameters[el] = el.internal_value
+
+    def add_loop(self, loop: Loop) -> None:
+        """Add loop to the circuit loops.
+
+        Parameters
+        ----------
+            loop:
+                Loop in the circuit to add to ``.loops``.
+        """
+        if loop not in self.loops:
+            loop.reset()
+            self.loops.append(loop)
 
     def safecopy(self, save_eigs=False) -> Self:
         """Return a copy of ``self``, explicitly detaching and cloning all
@@ -459,7 +626,7 @@ class Circuit:
                 for el in self.elements[edge]:
                     new_el = copy(el)
                     new_el.internal_value = el.internal_value.detach().clone()
-                    # Need to also replace loops associated with circuit 
+                    # Need to also replace loops associated with circuit
                     # with the new copies.
                     if hasattr(el, 'loops'):
                         new_loops = []
@@ -512,7 +679,9 @@ class Circuit:
                 else:
                     new_circuit._memory_ops[op_type] = {}
                     for el, B_idx in self._memory_ops[op_type].keys():
-                        new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = self._memory_ops[op_type][(el, B_idx)]
+                        new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = (
+                            self._memory_ops[op_type][(el, B_idx)]
+                        )
 
         # Remove old eigenvectors/values, if desired
         if save_eigs:
@@ -531,7 +700,7 @@ class Circuit:
         return deepcopy(new_circuit)
 
     def picklecopy(self) -> Self:
-        """Helper function which returns a shallow copy of ``self`` with 
+        """Helper function which returns a shallow copy of ``self`` with
         ``._toggle_fullcopy = False``. Use for pickling circuit to save memory.
 
         Returns
@@ -545,108 +714,6 @@ class Circuit:
         new_circuit._toggle_fullcopy = False
 
         return new_circuit
-
-    @property
-    def efreqs(self) -> Union[Tensor, ndarray]:
-        """Eigenfrequencies, in the frequency unit chosen for SQcircuit."""
-        assert len(self._efreqs) != 0, "Please diagonalize the circuit first."
-
-        return self._efreqs / (2 * np.pi * unt.get_unit_freq())
-
-    @property
-    def evecs(self) -> Union[Tensor, ndarray]:
-        """Eigenvectors of circuit."""
-        return self._evecs
-
-    @property
-    def parameters(self) -> List[Tensor]:
-        """The values of the elements in the circuit which require gradient.
-        The parameters can be set by a list of new values for each of the 
-        elements. Only valid if ``get_optim_mode() = True``.
-        """
-        raise_optim_error_if_needed()
-
-        return list(self._parameters.values())
-
-    @parameters.setter
-    def parameters(self, new_params: Union[Tensor, List[Tensor]]) -> None:
-        for i, element in enumerate(self._parameters.keys()):
-            element.internal_value = new_params[i].clone().detach().requires_grad_(True)
-
-        self.update()
-
-    @property
-    def parameters_grad(self) -> Union[List[Optional[Tensor]], Tensor]:
-        """Return the gradients of the tensors in ``.parameters``. If all values
-        are not ``None``, it is returned as a stacked ``Tensor``, otherwise as a 
-        list of individual values.
-        """
-        raise_optim_error_if_needed()
-
-        grad_list = []
-        for val in self.parameters:
-            grad_list.append(val.grad)
-
-        if None in grad_list:
-            return grad_list
-
-        return torch.stack(grad_list).detach().clone()
-
-    @property
-    def parameters_dict(self) ->  OrderedDict[Tuple[Union[Element, Loop], Tensor]]:
-        """The dictionary of (element, value) pairs for the elements in
-        the circuit which require gradient.
-        """
-        return self._parameters
-
-    @property
-    def parameters_elems(self) -> List[Union[Element, Loop]]:
-        """The elements in the circuit which require gradient.
-        """
-        return list(self._parameters.keys())
-    
-    def get_params_type(self) -> list:
-        """List of the types for each element in the circuit's parameters.
-        """
-
-        elements_flattened = list(self._parameters.keys())
-
-        params_type = [type(element) for element in elements_flattened]
-
-        return params_type
-
-    def zero_parameters_grad(self) -> None:
-        """Set the gradient of all values in `self.parameters` to `None`.
-        """
-        raise_optim_error_if_needed()
-
-        for val in self.parameters:
-            val.grad=None
-
-    def add_to_parameters(self, el: Element) -> None:
-        """Add an element with ``requires_grad=True`` to parameters.
-
-        Parameters
-        ----------
-            el:
-                An element to add to ``.parameters``, if the element requires
-                gradient and is not already present.
-        """
-
-        if el.requires_grad and el not in self._parameters:
-            self._parameters[el] = el.internal_value
-
-    def add_loop(self, loop: Loop) -> None:
-        """Add loop to the circuit loops.
-
-        Parameters
-        ----------
-            loop:
-                Loop in the circuit to add to ``.loops``.
-        """
-        if loop not in self.loops:
-            loop.reset()
-            self.loops.append(loop)
 
     def _get_LCWB(self) -> Tuple[ndarray, ndarray, ndarray, ndarray]:
         """Calculate the capacitance matrix, sustenance matrix, W matrix,
@@ -675,7 +742,7 @@ class Circuit:
         # number of branches that contain JJ without parallel inductor.
         countJJnoInd = 0
 
-        # K1 is a matrix that transfer node coordinates to edge phase drop
+        # K1 is a matrix that transfers node coordinates to the edge phase drop
         # for inductive elements
         K1 = []
 
@@ -727,8 +794,10 @@ class Circuit:
             n_loops = len(self.loops)
 
             if n_loops != 0:
-                Y = np.concatenate((np.zeros((B_idx - n_loops, n_loops)),
-                                    np.eye(n_loops)), axis=0)
+                Y = np.concatenate(
+                    (np.zeros((B_idx - n_loops, n_loops)), np.eye(n_loops)),
+                    axis=0
+                )
                 bMat = np.linalg.inv(X) @ Y
                 bMat = np.around(bMat, 5)
 
@@ -736,6 +805,8 @@ class Circuit:
 
             print("The edge list does not specify a connected graph or "
                   "all inductive loops of the circuit are not specified.")
+
+            raise ValueError
 
         self.countJJnoInd = countJJnoInd
 
@@ -831,7 +902,7 @@ class Circuit:
         """
 
         # normalize the rows of matrix A
-        A_norm = A / np.linalg.norm(A, axis=1).reshape(A.shape[0], 1)
+        A_norm = A / (np.linalg.norm(A, axis=1).reshape(A.shape[0], 1) + 1e-9)
 
         # Get the row of each A that has the highest norm in descending order.
         # This is important for the case of JJ capacitively coupled to JL.
@@ -1045,25 +1116,25 @@ class Circuit:
         # scaling the modes by third transformation
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
-    def compute_params(self) -> None:
+    def _compute_params(self) -> None:
         """Compute parameters of transformed Hamiltonian to reduced number
         of significant figures and in the frequency units of ``SQcircuit``;
         store in the ``.descrip_vars`` dictionary for easy access.
         """
 
-        ## dimensions of modes of circuit
+        # dimensions of modes of circuit
         self.descrip_vars['n_modes'] = self.n
         self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
-        harDim = self.descrip_vars['har_dim']
+        har_dim = self.descrip_vars['har_dim']
         self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
         self.descrip_vars['omega'] = self.omega \
                                         / (2 * np.pi * unt.get_unit_freq())
 
         self.descrip_vars['phi_zp'] = (2 * np.pi / unt.Phi0) \
-            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:harDim]
-                                        / np.diag(self.cInvTrans)[:harDim])))
+            * np.sqrt(unt.hbar / (2 * np.sqrt(np.diag(self.lTrans)[:har_dim]
+                                        / np.diag(self.cInvTrans)[:har_dim])))
         self.descrip_vars['ng'] = [self.charge_islands[i].value() \
-                                    for i in range(harDim, self.n)]
+                                    for i in range(har_dim, self.n)]
         self.descrip_vars['EC'] = ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi \
                                        * unt.get_unit_freq())) \
                                     * np.diag(np.repeat(0.5, self.n)) \
@@ -1103,9 +1174,9 @@ class Circuit:
                                       for i in range(len(self.loops))]
 
     def description(
-            self,
-            tp: Optional[str] = None,
-            _test: bool = False,
+        self,
+        tp: Optional[str] = None,
+        _test: bool = False,
     ) -> Optional[str]:
         """Print out Hamiltonian and a listing of the modes (whether they are
         harmonic or charge modes with the frequency for each harmonic mode),
@@ -1136,13 +1207,13 @@ class Circuit:
         else:
             txt = HamilTxt(tp)
 
-        self.compute_params()
+        self._compute_params()
         self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
-        finalTxt = txt.print_circuit_description(self.descrip_vars)
+        final_txt = txt.print_circuit_description(self.descrip_vars)
 
         if _test:
-            return finalTxt
+            return final_txt
 
     def loop_description(self, _test: bool = False) -> Optional[str]:
         """
@@ -1156,26 +1227,13 @@ class Circuit:
 
         Returns
         ----------
-            The text of the external flux distribution, if ``_test`` is ``True``.
+            The text of the external flux distribution, if ``_test`` is
+            ``True``.
         """
         loop_description_txt = HamilTxt.print_loop_description(self)
 
         if _test:
             return loop_description_txt
-
-    @property
-    def trunc_nums(self) -> List[int]:
-        """List of truncation numbers of the circuit. For harmonic modes, these
-        are N where the Hilbert space is 0, 1, …, (N-1) and for charge modes
-        these are N where the Hilbert space is -(N-1), …, 0, …, (N-1).
-        """
-        trunc_nums = []
-        for i in range(self.n):
-            if self._is_charge_mode(i):
-                trunc_nums.append(int((self.m[i] + 1)/2))
-            else:
-                trunc_nums.append(self.m[i])
-        return trunc_nums
 
     def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
@@ -1252,8 +1310,9 @@ class Circuit:
         """
         assert isinstance(mode, int), "Mode number should be an integer"
 
-        assert mode - 1 in self.charge_islands, "The specified mode " \
-                                                "is not a charge mode."
+        assert mode - 1 in self.charge_islands, (
+            "The specified mode is not a charge mode."
+        )
 
         self.charge_islands[mode - 1].setNoise(A)
 
@@ -1533,9 +1592,9 @@ class Circuit:
         return LC_hamil
 
     def _get_external_flux_at_element(
-            self,
-            B_idx: int, 
-            torch = False
+        self,
+        B_idx: int,
+        torch = False
     ) -> Union[float, Tensor]:
         """
         Return the external flux at an inductive element.
@@ -1678,12 +1737,12 @@ class Circuit:
         return None
 
     def op(self, typ: str, keywords: Dict) -> Union[Qobj, Tensor]:
-        """ 
-        Get a saved circuit operator of type ``typ``, specified by keywords 
+        """Get a saved circuit operator of type ``typ``, specified by keywords
         given in the ``keywords`` dict, as a backpropagatable ``Tensor`` object 
-        when ``.get_optim_mode()`` is ``True``. Currently supports the 
+        when ``.get_optim_mode()`` is ``True``. Currently supports the
         following operators:
-            * ``'sin_half'``
+
+        * ``'sin_half'``
 
         Parameters
         ----------
@@ -1709,7 +1768,8 @@ class Circuit:
                 )
 
                 sin_half = (root_exp - sqf.dag(root_exp)) / 2j
-                return sin_half ## TO CHECK: need to squeeze?
+                # ToDo: need to squeeze?
+                return sin_half
             else:
                 return self._memory_ops['sin_half'][el, B_idx]
         else:
@@ -1736,20 +1796,25 @@ class Circuit:
                 on optimization mode.
         """
 
+        assert len(self.m) != 0, (
+            "Please specify the truncation number for each mode."
+        )
+        assert isinstance(n_eig, int), (
+            "n_eig (number of eigenvalues) should be an integer."
+        )
 
-        error1 = "Please specify the truncation number for each mode."
-        assert len(self.m) != 0, error1
-        error2 = "n_eig (number of eigenvalues) should be an integer."
-        assert isinstance(n_eig, int), error2
-
-        H = self.hamiltonian()
+        hamil = self.hamiltonian()
 
         # get the data out of qutip variable and use sparse scipy eigen
         # solver which is faster.
         try:
-            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, which='SR')
+            efreqs, evecs = scipy.sparse.linalg.eigs(
+                hamil.data, k=n_eig, which='SR'
+            )
         except ArpackNoConvergence:
-            efreqs, evecs = scipy.sparse.linalg.eigs(H.data, k = n_eig, ncv=10 * n_eig, which='SR')
+            efreqs, evecs = scipy.sparse.linalg.eigs(
+                hamil.data, k=n_eig, ncv=10*n_eig, which='SR'
+            )
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
@@ -1768,7 +1833,7 @@ class Circuit:
 
         return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
     
-    def diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
+    def _diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
         """Diagonalize the circuit using a Torch Function, so that the 
         calculated eigenvalues/vectors are backpropagatable.
         
@@ -1818,19 +1883,16 @@ class Circuit:
         """
         print("diag called")
         if get_optim_mode():
-            return self.diag_torch(n_eig)
+            return self._diag_torch(n_eig)
         else:
             return self.diag_np(n_eig)
 
-    def truncate_circuit(self, K: int, heuristic=True) -> List[int]:
-        """
-        Set truncation numbers of circuit to ``k=ceil(K^{1/n})`` for all modes, 
-        where ``n`` is the number of modes in the circuit. 
-
-        If ``heuristic`` is true, then the truncation number for each 
-        harmonic mode is weighted by setting
-            ``k_i = k * prod(omega_j^(1/n))/omega_i``
-        All charge modes are left with truncation number ``k`` as above.
+    def truncate_circuit(self, K: int, heuristic=False) -> List[int]:
+        """Set truncation numbers of circuit to ``k=ceil(K^{1/n})`` for all
+        modes, where ``n`` is the number of modes in the circuit. If
+        ``heuristic`` is true, then the truncation number for each harmonic
+        mode is weighted by setting ``k_i = k * prod(omega_j^(1/n))/omega_i``
+        All charge modes are left with truncation number ``K`` as above.
 
         Parameters
         ----------
@@ -1871,8 +1933,7 @@ class Circuit:
 
     def test_convergence(self, eig_vec_idx=1, t=10, epsilon=0.01):
         """
-        Check whether the diaganalization of the circuit has converged. 
-        TODO: update to match paper
+        Check whether the diagonalization of the circuit has converged.
 
         Parameters
         ----------
@@ -1889,7 +1950,9 @@ class Circuit:
                 List of truncation numbers for each mode of circuit
         """
 
-        assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, "Must call circuit.diag before testing convergence"
+        assert self._efreqs.shape[0] != 0 and len(self._evecs) != 0, (
+            "Must call circuit.diag before testing convergence"
+        )
 
         criterion = np.sum(np.abs(sqf.numpy(self._evecs[eig_vec_idx])[-t:]))
 
@@ -2090,9 +2153,9 @@ class Circuit:
         ctype: str,
         nodes: Tuple[int, int]
     ) -> Qobj:
-        """
-        Return the capacitive or inductive coupling operator related to the
+        """Return the capacitive or inductive coupling operator related to the
         specified nodes. The output has the ``qutip.Qobj`` format.
+
         Parameters
         ----------
             ctype:
@@ -2111,7 +2174,6 @@ class Circuit:
         error2 = "Nodes must be a tuple of int"
         assert isinstance(nodes, tuple) or isinstance(nodes, list), error2
 
-        size=self._memory_ops["Q"][0].shape
         op = sqf.init_sparse(shape=self._memory_ops["Q"][0].shape)
 
         node1 = nodes[0]
@@ -2456,9 +2518,10 @@ class Circuit:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (per-element
-                external flux distribution) to use. This specifies which JJ of the
-                circuit to consider specifically (ex. for critical current noise calculation).
+                Optional integer to indicate which row of the B matrix
+                (per-element external flux distribution) to use. This specifies
+                which JJ of the circuit to consider specifically (ex. for
+                critical current noise calculation).
 
         Returns
         ----------
@@ -2491,10 +2554,12 @@ class Circuit:
             loop_idx = self.loops.index(el)
 
             for edge, el_ind, B_idx in self.elem_keys[Inductor]:
-                partial_H += (self.B[B_idx, loop_idx]
-                              * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
-                              / sqf.numpy(el_ind.get_value()) * unt.Phi0 / np.sqrt(unt.hbar)
-                              / 2 / np.pi)
+                partial_H += (
+                    self.B[B_idx, loop_idx]
+                    * self._memory_ops["ind_hamil"][(el_ind, B_idx)]
+                    / sqf.numpy(el_ind.get_value())
+                    * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
+                )
 
             for edge, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
                 partial_H += (self.B[B_idx, loop_idx] * sqf.numpy(el_JJ.get_value())
@@ -2534,9 +2599,10 @@ class Circuit:
                 If ``True``, it subtracts the ground state frequency from the
                 desired frequency.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (per-element
-                external flux distribution) to use. This specifies which JJ of the
-                circuit to consider specifically (ex. for critical current noise calculation).
+                Optional integer to indicate which row of the B matrix
+                (per-element external flux distribution) to use. This specifies
+                which JJ of the circuit to consider specifically (ex. for
+                critical current noise calculation).
 
         Returns
         ----------
@@ -2546,11 +2612,15 @@ class Circuit:
 
         state_m = self._evecs[m]
         partial_H = self._get_partial_H(el, _B_idx)
-        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
+        partial_omega_m = sqf.operator_inner_product(
+            state_m, partial_H, state_m
+        )
 
         if subtract_ground:
             state_0 = self._evecs[0]
-            partial_omega_0 = sqf.operator_inner_product(state_0, partial_H, state_0)
+            partial_omega_0 = sqf.operator_inner_product(
+                state_0, partial_H, state_0
+            )
 
             return sqf.real(partial_omega_m - partial_omega_0)
         else:
@@ -2575,10 +2645,10 @@ class Circuit:
                 Integers indicating indices of eigenenergies to calculate
                 the difference of.
             _B_idx:
-                Optional integer to indicate which row of the B matrix (external flux
-                distribution of that element) to use. This specifies which JJ of the
-                circuit to consider specifically
-                (ex. for critical current noise calculation).
+                Optional integer to indicate which row of the B matrix (external
+                flux distribution of that element) to use. This specifies which
+                JJ of the circuit to consider specifically (ex. for critical
+                current noise calculation).
 
         Returns
         ----------
@@ -2591,10 +2661,14 @@ class Circuit:
 
         partial_H = self._get_partial_H(el, _B_idx)
 
-        partial_omega_m = sqf.operator_inner_product(state_m, partial_H, state_m)
-        partial_omega_n = sqf.operator_inner_product(state_n, partial_H, state_n)
+        partial_omega_m = sqf.operator_inner_product(
+            state_m, partial_H, state_m
+        )
+        partial_omega_n = sqf.operator_inner_product(
+            state_n, partial_H, state_n
+        )
 
-        partial_omega_mn = partial_omega_m -  partial_omega_n
+        partial_omega_mn = partial_omega_m - partial_omega_n
         # assert sqf.imag(partial_omega_mn)/sqf.real(partial_omega_mn) < 1e-6
 
         return sqf.real(partial_omega_mn)
@@ -2619,7 +2693,8 @@ class Circuit:
 
         Returns
         ----------
-            Partial derivative of the ``m``th eigenvector, with respect to ``el``.
+            Partial derivative of the ``m``th eigenvector, with respect to
+            ``el``.
         """
 
         state_m = self._evecs[m]
@@ -2639,50 +2714,9 @@ class Circuit:
                 delta_omega = delta_omega[0]
 
             partial_state += (
-                sqf.operator_inner_product(state_n, partial_H, state_m) * state_n
+                sqf.operator_inner_product(state_n, partial_H, state_m)
+                * state_n
                 / (delta_omega + epsilon)
             )
 
         return partial_state
-
-    def update(self) -> None:
-        """Update the circuit Hamiltonian to reflect in-place changes made to 
-        the scalar values used for circuit elements (ex. C, L, J...).
-        """
-
-        self.elem_keys = {
-            Inductor: [],
-            Junction: [],
-        }
-        self.loops: List[Loop] = []
-
-        self.C, self.L, self.W, self.B = self._get_LCWB()
-        self.R, self.S = np.eye(self.n), np.eye(self.n)
-        self.cInvTrans, self.lTrans, self.wTrans = (
-            np.linalg.inv(sqf.numpy(self.C)),
-            sqf.numpy(self.L).copy(),
-            self.W.copy()
-        )
-        self.omega = np.zeros(self.n)
-        self._transform_hamil()
-
-        self._memory_ops: Dict[str, Union[List[Qobj],
-                                          List[List[Qobj]], dict]] = {
-            "Q": [],  # list of charge operators (normalized by 1/sqrt(hbar))
-            "QQ": [[]],  # list of charge times charge operators
-            "phi": [],  # list of flux operators (normalized by 1/sqrt(hbar))
-            "N": [],  # list of number operators
-            "exp": [],  # List of exponential operators
-            "root_exp": [],  # List of square root of exponential operators
-            "cos": {},  # List of cosine operators
-            "sin": {},  # List of sine operators
-            "sin_half": {},  # list of sin(phi/2)
-            "ind_hamil": {},  # list of w^T*phi that appears in Hamiltonian
-        }
-
-        self._build_op_memory()
-        self._LC_hamil = self._get_LC_hamil()
-        self._build_exp_ops()
-
-        self._efreqs = sqf.array([])
-        self._evecs = []

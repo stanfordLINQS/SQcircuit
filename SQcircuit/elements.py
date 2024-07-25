@@ -26,7 +26,7 @@ from SQcircuit.settings import get_optim_mode
 ###############################################################################
 
 
-class kn_solver(torch.autograd.Function):
+class KnSolver(torch.autograd.Function):
     @staticmethod
     def forward(ctx, n: int, x):
         ctx.save_for_backward(x)
@@ -80,9 +80,9 @@ class Element:
 
         self._value.requires_grad = f
 
-    def set_value_with_error(self, mean: float, error: float) -> None:
-        mean_th = torch.as_tensor(mean, dtype=float)
-        error_th = torch.as_tensor(error, dtype=float)
+    def _set_value_with_error(self, mean: float, error: float) -> None:
+        mean_th = torch.as_tensor(mean, dtype=torch.float64)
+        error_th = torch.as_tensor(error, dtype=torch.float64)
 
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
         self._value = sampled_value
@@ -94,17 +94,17 @@ class Element:
         raise NotImplementedError
 
     @staticmethod
-    def get_default_id_str(s: str, v: float, u: str) -> str:
+    def _get_default_id_str(s: str, v: float, u: str) -> str:
         """Get the default string ID for the element.
         
         Parameters
         ----------
-        s:
-            The initial string of the id_string.
-        v:
-            The value of the element as float number.
-        u:
-            The unit of the element as string.
+            s:
+                The initial string of the id_string.
+            v:
+                The value of the element as float number.
+            u:
+                The unit of the element as string.
         """
         assert isinstance(s, str), "The input must have string format."
 
@@ -116,24 +116,26 @@ class Capacitor(Element):
     
     Parameters
     ----------
-    value:
-        The value of the capacitor.
-    unit:
-        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
-        the value specifies the charging energy of the capacitor. If ``unit``
-        is "fF", "pF", and ,etc., the value specifies the capacitance in
-        farad. If ``unit`` is ``None``, the default unit of capacitor is "GHz".
-    requires_grad:
-        A boolean variable specifies if the autograd should record operation
-        on this element.
-    Q:
-        Quality factor of the dielectric of the capacitor which is one over
-        tangent loss. It can be either a float number or a Python function of
-        angular frequency.
-    error:
-        The error of fabrication in percentage.
-    id_str:
-        ID string for the capacitor.
+        value:
+            The value of the capacitor.
+        unit:
+            The unit of input value. If ``unit`` is "THz", "GHz", and, etc.,
+            the value specifies the charging energy of the capacitor. If
+            ``unit`` is "fF", "pF", and, etc., the value specifies the
+            capacitance in farad. If ``unit`` is ``None``, the default unit of
+            capacitor is "GHz".
+        requires_grad:
+            A boolean variable that specifies whether autograd should record
+            operations on this element. This feature is specific to the
+            ``PyTorch`` engine.
+        Q:
+            Quality factor of the dielectric of the capacitor which is one
+            over tangent loss. It can be either a float number or a Python
+            function of angular frequency.
+        error:
+            The error of fabrication in percentage.
+        id_str:
+            ID string for the capacitor.
     """
     value_unit = "F"
 
@@ -159,14 +161,14 @@ class Capacitor(Element):
             self.requires_grad = requires_grad
 
         if Q == "default":
-            self.Q = self._default_Q_cap
+            self.Q = self._default_q_cap
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega: Q
         else:
             self.Q = Q
 
         if id_str is None:
-            self.id_str = self.get_default_id_str("C", value, unit)
+            self.id_str = self._get_default_id_str("C", value, unit)
         else:
             self.id_str = id_str
 
@@ -197,10 +199,10 @@ class Capacitor(Element):
         if u in unt.farad_list:
             mean = v * unt.farad_list[u]
         else:
-            E_c = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
-            mean = unt.e ** 2 / 2 / E_c
+            energy = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
+            mean = unt.e ** 2 / 2 / energy
 
-        self.set_value_with_error(mean, e)
+        self._set_value_with_error(mean, e)
 
     def get_value(self, u: str = "F") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -227,7 +229,7 @@ class Capacitor(Element):
         return edge_mat
 
     @staticmethod
-    def _default_Q_cap(omega):
+    def _default_q_cap(omega):
         """Default function for capacitor quality factor."""
 
         return 1e6 * (2 * np.pi * 6e9 / np.abs(sqf.numpy(omega)))**0.7
@@ -250,29 +252,31 @@ class Inductor(Element):
     
     Parameters
     ----------
-    value:
-        The value of the inductor.
-    unit:
-        The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
-        the value specifies the inductive energy of the inductor. If ``unit``
-        is "fH", "pH", and ,etc., the value specifies the inductance in henry.
-        If ``unit`` is ``None``, the default unit of inductor is "GHz".
-    requires_grad:
-        A boolean variable specifies if the autograd should record operation
-        on this element.
-    loops:
-        List of loops in which the inductor resides.
-    cap:
-        Capacitor associated to the inductor, necessary for correct
-        time-dependent external fluxes scheme.
-    Q:
-        Quality factor of the inductor needed for inductive loss calculation.
-        It can be either a float number or a Python function of angular
-        frequency and temperature.
-    error:
-        The error in fabrication as a percentage.
-    id_str:
-        ID string for the inductor.
+        value:
+            The value of the inductor.
+        unit:
+            The unit of input value. If ``unit`` is "THz", "GHz", and ,etc.,
+            the value specifies the inductive energy of the inductor. If
+            ``unit`` is "fH", "pH", and ,etc., the value specifies the
+            inductance in henry. If ``unit`` is ``None``, the default unit of
+            inductor is "GHz".
+        requires_grad:
+            A boolean variable that specifies whether autograd should record
+            operations on this element. This feature is specific to the
+            ``PyTorch`` engine.
+        loops:
+            List of loops in which the inductor resides.
+        cap:
+            Capacitor associated to the inductor, necessary for correct
+            time-dependent external fluxes scheme.
+        Q:
+            Quality factor of the inductor needed for inductive loss
+            calculation. It can be either a float number or a Python function of
+            angular frequency and temperature.
+        error:
+            The error in fabrication as a percentage.
+        id_str:
+            ID string for the inductor.
     """
     value_unit = "H"
 
@@ -310,14 +314,14 @@ class Inductor(Element):
             self.loops = loops
 
         if Q == "default":
-            self.Q = self._default_Q_ind
+            self.Q = self._default_q_ind
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega, T: Q
         else:
             self.Q = Q
 
         if id_str is None:
-            self.id_str = self.get_default_id_str("L", value, unit)
+            self.id_str = self._get_default_id_str("L", value, unit)
         else:
             self.id_str = id_str
 
@@ -325,9 +329,11 @@ class Inductor(Element):
     def _check_unit_format(u):
         """Check if the unit input has the correct format."""
 
-        if (u not in unt.freq_list and
-                u not in unt.henry_list and
-                u is not None):
+        if (
+            u not in unt.freq_list and
+            u not in unt.henry_list and
+            u is not None
+        ):
             raise_unit_error()
 
     def set_value(self, v: float, u: str = 'H', e: float = 0.0) -> None:
@@ -348,10 +354,10 @@ class Inductor(Element):
         if u in unt.henry_list:
             mean = v * unt.henry_list[u]
         else:
-            E_l = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
-            mean = (unt.Phi0/2/np.pi)**2 / E_l
+            energy = v * unt.freq_list[u] * (2*np.pi*unt.hbar)
+            mean = (unt.Phi0/2/np.pi)**2 / energy
 
-        self.set_value_with_error(mean, e)
+        self._set_value_with_error(mean, e)
 
     def get_value(self, u: str = "H") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -374,7 +380,7 @@ class Inductor(Element):
             raise_unit_error()
 
     @staticmethod
-    def _default_Q_ind(omega, T):
+    def _default_q_ind(omega, T):
         """Default function for inductor quality factor."""
 
         alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
@@ -421,32 +427,33 @@ class Junction(Element):
     
     Parameters
     -----------
-    value:
-        The value of the Josephson junction.
-    unit: str
-        The unit of input value. The ``unit`` can be "THz", "GHz", and ,etc.,
-        that specifies the junction energy of the inductor. If ``unit`` is
-        ``None``, the default unit of junction is "GHz".
-    requires_grad:
-        A boolean variable specifies if the autograd should record operation
-        on this element.
-    loops:
-        List of loops in which the Josephson junction reside.
-    cap:
-        Capacitor associated to the josephson junction, necessary for the
-        correct time-dependent external fluxes scheme.
-    A:
-        Normalized noise amplitude related to critical current noise.
-    x:
-        Quasiparticle density
-    delta:
-        Superconducting gap
-    Y:
-        Real part of admittance.
-    error:
-        The error in fabrication as a percentage.
-    id_str:
-        ID string for the junction.
+        value:
+            The value of the Josephson junction.
+        unit: str
+            The unit of input value. The ``unit`` can be "THz", "GHz", and
+            ,etc., that specifies the junction energy of the inductor. If
+            ``unit`` is ``None``, the default unit of junction is "GHz".
+        requires_grad:
+            A boolean variable that specifies whether autograd should record
+            operations on this element. This feature is specific to the
+            ``PyTorch`` engine.
+        loops:
+            List of loops in which the Josephson junction reside.
+        cap:
+            Capacitor associated to the josephson junction, necessary for the
+            correct time-dependent external fluxes scheme.
+        A:
+            Normalized noise amplitude related to critical current noise.
+        x:
+            Quasiparticle density
+        delta:
+            Superconducting gap
+        Y:
+            Real part of admittance.
+        error:
+            The error in fabrication as a percentage.
+        id_str:
+            ID string for the junction.
     """
     value_unit = "Hz"
 
@@ -488,12 +495,12 @@ class Junction(Element):
             self.loops = loops
 
         if Y == "default":
-            self.Y = self._get_default_Y_func(delta, x)
+            self.Y = self.__get_default_y_func(delta, x)
         else:
             self.Y = Y
 
         if id_str is None:
-            self.id_str = self.get_default_id_str("JJ", value, unit)
+            self.id_str = self._get_default_id_str("JJ", value, unit)
         else:
             self.id_str = id_str
 
@@ -521,7 +528,7 @@ class Junction(Element):
 
         mean = v * unt.freq_list[u] * 2 * np.pi
 
-        self.set_value_with_error(mean, e)
+        self._set_value_with_error(mean, e)
 
     def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
@@ -562,12 +569,12 @@ class Junction(Element):
             return VeryLargeCap().get_value()
 
     @staticmethod
-    def _get_default_Y_func(
+    def __get_default_y_func(
         delta: float,
         x: float
     ) -> Callable[[Union[float, Tensor]], float]:
 
-        def _default_Y_junc(
+        def _default_y_junc(
             omega: Union[float, Tensor],
             T: float
         ) -> Union[float, Tensor]:
@@ -577,10 +584,10 @@ class Junction(Element):
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * sqf.sqrt(alpha) * kn_solver.apply(0, alpha) * sqf.sinh(alpha)
+                * x * sqf.sqrt(alpha) * KnSolver.apply(0, alpha) * sqf.sinh(alpha)
             return y
 
-        return _default_Y_junc
+        return _default_y_junc
 
 
 class Loop:
@@ -590,7 +597,11 @@ class Loop:
     Parameters
     ----------
         value:
-            Value of the external flux at the loop.
+            Value of the external flux in the loop.
+        requires_grad:
+            A boolean variable that specifies whether autograd should record
+            operations on this loop. This feature is specific to the ``PyTorch``
+            engine.
         A:
             Normalized noise amplitude related to flux noise.
         id_str:
@@ -620,6 +631,19 @@ class Loop:
             self.id_str = "loop"
         else:
             self.id_str = id_str
+
+    @property
+    def requires_grad(self) -> bool:
+        raise_optim_error_if_needed()
+
+        return self.lpValue.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, f: bool) -> None:
+
+        raise_optim_error_if_needed()
+
+        self.lpValue.requires_grad = f
 
     def reset(self) -> None:
         self.K1 = []
@@ -674,19 +698,6 @@ class Loop:
         return p.T
 
     @property
-    def requires_grad(self) -> bool:
-        raise_optim_error_if_needed()
-
-        return self.lpValue.requires_grad
-
-    @requires_grad.setter
-    def requires_grad(self, f: bool) -> None:
-
-        raise_optim_error_if_needed()
-
-        self.lpValue.requires_grad = f
-
-    @property
     def internal_value(self) -> Union[float, Tensor]:
         return self.lpValue
 
@@ -709,9 +720,8 @@ class Charge:
         self.A = A
 
     def value(self, random: bool = False) -> float:
-        """
-        returns the value of charge bias. If random flag is true, it samples
-        from a normal distribution.
+        """Returns the value of charge bias. If ``random`` flag is true, it
+        samples from a normal distribution.
         inputs:
             -- random: A flag which specifies whether the output is picked
                 deterministically or randomly.
