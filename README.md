@@ -1,7 +1,7 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_logo.png">
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_zeroPi.png">
-  <img alt="Description of your image" src="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_zeroPi.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/dark_logo.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/dark_logo.svg">
+  <img alt="Logo image" src="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/dark_logo.svg">
 </picture>
 
 # SQcircuit: Superconducting Quantum Circuit Analyzer
