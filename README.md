@@ -1,7 +1,8 @@
-<br />
-<p align="center">
-<img src = pics/README_logo.png width= 500px" />
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_logo.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_zeroPi.png">
+  <img alt="Description of your image" src="https://github.com/stanfordLINQS/SQcircuit/blob/dev-tq/pics/README_zeroPi.png">
+</picture>
 
 # SQcircuit: Superconducting Quantum Circuit Analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
