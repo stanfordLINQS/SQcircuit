@@ -251,7 +251,7 @@ class Circuit:
         * Coupling operators
         * Matrix elements
         * Decoherence rates
-        * Gradients of Hamiltonian, eigenvalues/vectors , and Decoherence
+        * Gradients of Hamiltonian, eigenvalues/vectors, and decoherence rates
 
     Parameters
     ----------

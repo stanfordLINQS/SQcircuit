@@ -8,7 +8,12 @@ from SQcircuit.storage import *
 from SQcircuit.units import *
 from SQcircuit.systems import *
 
-from SQcircuit.settings import set_optim_mode
+from SQcircuit.settings import (
+    set_optim_mode,
+    get_optim_mode,
+    set_engine,
+    get_engine
+)
 from SQcircuit.torch_extensions import set_max_eigenvector_grad
 
 import qutip
