@@ -128,7 +128,7 @@ class CircuitEdge:
         for loop in el.loops:
             self.circ.add_loop(loop)
             loop.add_index(B_idx)
-            loop.addK1(self.w)
+            loop.add_K1(self.w)
 
             if get_optim_mode():
                 self.circ.add_to_parameters(loop)
@@ -490,10 +490,12 @@ class Circuit:
 
     @property
     def parameters(self) -> List[Tensor]:
-        """The values of the elements in the circuit which require gradient.
-        The parameters can be set by a list of new values for each of the
-        elements. Only valid if ``get_optim_mode() = True`` or we are
-        using ``PyTorch`` engine of SQcircuit.
+        """The values of the elements in the circuit which require gradients
+        to be computed (either leaf tensors wtih ``requires_grad == True``, or
+        non-leaf tensors). The parameters can be set by a list of new values
+        for each of the elements.
+    
+        Only available when using the ``PyTorch`` engine of ``SQcircuit``.
         """
         raise_optim_error_if_needed()
 
@@ -557,7 +559,10 @@ class Circuit:
             val.grad=None
 
     def add_to_parameters(self, el: Element) -> None:
-        """Add an element with ``requires_grad=True`` to parameters.
+        """Add an element which requires gradient computation to ``.parameters``.
+        Either
+            - ``requires_grad`` is ``True``; or
+            - the element is not a leaf tensor.
 
         Parameters
         ----------
@@ -600,8 +605,8 @@ class Circuit:
         # Instantiate new container
         new_circuit = copy(self)
 
-        # When `get_optim_mode()`, SQcircuit contains many tensor values, which
-        # may not be leafs. These don't implement a deepcopy method, so
+        # When using the PyTorch engine, SQcircuit contains many tensor values,
+        # which may not be leafs. These don't implement a deepcopy method, so
         # need to be explicitly detached/cloned.
         if get_optim_mode():
             # Capacitance and inductance matrices are constructed from
@@ -788,7 +793,7 @@ class Circuit:
             X = K1.T @ np.diag(sqf.numpy(c_edge_mat))
             for loop in self.loops:
                 p = np.zeros((1, B_idx))
-                p[0, loop.indices] = loop.getP()
+                p[0, loop.indices] = loop.get_P()
                 X = np.concatenate((X, p), axis=0)
 
             # number of inductive loops of the circuit
@@ -1290,9 +1295,9 @@ class Circuit:
             raise ValueError('The specified mode is not a charge mode.')
 
         if len(self.m) == 0:
-            self.charge_islands[mode - 1].setOffset(ng)
+            self.charge_islands[mode - 1].set_offset(ng)
         else:
-            self.charge_islands[mode - 1].setOffset(ng)
+            self.charge_islands[mode - 1].set_offset(ng)
 
             self._build_op_memory()
 
@@ -1738,7 +1743,7 @@ class Circuit:
     def op(self, typ: str, keywords: Dict) -> Union[Qobj, Tensor]:
         """Get a saved circuit operator of type ``typ``, specified by keywords
         given in the ``keywords`` dict, as a backpropagatable ``Tensor`` object 
-        when ``.get_optim_mode()`` is ``True``. Currently supports the
+        when using the ``'PyTorch'`` engine. Currently supports the
         following operators:
 
         * ``'sin_half'``
@@ -1792,7 +1797,7 @@ class Circuit:
                 Array of eigenfrequencies in frequency unit of SQcircuit.
             evecs:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
-                on optimization mode.
+                on numerical engine.
         """
         if len(self.m) == 0:
             raise CircuitStateError('Please specify the truncation number for each mode.')
@@ -1879,7 +1884,7 @@ class Circuit:
                 (gigahertz by default).
             evecs:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
-                on optimization mode.
+                on numerical engine.
         """
         print('diag called')
         if get_optim_mode():

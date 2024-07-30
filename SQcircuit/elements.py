@@ -44,12 +44,8 @@ class KnSolver(torch.autograd.Function):
 # Elements
 ###############################################################################
 
-
-class Element:
-    """Class that contains general properties of elements."""
-
-    _error = None
-    _value = None
+class CircuitComponent:
+    """Base class for circuit components which users can optimize."""
 
     @property
     def internal_value(self) -> Union[float, Tensor]:
@@ -60,18 +56,16 @@ class Element:
         self._value = v
 
     @property
-    def error(self) -> float:
-        return self._error
-
-    @error.setter
-    def error(self, e: float) -> None:
-        self._error = e
-
-    @property
     def requires_grad(self) -> bool:
         raise_optim_error_if_needed()
 
         return self.internal_value.requires_grad
+
+    @requires_grad.setter
+    def requires_grad(self, f: bool) -> None:
+        raise_optim_error_if_needed()
+
+        self._value.requires_grad = f
 
     @property
     def is_leaf(self) -> bool:
@@ -79,25 +73,33 @@ class Element:
 
         return self.internal_value.is_leaf
 
-    @requires_grad.setter
-    def requires_grad(self, f: bool) -> None:
-
+    @property
+    def grad(self) -> Tensor:
         raise_optim_error_if_needed()
 
-        self._value.requires_grad = f
+        return self.internal_value.grad
+
+
+class Element(CircuitComponent):
+    """Class that contains general properties of circuit elements."""
+
+    @property
+    def error(self) -> float:
+        return self._error
+
+    @error.setter
+    def error(self, e: float) -> None:
+        self._error = e
 
     def _set_value_with_error(self, mean: float, error: float) -> None:
         mean_th = torch.as_tensor(mean, dtype=torch.float64)
         error_th = torch.as_tensor(error, dtype=torch.float64)
 
         sampled_value = torch.normal(mean_th, mean_th*error_th/100)
-        self._value = sampled_value
+        self.internal_value = sampled_value
 
         if not get_optim_mode():
-            self._value = float(self._value.detach().cpu().numpy())
-
-    def get_value(self) -> Union[float, Tensor]:
-        raise NotImplementedError
+            self.internal_value = float(self.internal_value.detach().cpu().numpy())
 
     @staticmethod
     def _get_default_id_str(s: str, v: float, u: str) -> str:
@@ -597,7 +599,7 @@ class Junction(Element):
         return _default_y_junc
 
 
-class Loop:
+class Loop(CircuitComponent):
     """Class that contains the inductive loop properties, closed path of
     inductive elements.
     
@@ -639,31 +641,12 @@ class Loop:
         else:
             self.id_str = id_str
 
-    @property
-    def requires_grad(self) -> bool:
-        raise_optim_error_if_needed()
-
-        return self.lpValue.requires_grad
-
-    @requires_grad.setter
-    def requires_grad(self, f: bool) -> None:
-
-        raise_optim_error_if_needed()
-
-        self.lpValue.requires_grad = f
-
-    @property
-    def is_leaf(self) -> bool:
-        raise_optim_error_if_needed()
-
-        return self.internal_value.is_leaf
-
     def reset(self) -> None:
         self.K1 = []
         self.indices = []
 
     def value(self, random: bool = False) -> float:
-        """Return the value of the external flux. If `random` is `True`, it
+        """Return the value of the external flux. If ``random`` is `True``, it
         samples from a normal distribution with variance defined by the flux
         noise amplitude.
         
@@ -674,9 +657,9 @@ class Loop:
                 deterministic or random.
         """
         if not random:
-            return self.lpValue
+            return self.internal_value
         else:
-            return np.random.normal(self.lpValue, self.A, 1)[0]
+            return np.random.normal(self.internal_value, self.A, 1)[0]
 
     def set_flux(self, value: float) -> None:
         """Set the external flux associated to the loop.
@@ -689,15 +672,18 @@ class Loop:
         if get_optim_mode():
             value = torch.as_tensor(value)
 
-        self.lpValue = value * 2 * np.pi
+        self.internal_value = value * 2 * np.pi
+
+    def set_noise(self, A: float) -> None:
+        self.A = A
 
     def add_index(self, index):
         self.indices.append(index)
 
-    def addK1(self, w):
+    def add_K1(self, w):
         self.K1.append(w)
 
-    def getP(self):
+    def get_P(self):
         K1 = np.array(self.K1)
         a = np.zeros_like(K1)
         select = np.sum(K1 != a, axis=0) != 0
@@ -710,42 +696,38 @@ class Loop:
         p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
         return p.T
 
-    @property
-    def internal_value(self) -> Union[float, Tensor]:
-        return self.lpValue
-
-    @internal_value.setter
-    def internal_value(self, v: Union[float, Tensor]) -> None:
-        self.lpValue = v
-
 
 class Charge:
     """Class that contains the charge island properties.
-    """
 
+    Parameters
+    ----------
+        value:
+            The value of the charge offset.
+        noise:
+            The amplitude of the charge noise.
+    """
     def __init__(self, value: float = 0, A: float = 1e-4) -> None:
-        """
-       inputs:
-            -- value: The value of the offset.
-            -- noise: The amplitude of the charge noise.
-        """
         self.chValue = value
         self.A = A
 
     def value(self, random: bool = False) -> float:
         """Returns the value of charge bias. If ``random`` flag is true, it
         samples from a normal distribution.
-        inputs:
-            -- random: A flag which specifies whether the output is picked
+
+        Parameters
+        ----------
+            random:
+                A flag which specifies whether the output is picked 
                 deterministically or randomly.
         """
         if not random:
             return self.chValue
         else:
-            return np.random.normal(self.chValue, self.noise, 1)[0]
+            return np.random.normal(self.chValue, self.A)
 
-    def setOffset(self, value: float) -> None:
+    def set_offset(self, value: float) -> None:
         self.chValue = value
 
-    def setNoise(self, A: float) -> None:
+    def set_noise(self, A: float) -> None:
         self.A = A

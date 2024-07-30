@@ -4,6 +4,7 @@ functionalities.
 import torch
 
 import SQcircuit as sq
+from SQcircuit.settings import set_optim_mode
 
 
 def is_close(x, y, err) -> bool:
@@ -17,7 +18,7 @@ def test_coupled_fluxonium():
     """Test forward and backward pass of system modules for coupled
     Fluxonium."""
 
-    sq.set_optim_mode(True)
+    set_optim_mode(True)
 
     loop1 = sq.Loop()
     loop2 = sq.Loop()
@@ -93,11 +94,11 @@ def test_coupled_fluxonium():
     # assert is_close(l_sq_grad, l_sys_grad, 2e-2)
     assert is_close(jj_sq_grad, jj_sys_grad, 20e-2)
 
-    sq.set_optim_mode(False)
+    set_optim_mode(False)
 
 
 def test_three_coupled_transmon():
-    sq.set_optim_mode(True)
+    set_optim_mode(True)
 
     # define the circuit elements
     C_1 = sq.Capacitor(70, "fF", requires_grad=True)
@@ -185,4 +186,4 @@ def test_three_coupled_transmon():
     assert is_close(jj2_sq_grad, jj2_sys_grad, 2e-2)
     assert is_close(jjc_sq_grad, jjc_sys_grad, 25e-2)
 
-    sq.set_optim_mode(False)
+    set_optim_mode(False)

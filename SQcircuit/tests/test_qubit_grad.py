@@ -6,6 +6,7 @@ qubits.
 import numpy as np
 
 import SQcircuit as sq
+from SQcircuit.settings import set_optim_mode
 
 
 def _get_grad_val_test(val1, val2, delta):
@@ -81,7 +82,7 @@ def _get_fluxonium_efreqs(
 
 
 def test_fluxonium_grad():
-    sq.set_optim_mode(False)
+    set_optim_mode(False)
     c_val = 3
     l_val = 0.353
     j_val = 10.2
@@ -193,7 +194,7 @@ def _get_zeropi_efreqs(
 
 
 def test_zeropi_grad():
-    sq.set_optim_mode(False)
+    set_optim_mode(False)
     c_val = 129
     cj_val = 1.93
     l_val = 1.257

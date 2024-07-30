@@ -11,6 +11,9 @@ ACC = {
 _OPTIM_MODE = False
 _ENG = 'numpy'
 
+SUPPORTED_ENGINES = ['NumPy', 'PyTorch']
+SUPPORTED_OPTIM_ENGINES = ['PyTorch']
+
 def set_engine(eng: str) -> None:
     """Choose the internal numerical package for ``SQcircuit` to use.  This
     sets the type of objects used for element values, computed eigenfrequencies
@@ -33,7 +36,11 @@ def set_engine(eng: str) -> None:
     elif eng == 'pytorch':
         set_optim_mode(True)
     else:
-        raise ValueError("Invalid engine passed. Currently SQcircuit supports 'NumPy' and 'PyTorch'")
+        raise ValueError(
+            'Invalid engine passed. Currently SQcircuit supports '
+            + ' and '.join([f"'{eng}'" for eng in SUPPORTED_ENGINES])
+            + '.'
+        )
 
     _ENG = eng
 
