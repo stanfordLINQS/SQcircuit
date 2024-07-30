@@ -63,7 +63,7 @@ class System:
             different part of the system.
     """
 
-    def __init__(self, couplings: List["Couple"]) -> None:
+    def __init__(self, couplings: List['Couple']) -> None:
 
         self.couplings = couplings
 
@@ -265,10 +265,10 @@ class System:
         """
 
         node_in_subsys, m_sub_idx = self._node_idx_in_sub_sys(m)
-        Q_m = self.circuits[m_sub_idx].charge_op(node_in_subsys, basis="eig")
+        Q_m = self.circuits[m_sub_idx].charge_op(node_in_subsys, basis='eig')
 
         node_in_subsys, n_sub_idx = self._node_idx_in_sub_sys(n)
-        Q_n = self.circuits[n_sub_idx].charge_op(node_in_subsys, basis="eig")
+        Q_n = self.circuits[n_sub_idx].charge_op(node_in_subsys, basis='eig')
 
         return self._op_times_op_in_sys(Q_m, m_sub_idx, Q_n, n_sub_idx)
 

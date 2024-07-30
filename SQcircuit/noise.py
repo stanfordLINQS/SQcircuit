@@ -8,10 +8,10 @@ import SQcircuit.units as unt
 
 
 ENV = {
-    "T":  0.015,    # temperature
-    "omega_low": 2 * np.pi,    # low-frequency cut off
-    "omega_high": 2 * np.pi * 3 * 1e9,    # high-frequency cut off
-    "t_exp": 10e-6,    # experiment time
+    'T':  0.015,    # temperature
+    'omega_low': 2 * np.pi,    # low-frequency cut off
+    'omega_high': 2 * np.pi * 3 * 1e9,    # high-frequency cut off
+    't_exp': 10e-6,    # experiment time
 }
 
 
@@ -27,7 +27,7 @@ def set_temp(T: float) -> None:
 
     global ENV
 
-    ENV["T"] = T
+    ENV['T'] = T
 
 
 def set_low_freq(value: float, unit: str) -> None:
@@ -45,7 +45,7 @@ def set_low_freq(value: float, unit: str) -> None:
 
     global ENV
 
-    ENV["omega_low"] = 2 * np.pi * value * unt.freq_list[unit]
+    ENV['omega_low'] = 2 * np.pi * value * unt.freq_list[unit]
 
 
 def set_high_freq(value: float, unit: str) -> None:
@@ -63,7 +63,7 @@ def set_high_freq(value: float, unit: str) -> None:
 
     global ENV
 
-    ENV["omega_high"] = 2 * np.pi * value * unt.freq_list[unit]
+    ENV['omega_high'] = 2 * np.pi * value * unt.freq_list[unit]
 
 
 def set_t_exp(value: float, unit: str) -> None:
@@ -81,7 +81,7 @@ def set_t_exp(value: float, unit: str) -> None:
 
     global ENV
 
-    ENV["t_exp"] = value * unt.time_list[unit]
+    ENV['t_exp'] = value * unt.time_list[unit]
 
 
 def reset_to_default() -> None:

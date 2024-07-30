@@ -147,7 +147,7 @@ class HamilTxt:
         ns = 5
 
         # header with names of loops
-        header = (nr + ns + len(", b1:")) * " "
+        header = (nr + ns + len(', b1:')) * " "
         header += (' ' * 10).join([f'{lp.id_str:{nh}}' for lp in cr.loops])
 
         loop_description_txt = header + '\n'
@@ -167,7 +167,7 @@ class HamilTxt:
 
             id_str = el.id_str
             row = f'{id_str:{nr}}' + f'{{:{ns + len(", b1:")}}}'.format(', b' + str(i+1) + ':')
-            row += ('').join([f'{np.round(np.abs(cr.B[i, j]), 2):<{nh + 10}}' 
+            row += ('').join([f'{np.round(np.abs(cr.B[i, j]), 2):<{nh + 10}}'
                               for j in range(nl)])
             loop_description_txt += row + '\n'
 

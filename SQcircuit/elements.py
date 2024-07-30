@@ -112,7 +112,8 @@ class Element:
             u:
                 The unit of the element as string.
         """
-        assert isinstance(s, str), "The input must have string format."
+        if not isinstance(s, str):
+            raise ValueError('The input must be a string.')
 
         return (s + "_{}_{}").format(v, u)
 
@@ -150,7 +151,7 @@ class Capacitor(Element):
         value: float,
         unit: Optional[str] = None,
         requires_grad: bool = False,
-        Q: Union[Any, Callable[[float], float]] = "default",
+        Q: Union[Any, Callable[[float], float]] = 'default',
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
@@ -166,7 +167,7 @@ class Capacitor(Element):
         if requires_grad:
             self.requires_grad = requires_grad
 
-        if Q == "default":
+        if Q == 'default':
             self.Q = self._default_q_cap
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega: Q
@@ -174,7 +175,7 @@ class Capacitor(Element):
             self.Q = Q
 
         if id_str is None:
-            self.id_str = self._get_default_id_str("C", value, unit)
+            self.id_str = self._get_default_id_str('C', value, unit)
         else:
             self.id_str = id_str
 
@@ -210,7 +211,7 @@ class Capacitor(Element):
 
         self._set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "F") -> Union[float, Tensor]:
+    def get_value(self, u: str = 'F') -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -244,13 +245,13 @@ class Capacitor(Element):
 class VerySmallCap(Capacitor):
 
     def __init__(self):
-        super().__init__(1e-20, "F", Q=None)
+        super().__init__(1e-20, 'F', Q=None)
 
 
 class VeryLargeCap(Capacitor):
 
     def __init__(self):
-        super().__init__(1e20, "F", Q=None)
+        super().__init__(1e20, 'F', Q=None)
 
 
 class Inductor(Element):
@@ -284,17 +285,17 @@ class Inductor(Element):
         id_str:
             ID string for the inductor.
     """
-    value_unit = "H"
+    value_unit = 'H'
 
     def __init__(
             self,
             value: float,
             unit: str = None,
             requires_grad: bool = False,
-            cap: Optional["Capacitor"] = None,
-            Q: Union[Any, Callable[[float, float], float]] = "default",
+            cap: Optional['Capacitor'] = None,
+            Q: Union[Any, Callable[[float, float], float]] = 'default',
             error: float = 0,
-            loops: Optional[List["Loop"]] = None,
+            loops: Optional[List['Loop']] = None,
             id_str: Optional[str] = None
     ) -> None:
 
@@ -319,7 +320,7 @@ class Inductor(Element):
         else:
             self.loops = loops
 
-        if Q == "default":
+        if Q == 'default':
             self.Q = self._default_q_ind
         elif isinstance(Q, float) or isinstance(Q, int):
             self.Q = lambda omega, T: Q
@@ -327,7 +328,7 @@ class Inductor(Element):
             self.Q = Q
 
         if id_str is None:
-            self.id_str = self._get_default_id_str("L", value, unit)
+            self.id_str = self._get_default_id_str('L', value, unit)
         else:
             self.id_str = id_str
 
@@ -365,7 +366,7 @@ class Inductor(Element):
 
         self._set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "H") -> Union[float, Tensor]:
+    def get_value(self, u: str = 'H') -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -411,9 +412,9 @@ class Inductor(Element):
 
         if flux_dist == 'all':
             return self.cap.get_value()
-        elif flux_dist == "junctions":
+        elif flux_dist == 'junctions':
             return VeryLargeCap().get_value()
-        elif flux_dist == "inductors":
+        elif flux_dist == 'inductors':
             return VerySmallCap().get_value()
 
     def partial_mat(self, edge_mat: ndarray) -> ndarray:
@@ -461,7 +462,7 @@ class Junction(Element):
         id_str:
             ID string for the junction.
     """
-    value_unit = "Hz"
+    value_unit = 'Hz'
 
     def __init__(
         self,
@@ -472,9 +473,9 @@ class Junction(Element):
         A: float = 1e-7,
         x: float = 3e-06,
         delta: float = 3.4e-4,
-        Y: Union[Any, Callable[[float, float], float]] = "default",
+        Y: Union[Any, Callable[[float, float], float]] = 'default',
         error: float = 0,
-        loops: Optional[List["Loop"]] = None,
+        loops: Optional[List['Loop']] = None,
         id_str: Optional[str] = None,
     ) -> None:
 
@@ -500,13 +501,13 @@ class Junction(Element):
         else:
             self.loops = loops
 
-        if Y == "default":
+        if Y == 'default':
             self.Y = self.__get_default_y_func(delta, x)
         else:
             self.Y = Y
 
         if id_str is None:
-            self.id_str = self._get_default_id_str("JJ", value, unit)
+            self.id_str = self._get_default_id_str('JJ', value, unit)
         else:
             self.id_str = id_str
 
@@ -536,7 +537,7 @@ class Junction(Element):
 
         self._set_value_with_error(mean, e)
 
-    def get_value(self, u: str = "Hz") -> Union[float, Tensor]:
+    def get_value(self, u: str = 'Hz') -> Union[float, Tensor]:
         """Return the value of the element in specified unit.
         
         Parameters
@@ -569,9 +570,9 @@ class Junction(Element):
 
         if flux_dist == 'all':
             return self.cap.get_value()
-        elif flux_dist == "junctions":
+        elif flux_dist == 'junctions':
             return VerySmallCap().get_value()
-        elif flux_dist == "inductors":
+        elif flux_dist == 'inductors':
             return VeryLargeCap().get_value()
 
     @staticmethod
@@ -634,7 +635,7 @@ class Loop:
         self.K1 = []
 
         if id_str is None:
-            self.id_str = "loop"
+            self.id_str = 'loop'
         else:
             self.id_str = id_str
 
@@ -650,7 +651,7 @@ class Loop:
         raise_optim_error_if_needed()
 
         self.lpValue.requires_grad = f
-        
+
     @property
     def is_leaf(self) -> bool:
         raise_optim_error_if_needed()

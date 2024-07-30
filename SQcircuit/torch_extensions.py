@@ -428,7 +428,8 @@ def partial_H_ng(
         The partial derivative of ``cr``'s Hamiltonian with respect to gate
         charge.
     """
-    assert cr._is_charge_mode(charge_idx)
+    if not cr._is_charge_mode(charge_idx):
+        raise ValueError('The mode index passed is not a charge mode!')
 
     op = qt.Qobj()
     for j in range(cr.n):
@@ -462,7 +463,8 @@ def partial_squared_H_ng(
         The second derivative of the Hamiltonian with respect to gate charge and
         ``grad_el``.
     """
-    assert cr._is_charge_mode(charge_idx)
+    if not cr._is_charge_mode(charge_idx):
+        raise ValueError('The mode index passed is not a charge mode!')
 
     # The charge operators only multiply the capacitance matrix
     if not isinstance(grad_el, Capacitor):
@@ -500,7 +502,8 @@ def partial_omega_ng(
         The first derivative of the eigenfrequency difference with respect to
         gate charge.   
     """
-    assert cr._is_charge_mode(charge_idx)
+    if not cr._is_charge_mode(charge_idx):
+        raise ValueError('The mode index passed is not a charge mode!')
 
     state_m = cr.evecs[states[0]]
     state_n = cr.evecs[states[1]]
@@ -543,7 +546,8 @@ def partial_squared_omega_mn_ng(
         The second derivative of the eigenfrequency difference with respect to
         gate charge and ``grad_el``.  
     """
-    assert cr._is_charge_mode(charge_idx)
+    if not cr._is_charge_mode(charge_idx):
+        raise ValueError('The mode index passed is not a charge mode!')
 
     partial_H = partial_H_ng(cr, charge_idx)
     partial_H_squared = partial_squared_H_ng(cr, charge_idx, grad_el)
