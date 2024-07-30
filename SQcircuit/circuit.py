@@ -1887,46 +1887,36 @@ class Circuit:
         else:
             return self.diag_np(n_eig)
 
-    def truncate_circuit(self, K: int, heuristic=False) -> List[int]:
-        """Set truncation numbers of circuit to ``k=ceil(K^{1/n})`` for all
-        modes, where ``n`` is the number of modes in the circuit. If
-        ``heuristic`` is true, then the truncation number for each harmonic
-        mode is weighted by setting ``k_i = k * prod(omega_j^(1/n))/omega_i``
-        All charge modes are left with truncation number ``K`` as above.
+    def truncate_circuit(self, K: int) -> List[int]:
+        """Set Hilbert space dimensionality of circuit to ``k=ceil(K^{1/n})``
+        for all modes, where ``n`` is the number of modes in the circuit.
+        Note that charge modes have dimensionality 2*m+1, where m is the
+        assigned truncation number. Consequently, to ensure equal Hilbert
+        space sizing among charge and harmonic modes, a truncation number
+        of (1 / 2) * (k + 1) is assigned to charge modes.
+
 
         Parameters
         ----------
             K:
                 Total truncation number
-            heuristic:
-                Whether to use a heurstic to set harmonic mode truncations 
 
         Returns
         ----------
             trunc_nums:
-                List of truncation numbers for each mode of circuit
+                List of truncation numbers for each mode of the circuit
         """
         trunc_num_average = K ** (1 / len(self.omega))
+        charge_cutoff = (1 / 2) * (trunc_num_average + 1)
 
-        if heuristic:
-            harmonic_modes = [w for w in self.omega if w != 0]
-            f = len(harmonic_modes) # Number of harmonic modes
-            A = np.prod(harmonic_modes)
-            if A > 0 and f > 0:
-                A = A ** (1 / f)
-
-            trunc_nums = []
-            for mode in self.omega:
-                # charge mode
-                if mode == 0:
-                    trunc_nums.append(int(np.ceil(trunc_num_average)))
-                else:
-                    h = (A * trunc_num_average) / mode
-                    trunc_nums.append(int(np.ceil(h)))
-        else:
-            trunc_nums = [
-                int(np.ceil(trunc_num_average)) for _ in range(len(self.omega))
-            ]
+        trunc_nums = []
+        for mode_idx in range(len(self.omega)):
+            # Harmonic mode
+            if self.omega[mode_idx] != 0:
+                trunc_nums.append(int(np.ceil(trunc_num_average)))
+            # Charge mode
+            else:
+                trunc_nums.append(int(np.ceil(charge_cutoff)))
 
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
