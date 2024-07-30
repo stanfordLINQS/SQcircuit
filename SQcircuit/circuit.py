@@ -1907,7 +1907,7 @@ class Circuit:
                 List of truncation numbers for each mode of the circuit
         """
         trunc_num_average = K ** (1 / len(self.omega))
-        charge_cutoff = (1 / 2) * (trunc_num_average + 1)
+        charge_cutoff = (1 / 2) * (trunc_num_average - 1)
 
         trunc_nums = []
         for mode_idx in range(len(self.omega)):
