@@ -55,9 +55,12 @@ class HamilTxt:
         self.line = 60 * "-" + "\n"
         if tp == 'ltx':
             self.printer = LatexPrinter(dict(order='none', fold_short_frac=True))
-        else:
+        elif tp == 'txt':
             prettyForm.__truediv__ = newDiv
             self.printer = PrettyPrinter(dict(use_unicode=False, order='none'))
+        else:
+            raise ValueError('Permitted values for `tp` are \'ltx\' and '
+                             '\'txt\'.')
 
     def tab(self):
         if self.tp == 'ltx':

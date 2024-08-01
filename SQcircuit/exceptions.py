@@ -1,4 +1,4 @@
-"""logs.py contains the error and warning messages for SQcircuit"""
+"""exceptions.py contains the error and warning messages for SQcircuit"""
 from typing import List, Union
 
 from SQcircuit.settings import (

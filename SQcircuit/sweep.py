@@ -3,9 +3,12 @@ sweep.py contains the classes for sweeping
 """
 
 from itertools import product
+import logging
 
 from SQcircuit.circuit import *
 from SQcircuit.storage import *
+
+logger = logging.getLogger(__name__)
 
 
 class Sweep(SQdata):
@@ -94,7 +97,7 @@ class Sweep(SQdata):
                     self.dec[dec_type][indices] = \
                         self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
-        print('Sweeping process is finished!')
+        logger.info('Sweeping process is finished!')
 
         if plotF:
             self.plot('flux')
@@ -134,7 +137,7 @@ class Sweep(SQdata):
                     self.dec[dec_type][indices] = \
                         self.cr.dec_rate(dec_type=dec_type, states=(1, 0))
 
-        print('Sweeping process is finished!')
+        logger.info('Sweeping process is finished!')
 
         if plotF:
             self.plot('charge')

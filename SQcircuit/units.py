@@ -1,5 +1,5 @@
 """units.py module contain the physical constants and units"""
-from SQcircuit.logs import raise_unit_error
+from SQcircuit.exceptions import raise_unit_error
 
 henry_list = {'H': 1.0, 'mH': 1.0e-3, 'uH': 1.0e-6,
               'nH': 1.0e-9, 'pH': 1.0e-12, 'fH': 1.0e-15}

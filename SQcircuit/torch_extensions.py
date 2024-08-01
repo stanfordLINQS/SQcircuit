@@ -170,7 +170,7 @@ class EigenSolver(Function):
         """
 
         # Compute forward pass for eigenvalues/vectors
-        eigenvalues, eigenvectors = circuit.diag_np(n_eig=n_eig)
+        eigenvalues, eigenvectors = circuit._diag_np(n_eig=n_eig)
 
         # Construct eigenvalues tensor
         eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for

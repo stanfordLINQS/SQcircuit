@@ -15,7 +15,7 @@ from numpy import ndarray
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf
 
-from SQcircuit.logs import (
+from SQcircuit.exceptions import (
     raise_unit_error,
     raise_optim_error_if_needed,
 )

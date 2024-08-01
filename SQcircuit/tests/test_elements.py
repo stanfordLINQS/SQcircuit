@@ -9,7 +9,7 @@ from torch import Tensor
 import SQcircuit as sq
 
 from SQcircuit.elements import Capacitor, Inductor, Junction
-from SQcircuit.logs import UNIT_ERROR, ModeError
+from SQcircuit.exceptions import UNIT_ERROR, ModeError
 from SQcircuit.settings import set_optim_mode
 
 
