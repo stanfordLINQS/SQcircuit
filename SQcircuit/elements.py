@@ -220,7 +220,7 @@ class Capacitor(Element):
     def _default_q_cap(omega):
         """Default function for capacitor quality factor."""
 
-        return 1e6 * (2 * np.pi * 6e9 / np.abs(sqf.numpy(omega)))**0.7
+        return 1e6 * (2 * np.pi * 6e9 / sqf.abs(omega))**0.7
 
 
 class VerySmallCap(Capacitor):
@@ -374,7 +374,7 @@ class Inductor(Element):
         alpha = torch.tensor(unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T))
         beta = unt.hbar * omega / (2 * unt.k_B * T)
 
-        return torch.exp(
+        return 500e6 * sqf.exp(
             sqf.log_k0(alpha)
             + sqf.log_sinh(alpha)
             - sqf.log_k0(beta)

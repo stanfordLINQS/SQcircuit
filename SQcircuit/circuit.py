@@ -2224,11 +2224,7 @@ class Circuit:
                     op += ((K[node1 - 1, i] - K[node2 - 1, i])
                            * sqf.cast(self._memory_ops['phi'][i]))
 
-        op = self._squeeze_op(op)
-
-        if get_optim_mode():
-            return sqf.qobj_to_tensor(op)
-        return op
+        return self._squeeze_op(op)
 
     def matrix_elements(
         self,
@@ -2439,20 +2435,21 @@ class Circuit:
         if dec_type == 'inductive':
             for el, _ in self._memory_ops['ind_hamil']:
                 op = self._memory_ops['ind_hamil'][(el, _)]
-                if el.Q:
-                    if np.isnan(el.Q(omega, ENV['T'])):
-                        decay = decay + 0
-                    else:
-                        decay = decay + tempS / el.Q(omega, ENV['T']) / el.get_value() * sqf.abs(
-                            sqf.operator_inner_product(state1, op, state2)) ** 2
+                Q = el.Q(omega, ENV['T'])
+                if np.isnan(sqf.numpy(Q)):
+                    decay = decay + 0
+                else:
+                    decay = decay + tempS / Q / el.get_value() * sqf.abs(
+                        sqf.operator_inner_product(state1, op, state2)) ** 2
 
         if dec_type == 'quasiparticle':
             for el, B_idx in self._memory_ops['sin_half']:
                 op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
-                if np.isnan(sqf.numpy(el.Y(omega, ENV['T']))):
+                Y = el.Y(omega, ENV['T'])
+                if np.isnan(sqf.numpy(Y)):
                     decay = decay + 0
                 else:
-                    decay = decay + tempS * el.Y(omega, ENV['T']) * omega * el.get_value() \
+                    decay = decay + tempS * Y * omega * el.get_value() \
                         * unt.hbar * sqf.abs(
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
