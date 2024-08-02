@@ -5,10 +5,8 @@ capacitors, inductors, and josephson junctions.
 from typing import List, Any, Optional, Union, Callable
 
 import torch
-from torch.autograd.function import once_differentiable
 import numpy as np
 
-from scipy.special import kn, kvp
 from torch import Tensor
 from numpy import ndarray
 
@@ -20,25 +18,6 @@ from SQcircuit.exceptions import (
     raise_optim_error_if_needed,
 )
 from SQcircuit.settings import get_optim_mode
-
-###############################################################################
-# Special functions
-###############################################################################
-
-
-class KnSolver(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, n: int, x):
-        ctx.save_for_backward(x)
-        ctx.order = n
-        x = sqf.numpy(x)
-        return torch.as_tensor(kn(n, x))
-
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, grad_output):
-        z, = ctx.saved_tensors
-        return None, grad_output * kvp(ctx.order, z)
 
 ###############################################################################
 # Elements
@@ -392,10 +371,15 @@ class Inductor(Element):
     def _default_q_ind(omega, T):
         """Default function for inductor quality factor."""
 
-        alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
-        beta = unt.hbar * sqf.numpy(omega) / (2 * unt.k_B * T)
+        alpha = torch.tensor(unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T))
+        beta = unt.hbar * omega / (2 * unt.k_B * T)
 
-        return 500e6*(kn(0, alpha)*np.sinh(alpha))/(kn(0, beta)*np.sinh(beta))
+        return torch.exp(
+            sqf.log_k0(alpha)
+            + sqf.log_sinh(alpha)
+            - sqf.log_k0(beta)
+            - sqf.log_sinh(beta)
+        )
 
     def get_key(self, edge, B_idx, *_):
         """Return the inductor key.
@@ -593,7 +577,7 @@ class Junction(Element):
             y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
                     unt.hbar * 2 * np.pi / unt.e ** 2)) \
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * sqf.sqrt(alpha) * KnSolver.apply(0, alpha) * sqf.sinh(alpha)
+                * x * sqf.sqrt(alpha) * sqf.kn(0, alpha) * sqf.sinh(alpha)
             return y
 
         return _default_y_junc
