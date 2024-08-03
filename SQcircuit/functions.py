@@ -129,14 +129,6 @@ def sinh(x):
 # Special functions
 ###############################################################################
 
-
-def kn(n, x):
-    if get_optim_mode():
-        return KnSolver.apply(n, x)
-
-    return sp.kn(n, x)
-
-
 def k0e(x):
     if get_optim_mode():
         return torch.special.scaled_modified_bessel_k0(x)
@@ -145,50 +137,7 @@ def k0e(x):
 
 
 def log_k0(x):
-    if get_optim_mode():
-        return LogK0Solver.apply(x)
-
-    return LogK0Solver.log_kv(0, x)
-
-
-class KnSolver(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, n: int, x):
-        ctx.save_for_backward(x)
-        ctx.order = n
-        x = numpy(x)
-        return torch.as_tensor(sp.kn(n, x))
-
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, grad_output):
-        x, = ctx.saved_tensors
-        return None, grad_output * sp.kvp(ctx.order, x)
-
-
-class LogK0Solver(torch.autograd.Function):
-    """Computes the logarithm of the modified Bessel function of the second
-    kind for n = 0.
-    """
-    @staticmethod
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        x = numpy(x)
-        return torch.as_tensor(LogK0Solver.log_kv(0, x))
-
-    @staticmethod
-    def log_kv(n, x):
-        return np.log(sp.kve(n, x)) - x
-
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, grad_output):
-        x, = ctx.saved_tensors
-        x = numpy(x)
-        # K0'(z) = -K1(z); see Eq. 10.29.3 of DLMF
-        return grad_output * -1 * torch.exp(
-            torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x))
-        )
+    return log(k0e(x)) - x
 
 
 ###############################################################################

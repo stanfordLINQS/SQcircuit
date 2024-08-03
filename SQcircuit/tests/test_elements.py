@@ -133,29 +133,29 @@ def test_inductor_q():
 
         # Test constant Q
         ind = Inductor(10, 'GHz', Q=1)
-        assert ind.Q(sqf.cast(-1), 0) == 1
-        assert ind.Q(sqf.cast(10), 12) == 1
-        assert ind.Q(sqf.cast(0), 11) == 1
+        assert ind.Q(sqf.cast(-1, dtype=torch.float64), 0) == 1
+        assert ind.Q(sqf.cast(10, dtype=torch.float64), 12) == 1
+        assert ind.Q(sqf.cast(0, dtype=torch.float64), 11) == 1
 
         ind = Inductor(10, 'GHz', Q=1e7)
-        assert ind.Q(sqf.cast(-1), 5) == 1e7
-        assert ind.Q(sqf.cast(10), 6) == 1e7
-        assert ind.Q(sqf.cast(0), 1) == 1e7
+        assert ind.Q(sqf.cast(-1, dtype=torch.float64), 5) == 1e7
+        assert ind.Q(sqf.cast(10, dtype=torch.float64), 6) == 1e7
+        assert ind.Q(sqf.cast(0, dtype=torch.float64), 1) == 1e7
 
         # Test custom function Q
         Q = lambda omega, T: omega ** 2
         ind = Inductor(10, 'GHz', Q=Q)
-        assert ind.Q(sqf.cast(2), 10) == 4
+        assert ind.Q(sqf.cast(2, dtype=torch.float64), 10) == 4
 
         # Test default Q
         ind = Inductor(10, 'GHz')
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9), 10)),
+        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9, dtype=torch.float64), 10)),
                           500e6)
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9), 1)),
+        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9, dtype=torch.float64), 1)),
                           500e6)
 
         ind = Inductor(10, 'GHz', Q='default')
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(100), 0.015)),
+        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(100, dtype=torch.float64), 0.015)),
                           559912673679772.0)
 
 
