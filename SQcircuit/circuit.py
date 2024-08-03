@@ -2114,19 +2114,19 @@ class Circuit:
                     # compute in log-space due to large magnitude variation
                     x0 = np.sqrt(unt.hbar * np.sqrt(
                         self.cInvTrans[mode, mode] / self.lTrans[mode, mode]))
-                    
+
                     coeff_log = - 0.25 * np.log(np.pi) \
                                 - 0.5 * sum(np.log(np.arange(1, n + 1))) \
                                 - 0.5 * np.log(x0) \
                                 + 0.5 * np.log(unt.Phi0)
-                    
+
                     if n < 250:
                         term_hermitenorm = eval_hermitenorm(n, np.sqrt(2) * phi_list[mode] * unt.Phi0 / x0)
                         term_hermite_signs = np.where(term_hermitenorm != 0, np.sign(term_hermitenorm), 0)
                         term_hermitenorm_log = np.where(term_hermitenorm != 0, np.log(np.abs(term_hermitenorm)), 0)
                     else:
-                        term_hyper = hyperu(-0.5 * n, 
-                                            -0.5, 
+                        term_hyper = hyperu(-0.5 * n,
+                                            -0.5,
                                             (phi_list[mode] * unt.Phi0 / x0)**2)
                         term_hermite_signs = np.where(term_hyper != 0, np.power(np.sign(phi_list[mode]), n), 0)
                         term_hermitenorm_log = np.where(term_hyper != 0, -(n/2) * np.log(2) * np.log(np.abs(term_hyper)), 0)
@@ -2401,17 +2401,19 @@ class Circuit:
 
         decay = sqf.cast(0, dtype=torch.float32)
 
-        # prevent the exponential overflow(exp(709) is the biggest number
-        # that numpy can calculate
-        if unt.hbar * omega / (unt.k_B * ENV['T']) > 709:
+        # prevent the exponential overflow (exp(709) is the biggest number
+        # that numpy can calculate)
+        alpha = unt.hbar * omega / (unt.k_B * ENV['T'])
+        if alpha > 709:
+            logger.info('Omega=%.2e exceeded threshold; approximating '
+                        + 'spectral density function.', sqf.numpy(omega))
             down = 2
             up = 0
         else:
-            alpha = unt.hbar * omega / (unt.k_B * ENV['T'])
             down = (1 + 1 / sqf.tanh(alpha / 2))
             up = down * sqf.exp(-alpha)
 
-        # for temperature dependent loss
+        # for temperature-dependent loss
         if not total:
             if states[0] > states[1]:
                 tempS = down
@@ -2437,6 +2439,7 @@ class Circuit:
                 op = self._memory_ops['ind_hamil'][(el, _)]
                 Q = el.Q(omega, ENV['T'])
                 if np.isnan(sqf.numpy(Q)):
+                    logger.warning('Calculated Q for %s was NaN', el)
                     decay = decay + 0
                 else:
                     decay = decay + tempS / Q / el.get_value() * sqf.abs(
@@ -2447,6 +2450,7 @@ class Circuit:
                 op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
                 Y = el.Y(omega, ENV['T'])
                 if np.isnan(sqf.numpy(Y)):
+                    logger.warning('Calculated Y for %s was NaN', el)
                     decay = decay + 0
                 else:
                     decay = decay + tempS * Y * omega * el.get_value() \

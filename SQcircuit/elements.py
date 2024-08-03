@@ -44,7 +44,7 @@ class CircuitComponent:
     def requires_grad(self, f: bool) -> None:
         raise_optim_error_if_needed()
 
-        self._value.requires_grad = f
+        self.internal_value.requires_grad = f
 
     @property
     def is_leaf(self) -> bool:
@@ -202,10 +202,13 @@ class Capacitor(Element):
         """
 
         if u in unt.farad_list:
-            return self._value / unt.farad_list[u]
+            return self.internal_value / unt.farad_list[u]
 
         elif u in unt.freq_list:
-            E_c = unt.e**2/2/self._value/(2*np.pi*unt.hbar)/unt.freq_list[u]
+            E_c = (
+                unt.e**2 / 2 / self.internal_value / (2*np.pi*unt.hbar)
+                / unt.freq_list[u]
+            )
             return E_c
 
         else:
@@ -357,10 +360,10 @@ class Inductor(Element):
         """
 
         if u in unt.henry_list:
-            return self._value / unt.henry_list[u]
+            return self.internal_value / unt.henry_list[u]
 
         elif u in unt.freq_list:
-            l = self._value
+            l = self.internal_value
             E_l = (unt.Phi0/2/np.pi)**2/l/(2*np.pi*unt.hbar)/unt.freq_list[u]
             return E_l
 
@@ -371,7 +374,8 @@ class Inductor(Element):
     def _default_q_ind(omega, T):
         """Default function for inductor quality factor."""
 
-        alpha = torch.tensor(unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T))
+        alpha = sqf.cast(unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T),
+                         dtype=torch.float64)
         beta = unt.hbar * omega / (2 * unt.k_B * T)
 
         return 500e6 * sqf.exp(
@@ -533,7 +537,7 @@ class Junction(Element):
         """
 
         if u in unt.freq_list:
-            return self._value / unt.freq_list[u]
+            return self.internal_value / unt.freq_list[u]
         else:
             raise_unit_error()
 
@@ -574,10 +578,14 @@ class Junction(Element):
             """Default function for junction admittance."""
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
-            y = np.sqrt(2 / np.pi) * (8 / (delta * 1.6e-19) / (
-                    unt.hbar * 2 * np.pi / unt.e ** 2)) \
-                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5 \
-                * x * sqf.sqrt(alpha) * sqf.kn(0, alpha) * sqf.sinh(alpha)
+            y = (
+                np.sqrt(2 / np.pi) 
+                * (8 / (delta * 1.6e-19) / (unt.hbar * 2 * np.pi / unt.e ** 2))
+                * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5
+                * x * sqf.sqrt(alpha) * sqf.k0e(alpha) 
+                * (1 - sqf.exp(-2 * alpha)) / 2
+            )
+            
             return y
 
         return _default_y_junc

@@ -51,9 +51,9 @@ def log(x):
 
 def log_sinh(x):
     if get_optim_mode():
-        return x + torch.log(1 + torch.exp(-2 * x)) - torch.log(torch.tensor(2))
+        return x + torch.log(1 - torch.exp(-2 * x)) - torch.log(torch.tensor(2))
     else:
-        return x + np.log(1 + np.exp(-2 * x)) - np.log(2)
+        return x + np.log(1 - np.exp(-2 * x)) - np.log(2)
 
 
 def maximum(a, b):
@@ -137,6 +137,13 @@ def kn(n, x):
     return sp.kn(n, x)
 
 
+def k0e(x):
+    if get_optim_mode():
+        return torch.special.scaled_modified_bessel_k0(x)
+    
+    return sp.kve(0, x)
+
+
 def log_k0(x):
     if get_optim_mode():
         return LogK0Solver.apply(x)
@@ -155,8 +162,8 @@ class KnSolver(torch.autograd.Function):
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output):
-        z, = ctx.saved_tensors
-        return None, grad_output * sp.kvp(ctx.order, z)
+        x, = ctx.saved_tensors
+        return None, grad_output * sp.kvp(ctx.order, x)
 
 
 class LogK0Solver(torch.autograd.Function):
@@ -176,11 +183,11 @@ class LogK0Solver(torch.autograd.Function):
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output):
-        z, = ctx.saved_tensors
-        z = numpy(z)
+        x, = ctx.saved_tensors
+        x = numpy(x)
         # K0'(z) = -K1(z); see Eq. 10.29.3 of DLMF
         return grad_output * -1 * torch.exp(
-            torch.tensor(LogK0Solver.log_kv(1, z) - LogK0Solver.log_kv(0, z))
+            torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x))
         )
 
 
