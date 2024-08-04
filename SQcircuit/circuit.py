@@ -2226,8 +2226,6 @@ class Circuit:
 
         op = self._squeeze_op(op)
 
-        if get_optim_mode():
-            return sqf.qobj_to_tensor(op)
         return op
 
     def matrix_elements(
