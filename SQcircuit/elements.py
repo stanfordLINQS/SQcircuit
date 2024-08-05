@@ -375,8 +375,6 @@ class Inductor(Element):
         """Default function for inductor quality factor."""
 
         alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
-        if get_optim_mode():
-            alpha = torch.tensor(alpha, dtype=torch.float64)
         beta = unt.hbar * omega / (2 * unt.k_B * T)
 
         return 500e6 * sqf.exp(

@@ -8,7 +8,7 @@ import qutip as qt
 from qutip import Qobj
 from qutip.core.data import Dia, CSR, Dense
 import scipy
-import scipy.special as sp
+from scipy.special import kve
 import torch
 from torch import Tensor
 
@@ -19,19 +19,19 @@ from SQcircuit.settings import get_optim_mode
 ###############################################################################
 
 def abs(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.abs(x)
     return np.abs(x)
 
 
 def cosh(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.cosh(x)
     return np.cosh(x)
 
 
 def exp(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.exp(x)
     return np.exp(x)
 
@@ -39,51 +39,48 @@ def exp(x):
 def imag(x):
     if isinstance(x, Tensor):
         return torch.imag(x)
-    else:
-        return np.imag(x)
+    return np.imag(x)
 
 
 def log(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.log(x)
     return np.log(x)
 
 
 def log_sinh(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return x + torch.log(1 - torch.exp(-2 * x)) - torch.log(torch.tensor(2))
     else:
         return x + np.log(1 - np.exp(-2 * x)) - np.log(2)
 
 
 def maximum(a, b):
-    if get_optim_mode():
+    if isinstance(a, Tensor):
         if a > b:
             return 0 * b + a
         else:
             return b
-        # return torch.maximum(a, b)
     return np.maximum(a, b)
 
 
 def minimum(a, b):
-    if get_optim_mode():
+    if isinstance(a, Tensor):
         if a > b:
             return 0 * a + b
         else:
             return a
-        #return torch.minimum(a, b)
     return np.minimum(a, b)
 
 
 def normal(mean, var):
-    if get_optim_mode():
+    if isinstance(mean, Tensor):
         return torch.normal(mean, var)
     return np.random.normal(mean, var)
 
 
 def pow(x, a):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.pow(x, a)
     return x ** a
 
@@ -91,36 +88,35 @@ def pow(x, a):
 def real(x):
     if isinstance(x, Tensor):
         return torch.real(x)
-    else:
-        return np.real(x)
+    return np.real(x)
 
 
 def round(x, a=3):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.round(x * 10**a) / (10**a)
     return np.round(x, a)
 
 
 def sqrt(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.sqrt(x)
     return np.sqrt(x)
 
 
 def tanh(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.tanh(x)
     return np.tanh(x)
 
 
 def sum(a):
-    if get_optim_mode():
+    if isinstance(a, Tensor):
         return torch.sum(a)
     return np.sum(a)
 
 
 def sinh(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.sinh(x)
     return np.sinh(x)
 
@@ -130,10 +126,9 @@ def sinh(x):
 ###############################################################################
 
 def k0e(x):
-    if get_optim_mode():
+    if isinstance(x, Tensor):
         return torch.special.scaled_modified_bessel_k0(x)
-    
-    return sp.kve(0, x)
+    return kve(0, x)
 
 
 def log_k0(x):
@@ -154,7 +149,6 @@ def eye(N: int) -> Union[Qobj, Tensor]:
     """
     if get_optim_mode():
         return torch.eye(N)
-
     return qt.qeye(N)
 
 
@@ -222,7 +216,7 @@ def tensor_product_torch(*args: Tensor) -> Tensor:
 
 
 def mat_inv(A):
-    if get_optim_mode():
+    if isinstance(A, Tensor):
         return torch.linalg.inv(A)
     return np.linalg.inv(A)
 
@@ -295,7 +289,7 @@ def dense(obj):
 
 
 def mat_to_op(A: Union[ndarray, Tensor]):
-    if get_optim_mode():
+    if isinstance(A, Tensor):
         return A
 
     return Qobj(A).to('csr')
