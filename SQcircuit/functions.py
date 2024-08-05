@@ -6,10 +6,10 @@ import numpy as np
 from numpy import ndarray
 import qutip as qt
 from qutip import Qobj
+from qutip.core.data import Dia, CSR, Dense
 import scipy
 import scipy.special as sp
 import torch
-from torch.autograd.function import once_differentiable
 from torch import Tensor
 
 from SQcircuit.settings import get_optim_mode
@@ -158,22 +158,9 @@ def eye(N: int) -> Union[Qobj, Tensor]:
     return qt.qeye(N)
 
 
-def init_op(size):
+def zero(dtype=torch.complex128, requires_grad=False):
     if get_optim_mode():
-        return torch.zeros(size=size, dtype=torch.complex128)
-        # return torch.sparse_coo_tensor(size = size, dtype=torch.complex128)
-    return qt.Qobj()
-
-
-def init_sparse(shape):
-    if get_optim_mode():
-        return torch.sparse_coo_tensor(size=shape, dtype=torch.complex128)
-    return qt.Qobj()
-
-
-def zero(dtype=torch.complex128):
-    if get_optim_mode():
-        return torch.tensor(0, dtype=dtype)
+        return torch.tensor(0, dtype=dtype, requires_grad=requires_grad)
     return 0
 
 
@@ -240,7 +227,6 @@ def mat_inv(A):
     return np.linalg.inv(A)
 
 
-
 def mat_mul(A, B):
     if get_optim_mode():
         if isinstance(A, Tensor) and isinstance(B, Tensor):
@@ -263,16 +249,6 @@ def mat_mul(A, B):
     if isinstance(A, Qobj) and isinstance(B, Qobj):
         return A * B
     return A @ B
-
-
-def mul(S, T):
-    if get_optim_mode():
-        if isinstance(S, qt.Qobj):
-            S = qobj_to_tensor(S)
-        if isinstance(T, qt.Qobj):
-            T = qobj_to_tensor(T)
-        return torch.matmul(S, T)
-    return S * T
 
 
 def operator_inner_product(state1, op, state2):
@@ -302,104 +278,65 @@ def array(object):
     return np.array(object)
 
 
-# TODO: Fix this function name
-def cast(value, dtype=torch.complex128, requires_grad = True):
-    if get_optim_mode():
-        if isinstance(value, qt.Qobj):
-            return qobj_to_tensor(value)
-        return torch.tensor(
-            value,
-            requires_grad=requires_grad,
-            dtype=dtype
-        )
-    return value
-
-
 def copy(x):
     if get_optim_mode():
-        if isinstance(x, qt.Qobj):
+        if isinstance(x, Qobj):
             return x.copy()
         return x.clone()
     return x.copy()
 
 
 def dense(obj):
-    if isinstance(obj, qt.Qobj):
-        return obj.data.todense()
+    if isinstance(obj, Qobj):
+        return obj.full()
     if isinstance(obj, torch.Tensor) and obj.layout != torch.strided:
         return obj.to_dense()
     return obj
 
 
 def mat_to_op(A: Union[ndarray, Tensor]):
-    """Change matrix format to ``qutip.Qobj`` operator."""
-
     if get_optim_mode():
         return A
 
-    return qt.Qobj(A)
+    return Qobj(A).to('csr')
 
 
-def numpy(input):
-    def tensor_to_numpy(tensor):
-        if not list(tensor.size()):
-            # Convert single-value tensors directly to numpy scalar
-            return tensor.item()
-        else:
-            return tensor.detach().numpy()
-
-    if get_optim_mode():
-        if isinstance(input, list):
-            return [tensor_to_numpy(value) for value in input]
-        else:
-            return tensor_to_numpy(input)
-    else:
-        if isinstance(input, qt.Qobj):
-            return input.full()
-    return input
+def to_numpy(A: Union[ndarray, float, Tensor]):
+    if isinstance(A, Tensor):
+        return A.detach().numpy()
+    
+    return A
 
 
 def qobj_to_tensor(qobj, dtype=torch.complex128):
-    '''return torch.as_tensor(S.full(), dtype=torch.complex128)'''
-    # Convert to coo, as there does not seem to be a way to convert directly
-    # from csr format to PyTorch sparse tensor
-    coo_scipy = qobj.data.tocoo()
+    """Convert ``qobj`` to tensor (sparse if ``qobj`` is not dense). """
+
+    if qobj.dtype == CSR:
+        # Convert to coo, as there does not seem to be a way to convert directly
+        # from csr format to PyTorch sparse tensor
+        coo_scipy = qobj.data_as('csr_matrix').tocoo()
+    elif qobj.dtype == Dia:
+        coo_scipy = qobj.data_as('dia_matrix').tocoo()
+    elif qobj.dtype == Dense:
+        return torch.as_tensor(qobj.full(), dtype=dtype)
+    else:
+        raise ValueError(f'The datatype {qobj.dtype} is not supported.') 
+
+    # Now deal with COO
     indices = np.vstack((coo_scipy.row, coo_scipy.col))
     values = coo_scipy.data
     shape = coo_scipy.shape
 
     indices_tensor = torch.LongTensor(indices)
     values_tensor = torch.tensor(values, dtype=dtype)
-    coo_tensor = torch.sparse_coo_tensor(indices_tensor, values_tensor, torch.Size(shape),
-                            dtype=dtype)
+    coo_tensor = torch.sparse_coo_tensor(
+        indices_tensor, values_tensor, torch.Size(shape), dtype=dtype
+    )
 
     return coo_tensor
-
-
-def qutip(A: Union[Qobj, Tensor], dims=List[list]) -> Qobj:
-    if get_optim_mode():
-        if isinstance(A, torch.Tensor):
-            if A.is_sparse:
-                input = A.detach().coalesce()
-                indices = input.indices().numpy()
-                row_indices = indices[0, :]
-                col_indices = indices[1, :]
-                values = input.values().numpy()
-                shape = tuple(input.shape)
-                coo_sparse = scipy.sparse.coo_matrix((values, (row_indices, col_indices)), shape=shape)
-                csr_sparse = coo_sparse.tocsr()
-                qobj = qt.Qobj(inpt=csr_sparse)
-                qobj.dims = dims
-                return qobj
-
-            qobj = qt.Qobj(inpt=A.detach().numpy())
-            qobj.dims = dims
-            return qobj
-        return A
-    return A
 
 
 def unwrap(x):
     if get_optim_mode():
         return x[0, 0]
-    return x.data[0, 0]
+    return x

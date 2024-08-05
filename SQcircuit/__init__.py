@@ -10,7 +10,8 @@ def get_logger() -> logging.Logger:
     return sq_logger
 
 import qutip
-qutip.settings.auto_tidyup = True
+qutip.settings.core['auto_tidyup'] = True
+qutip.settings.core['auto_tidyup_atol'] = 1e-12 # Make consistent with QuTip 4.7.x
 
 from SQcircuit.elements import *
 from SQcircuit.circuit import *

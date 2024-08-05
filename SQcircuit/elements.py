@@ -374,8 +374,9 @@ class Inductor(Element):
     def _default_q_ind(omega, T):
         """Default function for inductor quality factor."""
 
-        alpha = sqf.cast(unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T),
-                         dtype=torch.float64)
+        alpha = unt.hbar * 2 * np.pi * 0.5e9 / (2 * unt.k_B * T)
+        if get_optim_mode():
+            alpha = torch.tensor(alpha, dtype=torch.float64)
         beta = unt.hbar * omega / (2 * unt.k_B * T)
 
         return 500e6 * sqf.exp(
@@ -416,7 +417,7 @@ class Inductor(Element):
                 Matrix representation of the edge that element is part of.
         """
 
-        return edge_mat / sqf.numpy(self.get_value()**2)
+        return edge_mat / sqf.to_numpy(self.get_value()**2)
 
 
 class Junction(Element):

@@ -3,6 +3,7 @@ functionalities.
 """
 import pytest
 import numpy as np
+from typing import Union
 
 import torch
 from torch import Tensor
@@ -12,7 +13,7 @@ import SQcircuit as sq
 from SQcircuit.elements import Capacitor, Inductor, Junction
 from SQcircuit.exceptions import UNIT_ERROR, ModeError
 import SQcircuit.functions as sqf
-from SQcircuit.settings import set_optim_mode, SUPPORTED_ENGINES
+from SQcircuit.settings import set_optim_mode, get_optim_mode, SUPPORTED_ENGINES
 
 
 def float_torch_to_python(x: Tensor) -> float:
@@ -20,6 +21,13 @@ def float_torch_to_python(x: Tensor) -> float:
     variable."""
 
     return float(x.detach().cpu().numpy())
+
+
+def conditional_to_tensor(x: float) -> Union[float, Tensor]:
+    if get_optim_mode():
+        return torch.tensor(x, dtype=torch.float64)
+    
+    return x
 
 
 ###############################################################################
@@ -49,29 +57,29 @@ def test_capacitor_q():
 
         # Test constant Q
         cap = Capacitor(10, 'GHz', Q=1)
-        assert cap.Q(sqf.cast(-1)) == 1
-        assert cap.Q(sqf.cast(10)) == 1
-        assert cap.Q(sqf.cast(0)) == 1
+        assert cap.Q(conditional_to_tensor(-1)) == 1
+        assert cap.Q(conditional_to_tensor(10)) == 1
+        assert cap.Q(conditional_to_tensor(0)) == 1
 
         cap = Capacitor(10, 'GHz', Q=1e7)
-        assert cap.Q(sqf.cast(-1)) == 1e7
-        assert cap.Q(sqf.cast(10)) == 1e7
-        assert cap.Q(sqf.cast(0)) == 1e7
+        assert cap.Q(conditional_to_tensor(-1)) == 1e7
+        assert cap.Q(conditional_to_tensor(10)) == 1e7
+        assert cap.Q(conditional_to_tensor(0)) == 1e7
 
         # Test custom Q function
         Q = lambda omega: omega ** 2
         cap = Capacitor(10, 'GHz', Q=Q)
-        assert cap.Q(sqf.cast(2)) == 4
+        assert cap.Q(conditional_to_tensor(2)) == 4
 
         # Test default Q
         cap = Capacitor(10, 'GHz', Q='default')
-        assert np.isclose(sqf.numpy(cap.Q(sqf.cast(10e9))),
+        assert np.isclose(sqf.to_numpy(cap.Q(conditional_to_tensor(10e9))),
                           2531813.9189372803)
-        assert np.isclose(sqf.numpy(cap.Q(sqf.cast(6e9 * 2 * np.pi))),
+        assert np.isclose(sqf.to_numpy(cap.Q(conditional_to_tensor(6e9 * 2 * np.pi))),
                           1e6)
 
         cap = sq.Capacitor(3.4, 'GHz', Q='default')
-        assert np.isclose(sqf.numpy(cap.Q(sqf.cast(0.56e9))),
+        assert np.isclose(sqf.to_numpy(cap.Q(conditional_to_tensor(0.56e9))),
                           19041456.468334354)
 
 
@@ -133,29 +141,29 @@ def test_inductor_q():
 
         # Test constant Q
         ind = Inductor(10, 'GHz', Q=1)
-        assert ind.Q(sqf.cast(-1, dtype=torch.float64), 0) == 1
-        assert ind.Q(sqf.cast(10, dtype=torch.float64), 12) == 1
-        assert ind.Q(sqf.cast(0, dtype=torch.float64), 11) == 1
+        assert ind.Q(conditional_to_tensor(-1), 0) == 1
+        assert ind.Q(conditional_to_tensor(10), 12) == 1
+        assert ind.Q(conditional_to_tensor(0), 11) == 1
 
         ind = Inductor(10, 'GHz', Q=1e7)
-        assert ind.Q(sqf.cast(-1, dtype=torch.float64), 5) == 1e7
-        assert ind.Q(sqf.cast(10, dtype=torch.float64), 6) == 1e7
-        assert ind.Q(sqf.cast(0, dtype=torch.float64), 1) == 1e7
+        assert ind.Q(conditional_to_tensor(-1), 5) == 1e7
+        assert ind.Q(conditional_to_tensor(10), 6) == 1e7
+        assert ind.Q(conditional_to_tensor(0), 1) == 1e7
 
         # Test custom function Q
         Q = lambda omega, T: omega ** 2
         ind = Inductor(10, 'GHz', Q=Q)
-        assert ind.Q(sqf.cast(2, dtype=torch.float64), 10) == 4
+        assert ind.Q(conditional_to_tensor(2), 10) == 4
 
         # Test default Q
         ind = Inductor(10, 'GHz')
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9, dtype=torch.float64), 10)),
+        assert np.isclose(sqf.to_numpy(ind.Q(conditional_to_tensor(2 * np.pi * 0.5e9), 10)),
                           500e6)
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(2 * np.pi * 0.5e9, dtype=torch.float64), 1)),
+        assert np.isclose(sqf.to_numpy(ind.Q(conditional_to_tensor(2 * np.pi * 0.5e9), 1)),
                           500e6)
 
         ind = Inductor(10, 'GHz', Q='default')
-        assert np.isclose(sqf.numpy(ind.Q(sqf.cast(100, dtype=torch.float64), 0.015)),
+        assert np.isclose(sqf.to_numpy(ind.Q(conditional_to_tensor(100), 0.015)),
                           559912673679772.0)
 
 
@@ -208,14 +216,14 @@ def test_junction_y():
         # Test custom Y
         y_func = lambda omega, T: omega * T
         JJ = Junction(10, 'GHz', Y=y_func)
-        assert JJ.Y(sqf.cast(10), 2) == 20
+        assert JJ.Y(conditional_to_tensor(10), 2) == 20
 
         # Test default Y
         JJ = Junction(10, 'GHz', Y='default')
-        assert np.isclose(sqf.numpy(JJ.Y(sqf.cast(1e9 * 2 * np.pi, dtype=torch.float64), 0.015)),
+        assert np.isclose(sqf.to_numpy(JJ.Y(conditional_to_tensor(1e9 * 2 * np.pi), 0.015)),
                           1.6206254741014418e+16)
         JJ = Junction(0.142, 'GHz')
-        assert np.isclose(sqf.numpy(JJ.Y(sqf.cast(50e9, dtype=torch.float64), 0.015)),
+        assert np.isclose(sqf.to_numpy(JJ.Y(conditional_to_tensor(50e9), 0.015)),
                           793439739057240.9)
 
 

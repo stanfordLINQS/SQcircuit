@@ -337,7 +337,7 @@ def partial_squared_omega(
     ## The eigenfrequencies (and hence derivatives) should be real since H
     ## is Hermitian, but numerical imprecision can result in small complex
     ## components.
-    return sqf.numpy(p2_omega.real)
+    return sqf.to_numpy(p2_omega.real)
 
 
 def partial_dephasing_rate(
@@ -431,7 +431,7 @@ def partial_H_ng(
     if not cr._is_charge_mode(charge_idx):
         raise ValueError('The mode index passed is not a charge mode!')
 
-    op = qt.Qobj()
+    op = 0
     for j in range(cr.n):
         op += (
             cr.cInvTrans[charge_idx, j]
@@ -470,10 +470,10 @@ def partial_squared_H_ng(
     if not isinstance(grad_el, Capacitor):
         return 0
 
-    cInv = np.linalg.inv(sqf.numpy(cr.C))
+    cInv = np.linalg.inv(sqf.to_numpy(cr.C))
     A = cInv @ cr.partial_mats[grad_el] @ cInv
 
-    op = qt.Qobj()
+    op = 0
     for j in range(cr.n):
         op += A[charge_idx, j] * cr._memory_ops["Q"][j] / np.sqrt(unt.hbar)
     return -op
@@ -517,7 +517,7 @@ def partial_omega_ng(
     # The eigenfrequencies (and hence derivatives) should be real since H
     # is Hermitian, but numerical imprecision can result in small complex
     # components.
-    return sqf.numpy(partial_omega_mn.real)
+    return sqf.to_numpy(partial_omega_mn.real)
 
 
 def partial_squared_omega_mn_ng(
@@ -749,7 +749,7 @@ def partial_cc_dec(
     # Sum over all cosine operators because each Josephson junction is
     # associated with exactly one.
     for EJ_el, B_idx in cr._memory_ops['cos']:
-        partial_omega_mn = sqf.numpy(cr._get_partial_omega_mn(
+        partial_omega_mn = sqf.to_numpy(cr._get_partial_omega_mn(
             EJ_el,
             states=states,
             _B_idx=B_idx
@@ -761,7 +761,7 @@ def partial_cc_dec(
             grad_el,
             states
         )
-        A = sqf.numpy(EJ_el.A * EJ_el.get_value())
+        A = sqf.to_numpy(EJ_el.A * EJ_el.get_value())
         partial_A = EJ_el.A if grad_el is EJ_el else 0
 
         dec_rate_grad += partial_dephasing_rate(
@@ -857,7 +857,7 @@ def partial_squared_H_phi(
         for B_idx in B_indices:
             H_squared += (
                 cr.B[B_idx, loop_idx]
-                / -sqf.numpy(grad_el.get_value()**2)
+                / -sqf.to_numpy(grad_el.get_value()**2)
                 * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
                 * cr._memory_ops["ind_hamil"][(grad_el, B_idx)]
             )
@@ -867,7 +867,7 @@ def partial_squared_H_phi(
         loop_idx_2 = cr.loops.index(grad_el)
         for edge, el_JJ, B_idx, W_idx in cr.elem_keys[Junction]:
             H_squared += (
-                sqf.numpy(el_JJ.get_value())
+                sqf.to_numpy(el_JJ.get_value())
                 * cr.B[B_idx, loop_idx_2]
                 * cr.B[B_idx, loop_idx_1]
                 * cr._memory_ops['cos'][(el_JJ, B_idx)]
@@ -937,7 +937,7 @@ def partial_flux_dec(
     """
     dec_rate_grad = 0
     for loop in cr.loops:
-        partial_omega_mn = sqf.numpy(cr._get_partial_omega_mn(
+        partial_omega_mn = sqf.to_numpy(cr._get_partial_omega_mn(
             loop,
             states=states
         ))
