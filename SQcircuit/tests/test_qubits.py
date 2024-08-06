@@ -247,43 +247,70 @@ def test_coupled_fluxonium_transmon():
 
 
 def test_loop_issue():
-    loop1 = sq.Loop(id_str="loop1")
-    loop2 = sq.Loop(id_str="loop2")
-
     ec = 1
     ecj = 3
     ej = 5
     el = 0.5
 
     circuit_dict = {}
-    # circuit_dict[(3, 0)] = [sq.Capacitor(ec, "GHz", id_str="C01")]
-    # circuit_dict[(3, 1)] = [sq.Capacitor(ec, "GHz", id_str="C02")]
-    # circuit_dict[(3, 2)] = [sq.Capacitor(ec, "GHz", id_str="C03")]
-    # circuit_dict[(0, 1)] = [sq.Junction(ej, "GHz", id_str="J12", loops=[loop1],
-    #                                     cap=sq.Capacitor(ecj, "GHz",
-    #                                                      id_str="JC12"))]
-    # circuit_dict[(0, 2)] = [sq.Junction(ej, "GHz", id_str="J13", loops=[loop1],
-    #                                     cap=sq.Capacitor(ecj, "GHz",
-    #                                                      id_str="JC13"))]
-    # circuit_dict[(1, 2)] = [
-    #     sq.Junction(ej, "GHz", id_str="J23", loops=[loop1, loop2],
-    #                 cap=sq.Capacitor(ecj, "GHz", id_str="JC23")),
-    #     sq.Inductor(el, "GHz", id_str="J23", loops=[loop2])]
+
+    loop1 = sq.Loop(id_str="loop1")
+    loop2 = sq.Loop(0.5, id_str="loop2")
+
+    circuit_dict[(3, 0)] = [sq.Capacitor(ec, "GHz", id_str="C01")]
+    circuit_dict[(3, 1)] = [sq.Capacitor(ec, "GHz", id_str="C02")]
+    circuit_dict[(3, 2)] = [sq.Capacitor(ec, "GHz", id_str="C03")]
+    circuit_dict[(0, 1)] = [sq.Junction(
+        ej, "GHz", id_str="J12", loops=[loop1],
+        cap=sq.Capacitor(ecj, "GHz", id_str="JC12")
+    )]
+    circuit_dict[(0, 2)] = [sq.Junction(
+        ej, "GHz", id_str="J13", loops=[loop1],
+        cap=sq.Capacitor(ecj, "GHz", id_str="JC13")
+    )]
+    circuit_dict[(1, 2)] = [
+        sq.Junction(
+            ej, "GHz", id_str="J23", loops=[loop1, loop2],
+            cap=sq.Capacitor(ecj, "GHz", id_str="JC23")
+        ),
+        sq.Inductor(el, "GHz", id_str="J23", loops=[loop2])
+    ]
+
+    circ_1 = sq.Circuit(circuit_dict)
+    circ_1.set_trunc_nums([20, 15, 1])
+    efreqs, _ = circ_1.diag(2)
+    q_freq_1 = efreqs[1] - efreqs[0]
+
+    circuit_dict = {}
+
+    loop1 = sq.Loop(id_str="loop1")
+    loop2 = sq.Loop(0.5, id_str="loop2")
 
     circuit_dict[(0, 1)] = [sq.Capacitor(ec, "GHz", id_str="C01")]
     circuit_dict[(0, 2)] = [sq.Capacitor(ec, "GHz", id_str="C02")]
     circuit_dict[(0, 3)] = [sq.Capacitor(ec, "GHz", id_str="C03")]
-    circuit_dict[(1, 2)] = [sq.Junction(ej, "GHz", id_str="J12", loops=[loop1],
-                                        cap=sq.Capacitor(ecj, "GHz",
-                                                         id_str="JC12"))]
-    circuit_dict[(1, 3)] = [sq.Junction(ej, "GHz", id_str="J13", loops=[loop1],
-                                        cap=sq.Capacitor(ecj, "GHz",
-                                                         id_str="JC13"))]
+    circuit_dict[(1, 2)] = [sq.Junction(
+        ej, "GHz", id_str="J12", loops=[loop1],
+        cap=sq.Capacitor(ecj, "GHz", id_str="JC12")
+    )]
+    circuit_dict[(1, 3)] = [sq.Junction(
+        ej, "GHz", id_str="J13", loops=[loop1],
+        cap=sq.Capacitor(ecj, "GHz", id_str="JC13")
+    )]
     circuit_dict[(2, 3)] = [
-        sq.Junction(ej, "GHz", id_str="J23", loops=[loop1, loop2],
-                    cap=sq.Capacitor(ecj, "GHz", id_str="JC23")),
-        sq.Inductor(el, "GHz", id_str="J23", loops=[loop2])]
+        sq.Junction(
+            ej, "GHz", id_str="J23", loops=[loop1, loop2],
+            cap=sq.Capacitor(ecj, "GHz", id_str="JC23")
+        ),
+        sq.Inductor(el, "GHz", id_str="J23", loops=[loop2])
+    ]
 
-    circ = sq.Circuit(circuit_dict)
+    circ_2 = sq.Circuit(circuit_dict)
 
-    circ.description()
+    circ_2.set_trunc_nums([20, 15, 1])
+    efreqs, _ = circ_2.diag(2)
+    q_freq_2 = efreqs[1] - efreqs[0]
+
+    assert np.isclose(q_freq_1, 0.010243745)
+    assert np.isclose(q_freq_1, q_freq_2)
+
