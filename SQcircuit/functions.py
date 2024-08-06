@@ -13,6 +13,36 @@ from torch import Tensor
 from SQcircuit.settings import get_optim_mode
 
 
+def remove_zero_columns(matrix):
+    """Removes columns from the matrix that contain only zero values."""
+
+    # Identify columns that are not all zeros
+    non_zero_columns = np.any(matrix != 0, axis=0)
+
+    # Filter the matrix to keep only non-zero columns
+    filtered_matrix = matrix[:, non_zero_columns]
+
+    return filtered_matrix
+
+
+def remove_dependent_columns(matrix, tol=1e-5):
+    """Remove dependent columns from the given matrix."""
+
+    # first remove the zero columns from the matrix
+    no_zero_col_matrix = remove_zero_columns(matrix)
+
+    # Perform SVD
+    _, s, _ = np.linalg.svd(no_zero_col_matrix)
+
+    # Identify columns with singular values above tolerance
+    independent_columns = np.where(np.abs(s) > tol)[0]
+
+    # Reconstruct matrix with only independent columns
+    reduced_matrix = no_zero_col_matrix[:, independent_columns]
+
+    return reduced_matrix
+
+
 def block_diag(*args: Union[ndarray, Tensor]) -> Union[ndarray, Tensor]:
     if get_optim_mode():
         return torch.block_diag(*args)
@@ -264,8 +294,9 @@ def qobj_to_tensor(qobj, dtype=torch.complex128):
 
     indices_tensor = torch.LongTensor(indices)
     values_tensor = torch.tensor(values, dtype=dtype)
-    coo_tensor = torch.sparse_coo_tensor(indices_tensor, values_tensor, torch.Size(shape),
-                            dtype=dtype)
+    coo_tensor = torch.sparse_coo_tensor(
+        indices_tensor, values_tensor, torch.Size(shape), dtype=dtype
+    )
 
     return coo_tensor
 
@@ -289,7 +320,9 @@ def qutip(A: Union[Qobj, Tensor], dims=List[list]) -> Qobj:
                 col_indices = indices[1, :]
                 values = input.values().numpy()
                 shape = tuple(input.shape)
-                coo_sparse = scipy.sparse.coo_matrix((values, (row_indices, col_indices)), shape=shape)
+                coo_sparse = scipy.sparse.coo_matrix(
+                    (values, (row_indices, col_indices)), shape=shape
+                )
                 csr_sparse = coo_sparse.tocsr()
                 qobj = qt.Qobj(inpt=csr_sparse)
                 qobj.dims = dims
