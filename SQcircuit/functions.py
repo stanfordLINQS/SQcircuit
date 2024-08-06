@@ -1,6 +1,6 @@
 """Utility module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 from numpy import ndarray
@@ -11,6 +11,7 @@ import scipy
 from scipy.special import kve
 import torch
 from torch import Tensor
+from torch.autograd.function import once_differentiable
 
 from SQcircuit.settings import get_optim_mode
 
@@ -127,12 +128,56 @@ def sinh(x):
 
 def k0e(x):
     if isinstance(x, Tensor):
-        return torch.special.scaled_modified_bessel_k0(x)
+        return K0eSolver.apply(x)
     return kve(0, x)
 
 
 def log_k0(x):
+    if isinstance(x, Tensor):
+        return LogK0Solver.apply(x)
     return log(k0e(x)) - x
+
+
+class K0eSolver(torch.autograd.Function):
+    """Computes ``torch.special.scaled_modified_bessel_k0`` with gradient.
+    """
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        return torch.special.scaled_modified_bessel_k0(x)
+
+    @staticmethod
+    @once_differentiable
+    def backward(ctx, grad_output):
+        x, = ctx.saved_tensors
+        x = to_numpy(x)
+
+        return grad_output * torch.tensor(kve(0, x) - kve(1, x))
+
+
+class LogK0Solver(torch.autograd.Function):
+    """Computes the logarithm of the modified Bessel function of the second
+    kind for n = 0.
+    """
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        x = to_numpy(x)
+        return torch.as_tensor(LogK0Solver.log_kv(0, x))
+
+    @staticmethod
+    def log_kv(n, x):
+        return np.log(kve(n, x)) - x
+
+    @staticmethod
+    @once_differentiable
+    def backward(ctx, grad_output):
+        x, = ctx.saved_tensors
+        x = to_numpy(x)
+        # K0'(z) = -K1(z); see Eq. 10.29.3 of DLMF
+        return grad_output * -1 * torch.exp(
+            torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x))
+        )
 
 
 ###############################################################################
@@ -298,7 +343,6 @@ def mat_to_op(A: Union[ndarray, Tensor]):
 def to_numpy(A: Union[ndarray, float, Tensor]):
     if isinstance(A, Tensor):
         return A.detach().numpy()
-    
     return A
 
 

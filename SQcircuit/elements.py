@@ -491,7 +491,7 @@ class Junction(Element):
             self.loops = loops
 
         if Y == 'default':
-            self.Y = self.__get_default_y_func(delta, x)
+            self.Y = self._get_default_y_func(delta, x)
         else:
             self.Y = Y
 
@@ -565,7 +565,7 @@ class Junction(Element):
             return VeryLargeCap().get_value()
 
     @staticmethod
-    def __get_default_y_func(
+    def _get_default_y_func(
         delta: float,
         x: float
     ) -> Callable[[Union[float, Tensor]], float]:
@@ -581,10 +581,10 @@ class Junction(Element):
                 np.sqrt(2 / np.pi) 
                 * (8 / (delta * 1.6e-19) / (unt.hbar * 2 * np.pi / unt.e ** 2))
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5
-                * x * sqf.sqrt(alpha) * sqf.k0e(alpha) 
+                * x * sqf.sqrt(alpha) * sqf.k0e(alpha)
                 * (1 - sqf.exp(-2 * alpha)) / 2
             )
-            
+
             return y
 
         return _default_y_junc

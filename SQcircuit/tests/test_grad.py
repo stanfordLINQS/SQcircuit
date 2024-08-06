@@ -386,29 +386,29 @@ def test_T1_fluxonium():
     def T1_inv_quasiparticle(circuit):
         return circuit.dec_rate('quasiparticle', (0, 1))
 
+    # Test capacitive T1 decoherence
+    print('capacitive')
     function_grad_test(circuit_numpy,
                        T1_inv_capacitive,
                        circuit_torch,
                        T1_inv_capacitive,
                        delta=1e-6)
-    print('inductive')
+
     # Test inductive T1 decoherence
+    print('inductive')
     function_grad_test(circuit_numpy,
                        T1_inv_inductive,
                        circuit_torch,
                        T1_inv_inductive,
                        delta=1e-6)
-    print('quasiparticle')
+
     # Test quasiparticle T1 decoherence
-    global tolerance
-    tolerance_old = tolerance
-    tolerance = 2.5e-1
+    print('quasiparticle')
     function_grad_test(circuit_numpy,
                        T1_inv_quasiparticle,
                        circuit_torch,
                        T1_inv_quasiparticle,
                        delta=1e-9)
-    tolerance = tolerance_old
     set_optim_mode(False)
 
 
