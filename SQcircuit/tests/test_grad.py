@@ -104,25 +104,29 @@ def function_grad_test(circuit_numpy: Circuit,
                 element_numpy.value_unit
             )
 
-            grad_torch = circuit_torch.elements[edge][element_idx].internal_value.grad
-            if grad_torch is None:
-                grad_torch = 0
-            else:
-                grad_torch = grad_torch.detach().numpy()
+            set_optim_mode(True)
+            torch_el = circuit_torch.elements[edge][element_idx]
+            if torch_el in circuit_torch.parameters_elems:
+                grad_torch = torch_el.grad
+                if grad_torch is None:
+                    grad_torch = 0
+                else:
+                    grad_torch = grad_torch.detach().numpy()
 
-            # TODO: Modify Element class so that following gradient scaling is not necessary
-            if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
-                grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            elif isinstance(element_numpy, Inductor) and element_numpy.value_unit in unt.freq_list:
-                grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            if isinstance(element_numpy, Junction):
-                grad_torch *= (2 * np.pi)
-            print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
+                # TODO: Modify Element class so that following gradient scaling is not necessary
+                if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
+                    grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                elif isinstance(element_numpy, Inductor) and element_numpy.value_unit in unt.freq_list:
+                    grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                if isinstance(element_numpy, Junction):
+                    grad_torch *= (2 * np.pi)
+                print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
 
-            assert np.sign(grad_torch) == np.sign(grad_numpy)
-            assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+                assert np.sign(grad_torch) == np.sign(grad_numpy)
+                assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+
     for loop_idx, loop in enumerate(circuit_numpy.loops):
         set_optim_mode(False)
 
@@ -148,11 +152,17 @@ def function_grad_test(circuit_numpy: Circuit,
         # Reset circuit
         loop.internal_value = loop_flux
 
-        grad_torch = circuit_torch.loops[loop_idx].internal_value.grad
-        if grad_torch is not None:
+        torch_loop = circuit_torch.loops[loop_idx]
+        set_optim_mode(True)
+        if torch_loop in circuit_torch.parameters_elems:
+            grad_torch = torch_loop.internal_value.grad
+            if grad_torch is None:
+                grad_torch = 0
+            else:
+                grad_torch = grad_torch.detach().numpy()
+
             print(f"loop #: {loop_idx}")
             print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
-            grad_torch = grad_torch.detach().numpy()
             assert np.sign(grad_torch) == np.sign(grad_numpy)
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
 

@@ -222,13 +222,18 @@ def block_diag(*args: Union[ndarray, Tensor]) -> Union[ndarray, Tensor]:
 
 def dag(state):
     assert len(state.shape) <= 2
-    if get_optim_mode():
-        if isinstance(state, np.ndarray) and state.ndim == 1:
-            return np.conj(state)
-        if isinstance(state, torch.Tensor) and state.dim() == 1:
+
+    if isinstance(state, np.ndarray) and state.ndim == 1:
+        return np.conj(state)
+    elif isinstance(state, torch.Tensor):
+        if state.dim() == 1:
             return torch.conj(state)
-        return torch.conj(torch.transpose(state, 0, 1))
-    return state.dag()
+        else:
+            return torch.conj(torch.transpose(state, 0, 1))
+    elif isinstance(state, Qobj):
+        return state.dag()
+    else:
+        raise ValueError(f'Object type {type(state)} is not supported.')
 
 
 def diag(v):
@@ -343,6 +348,8 @@ def mat_to_op(A: Union[ndarray, Tensor]):
 def to_numpy(A: Union[ndarray, float, Tensor]):
     if isinstance(A, Tensor):
         return A.detach().numpy()
+    elif isinstance(A, Qobj):
+        return A.full()
     return A
 
 

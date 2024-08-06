@@ -58,6 +58,12 @@ class CircuitComponent:
 
         return self.internal_value.grad
 
+    @grad.setter
+    def grad(self, new_grad: Optional[Tensor]) -> None:
+        raise_optim_error_if_needed()
+
+        self.internal_value.grad = new_grad
+
 
 class Element(CircuitComponent):
     """Class that contains general properties of circuit elements."""
