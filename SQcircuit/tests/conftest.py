@@ -3,10 +3,11 @@ conftest.py contains the general test classes.
 """
 import os
 
-from SQcircuit import set_optim_mode
-from SQcircuit.sweep import *
-from SQcircuit.storage import SQdata
 from SQcircuit.circuit import Circuit
+from SQcircuit.storage import SQdata
+from SQcircuit.sweep import *
+from SQcircuit.settings import set_optim_mode
+
 
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(TESTDIR, "data/qubits")

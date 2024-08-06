@@ -1,5 +1,5 @@
 """units.py module contain the physical constants and units"""
-
+from SQcircuit.exceptions import raise_unit_error
 
 henry_list = {'H': 1.0, 'mH': 1.0e-3, 'uH': 1.0e-6,
               'nH': 1.0e-9, 'pH': 1.0e-12, 'fH': 1.0e-15}
@@ -27,16 +27,16 @@ e = 1.6021766e-19
 k_B = 1.38e-23
 
 # main frequency unit of the SQcircuit
-_unit_freq = freq_list["GHz"]
+_unit_freq = freq_list['GHz']
 
 # default unit of capacitors
-_unit_cap = "GHz"
+_unit_cap = 'GHz'
 
 # default unit of inductors
-_unit_ind = "GHz"
+_unit_ind = 'GHz'
 
 # default unit of JJs
-_unit_JJ = "GHz"
+_unit_JJ = 'GHz'
 
 
 def set_unit_freq(unit: str) -> None:
@@ -47,7 +47,8 @@ def set_unit_freq(unit: str) -> None:
         unit:
             The desired frequency unit, which can be "THz", "GHz", and ,etc.
     """
-    assert unit in freq_list, "The input format is not correct."
+    if unit not in freq_list:
+        raise_unit_error()
 
     global _unit_freq
 
@@ -76,9 +77,7 @@ def set_unit_cap(unit: str) -> None:
             etc., or "fF", "pF", and ,etc.
     """
     if unit not in freq_list and unit not in farad_list:
-        error = ("The input unit is not correct. Look at the documentation "
-                 "for the correct input format.")
-        raise ValueError(error)
+        raise_unit_error()
 
     global _unit_cap
 
@@ -107,9 +106,7 @@ def set_unit_ind(unit: str) -> None:
              etc., or "fH", "pH", and ,etc.
     """
     if unit not in freq_list and unit not in henry_list:
-        error = ("The input unit is not correct. Look at the documentation "
-                 "for the correct input format.")
-        raise ValueError(error)
+        raise_unit_error()
 
     global _unit_ind
 
@@ -137,7 +134,8 @@ def set_unit_JJ(unit: str) -> None:
             The desired Josephson junction default unit, which can be "THz",
             "GHz", and ,etc.
     """
-    assert unit in freq_list, "The input format is not correct."
+    if unit not in freq_list:
+        raise_unit_error()
 
     global _unit_JJ
 

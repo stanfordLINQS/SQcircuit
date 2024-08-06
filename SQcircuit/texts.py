@@ -55,9 +55,12 @@ class HamilTxt:
         self.line = 60 * "-" + "\n"
         if tp == 'ltx':
             self.printer = LatexPrinter(dict(order='none', fold_short_frac=True))
-        else:
+        elif tp == 'txt':
             prettyForm.__truediv__ = newDiv
             self.printer = PrettyPrinter(dict(use_unicode=False, order='none'))
+        else:
+            raise ValueError('Permitted values for `tp` are \'ltx\' and '
+                             '\'txt\'.')
 
     def tab(self):
         if self.tp == 'ltx':
@@ -147,7 +150,7 @@ class HamilTxt:
         ns = 5
 
         # header with names of loops
-        header = (nr + ns + len(", b1:")) * " "
+        header = (nr + ns + len(', b1:')) * " "
         header += (' ' * 10).join([f'{lp.id_str:{nh}}' for lp in cr.loops])
 
         loop_description_txt = header + '\n'
@@ -167,7 +170,7 @@ class HamilTxt:
 
             id_str = el.id_str
             row = f'{id_str:{nr}}' + f'{{:{ns + len(", b1:")}}}'.format(', b' + str(i+1) + ':')
-            row += ('').join([f'{np.round(np.abs(cr.B[i, j]), 2):<{nh + 10}}' 
+            row += ('').join([f'{np.round(np.abs(cr.B[i, j]), 2):<{nh + 10}}'
                               for j in range(nl)])
             loop_description_txt += row + '\n'
 
