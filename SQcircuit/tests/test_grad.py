@@ -167,7 +167,7 @@ def function_grad_test(circuit_numpy: Circuit,
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
 
     set_optim_mode(True)
-    circuit_torch.zero_parameters_grad()
+    circuit_torch.zero_grad()
 
 def first_eigendifference_numpy(circuit):
     return circuit._efreqs[1] - circuit._efreqs[0]

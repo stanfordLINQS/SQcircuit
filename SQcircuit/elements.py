@@ -102,7 +102,7 @@ class Element(CircuitComponent):
         if not isinstance(s, str):
             raise ValueError('The input must be a string.')
 
-        return (s + "_{}_{}").format(v, u)
+        return (s + '_{}_{}').format(v, u)
 
 
 class Capacitor(Element):
@@ -131,7 +131,7 @@ class Capacitor(Element):
         id_str:
             ID string for the capacitor.
     """
-    value_unit = "F"
+    value_unit = 'F'
 
     def __init__(
         self,
@@ -584,7 +584,7 @@ class Junction(Element):
 
             alpha = unt.hbar * omega / (2 * unt.k_B * T)
             y = (
-                np.sqrt(2 / np.pi) 
+                np.sqrt(2 / np.pi)
                 * (8 / (delta * 1.6e-19) / (unt.hbar * 2 * np.pi / unt.e ** 2))
                 * (2 * (delta * 1.6e-19) / unt.hbar / omega) ** 1.5
                 * x * sqf.sqrt(alpha) * sqf.k0e(alpha)

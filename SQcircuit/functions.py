@@ -395,7 +395,7 @@ def qobj_to_tensor(qobj, dtype=torch.complex128):
     elif qobj.dtype == Dense:
         return torch.as_tensor(qobj.full(), dtype=dtype)
     else:
-        raise ValueError(f'The datatype {qobj.dtype} is not supported.') 
+        raise ValueError(f'The datatype {qobj.dtype} is not supported.')
 
     # Now deal with COO
     indices = np.vstack((coo_scipy.row, coo_scipy.col))

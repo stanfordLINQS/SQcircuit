@@ -130,7 +130,7 @@ class CircuitEdge:
 
         for loop in el.loops:
 
-            self.circ._add_loop(loop)
+            self.circ.add_loop(loop)
             loop.add_index(b_id)
             loop.add_to_k_mat(self.w)
 
@@ -203,7 +203,7 @@ class CircuitEdge:
 
     def _check_if_edge_is_processed(self) -> None:
 
-        assert self.processed, "Edge is not processed yet!"
+        assert self.processed, 'Edge is not processed yet!'
 
     def get_eff_cap_value(self) -> float:
         """Return effective capacitor value of the edge."""
@@ -587,8 +587,9 @@ class Circuit:
         if (el.requires_grad or not el.is_leaf) and el not in self._parameters:
             self._parameters[el] = el.internal_value
 
-    def _add_loop(self, loop: Loop) -> None:
-        """Add loop to the circuit loops.
+    def add_loop(self, loop: Loop) -> None:
+        """Add loop to the circuit loops. Should only be called when
+        initializing the circuit.
 
         Parameters
         ----------
@@ -888,7 +889,7 @@ class Circuit:
 
             l_mat_eigs, _ = np.linalg.eig(sqf.to_numpy(self.L))
             num_sings = len(l_mat_eigs[
-                    l_mat_eigs / np.max(l_mat_eigs) < ACC["sing_mode_detect"]
+                    l_mat_eigs / np.max(l_mat_eigs) < ACC['sing_mode_detect']
             ])
             sing_locs = list(range(self.n - num_sings, self.n))
             D[sing_locs] = np.max(D)
@@ -933,7 +934,7 @@ class Circuit:
         for i in sorted_index:
             a = A_norm[i, :]
             a_prime = a - sum([np.dot(a, e) * e for e in basis])
-            if (np.abs(a_prime) > ACC['Gram–Schmidt']).any():
+            if (np.abs(a_prime) > ACC['Gram-Schmidt']).any():
                 idx_list.append(i)
                 basis.append(a_prime / np.linalg.norm(a_prime))
 
@@ -961,9 +962,9 @@ class Circuit:
 
         charge_only_W = rounded_W[:, self.omega == 0]
 
-        charge_only_W[np.abs(charge_only_W) < ACC['Gram–Schmidt']] = 0
-        charge_only_W[np.abs(charge_only_W - 1) < ACC['Gram–Schmidt']] = 1
-        charge_only_W[np.abs(charge_only_W + 1) < ACC['Gram–Schmidt']] = -1
+        charge_only_W[np.abs(charge_only_W) < ACC['Gram-Schmidt']] = 0
+        charge_only_W[np.abs(charge_only_W - 1) < ACC['Gram-Schmidt']] = 1
+        charge_only_W[np.abs(charge_only_W + 1) < ACC['Gram-Schmidt']] = -1
 
         rounded_W[:, self.omega == 0] = charge_only_W
 
@@ -1021,7 +1022,7 @@ class Circuit:
             w_t = sqf.remove_dependent_columns(self.W.T)
             w_reduced = w_t.T
             w_reduced_transformed = w_reduced @ self.S1
-            
+
             # charge part of the reduced w_mat
             w_charge = w_reduced_transformed[:, self.omega == 0].copy()
 
@@ -1173,7 +1174,7 @@ class Circuit:
                                     for i in range(har_dim, self.n)]
         self.descrip_vars['EC'] = (
             ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi * unt.get_unit_freq()))
-            * np.diag(np.repeat(0.5, self.n)) 
+            * np.diag(np.repeat(0.5, self.n))
             * self.cInvTrans
         )
 
@@ -1382,7 +1383,7 @@ class Circuit:
 
         if isinstance(op, Qobj):
             return op.contract()
-        
+
         op_sq = sqf.copy(op)
         op_sq.dims = self._get_op_dims()
         return op_sq
@@ -1640,7 +1641,7 @@ class Circuit:
                         LC_hamil += (0.5 * self.cInvTrans[i, i]
                                      * self._memory_ops['QQ'][i][j])
                     else:
-                        LC_hamil += self.omega[i] * self._memory_ops["N"][i]
+                        LC_hamil += self.omega[i] * self._memory_ops['N'][i]
 
                 elif j > 0:
                     if self.cInvTrans[i, i + j] != 0:
@@ -1698,7 +1699,7 @@ class Circuit:
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
-            self._memory_ops["ind_hamil"][(el, b_id)] = op
+            self._memory_ops['ind_hamil'][(el, b_id)] = op
         for _, el, b_id, w_id in self.elem_keys[Junction]:
             # phi = 0
             # if b_id is not None:
@@ -1706,16 +1707,16 @@ class Circuit:
 
             EJ = sqf.to_numpy(el.get_value())
 
-            exp = np.exp(1j * phi) * self._memory_ops["exp"][w_id]
-            root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
+            exp = np.exp(1j * phi) * self._memory_ops['exp'][w_id]
+            root_exp = np.exp(1j * phi / 2) * self._memory_ops['root_exp'][
                 w_id]
             cos = (exp + exp.dag()) / 2
             sin = (exp - exp.dag()) / 2j
             sin_half = (root_exp - root_exp.dag()) / 2j
 
-            self._memory_ops["cos"][el, b_id] = self._squeeze_op(cos)
-            self._memory_ops["sin"][el, b_id] = self._squeeze_op(sin)
-            self._memory_ops["sin_half"][el, b_id] = self._squeeze_op(sin_half)
+            self._memory_ops['cos'][el, b_id] = self._squeeze_op(cos)
+            self._memory_ops['sin'][el, b_id] = self._squeeze_op(sin)
+            self._memory_ops['sin_half'][el, b_id] = self._squeeze_op(sin_half)
 
             H += -EJ * cos
 
@@ -1817,7 +1818,7 @@ class Circuit:
                 phi = self._get_external_flux_at_element(b_id, torch=True)
                 root_exp = (
                     torch.exp(1j * phi / 2)
-                    * sqf.qobj_to_tensor(self._memory_ops["root_exp"][w_id])
+                    * sqf.qobj_to_tensor(self._memory_ops['root_exp'][w_id])
                 )
 
                 sin_half = (root_exp - sqf.dag(root_exp)) / 2j
@@ -2232,12 +2233,12 @@ class Circuit:
                              "'inductive'.")
         if not (isinstance(nodes, tuple) or isinstance(nodes, list)):
             raise ValueError('Nodes must be a tuple of integers.')
-        
+
         def conditional_cast(op):
             if get_optim_mode() and not force_use_qutip:
                 return sqf.qobj_to_tensor(op)
             return op
-        
+
         def sp_add(a, b):
             if a == 0:
                 return b
@@ -2515,8 +2516,8 @@ class Circuit:
                     decay = decay + 0
                 else:
                     decay = decay + (
-                        tempS * Y * omega * el.get_value() 
-                        * unt.hbar 
+                        tempS * Y * omega * el.get_value()
+                        * unt.hbar
                         * sqf.abs(sqf.operator_inner_product(state1, op, state2)) ** 2
                     )
         elif dec_type == 'charge':
