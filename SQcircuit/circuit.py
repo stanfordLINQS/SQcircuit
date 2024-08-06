@@ -563,7 +563,7 @@ class Circuit:
 
         return params_type
 
-    def zero_parameters_grad(self) -> None:
+    def zero_grad(self) -> None:
         """Set the gradient of all values in ``self.parameters`` to ``None``.
         """
         raise_optim_error_if_needed()
@@ -2482,8 +2482,7 @@ class Circuit:
                         decay = decay + tempS * cap.get_value() / cap.Q(omega) * sqf.abs(
                             self.matrix_elements(
                                 'capacitive', edge, states)) ** 2
-
-        if dec_type == 'inductive':
+        elif dec_type == 'inductive':
             for el, _ in self._memory_ops['ind_hamil']:
                 op = self._memory_ops['ind_hamil'][(el, _)]
                 Q = el.Q(omega, ENV['T'])
@@ -2494,7 +2493,7 @@ class Circuit:
                     decay = decay + tempS / Q / el.get_value() * sqf.abs(
                         sqf.operator_inner_product(state1, op, state2)) ** 2
 
-        if dec_type == 'quasiparticle':
+        elif dec_type == 'quasiparticle':
             for el, B_idx in self._memory_ops['sin_half']:
                 op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
                 Y = el.Y(omega, ENV['T'])
@@ -2507,13 +2506,11 @@ class Circuit:
                         * unt.hbar 
                         * sqf.abs(sqf.operator_inner_product(state1, op, state2)) ** 2
                     )
-
         elif dec_type == 'charge':
             if get_optim_mode():
                 decay = decay + sqtorch.dec_rate_charge_torch(self, states)
             else:
                 decay = decay + self._dec_rate_charge_np(states)
-
         elif dec_type == 'cc':
             if get_optim_mode():
                 decay = decay + sqtorch.dec_rate_cc_torch(self, states)
@@ -2525,6 +2522,8 @@ class Circuit:
                 decay = decay + sqtorch.dec_rate_flux_torch(self, states)
             else:
                 decay = decay + self._dec_rate_flux_np(states)
+        else:
+            raise ValueError(f'The decoherence type {dec_type} is not supported.')
 
         return decay
 
