@@ -1912,16 +1912,16 @@ class Circuit:
                 List of truncation numbers for each mode of the circuit
         """
         trunc_num_average = K ** (1 / len(self.omega))
-        charge_cutoff = (1 / 2) * (trunc_num_average - 1)
+        charge_cutoff = (1 / 2) * (trunc_num_average + 1)
 
         trunc_nums = []
         for mode_idx in range(len(self.omega)):
             # Harmonic mode
             if self.omega[mode_idx] != 0:
-                trunc_nums.append(int(np.ceil(trunc_num_average)))
+                trunc_nums.append(int(np.floor(trunc_num_average)))
             # Charge mode
             else:
-                trunc_nums.append(int(np.ceil(charge_cutoff)))
+                trunc_nums.append(int(np.floor(charge_cutoff)))
 
         self.set_trunc_nums(trunc_nums)
         return trunc_nums
