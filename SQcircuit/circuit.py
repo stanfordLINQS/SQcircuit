@@ -3,6 +3,7 @@
 
 from collections import defaultdict, OrderedDict
 from copy import copy, deepcopy
+import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, Type
 from typing_extensions import Self
 
@@ -37,7 +38,9 @@ from SQcircuit.texts import HamilTxt, is_notebook
 from SQcircuit import symbolic
 from SQcircuit.noise import ENV
 from SQcircuit.settings import ACC, get_optim_mode
-from SQcircuit.logs import raise_optim_error_if_needed, CircuitStateError
+from SQcircuit.exceptions import raise_optim_error_if_needed, CircuitStateError
+
+logger = logging.getLogger(__name__)
 
 
 class CircuitEdge:
@@ -126,12 +129,12 @@ class CircuitEdge:
         """
 
         for loop in el.loops:
-            self.circ.add_loop(loop)
+            self.circ._add_loop(loop)
             loop.add_index(B_idx)
             loop.add_K1(self.w)
 
             if get_optim_mode():
-                self.circ.add_to_parameters(loop)
+                self.circ._add_to_parameters(loop)
 
     def process_edge_and_update_circ(
         self,
@@ -164,7 +167,7 @@ class CircuitEdge:
                 self.edge_elems_by_type[Capacitor].append(el.cap)
 
                 if get_optim_mode():
-                    self.circ.add_to_parameters(el.cap)
+                    self.circ._add_to_parameters(el.cap)
                     if hasattr(el.cap, 'partial_mat'):
                         self.circ.partial_mats[el.cap] += (
                             el.cap.partial_mat(self.mat_rep)
@@ -191,7 +194,7 @@ class CircuitEdge:
 
             if get_optim_mode():
 
-                self.circ.add_to_parameters(el)
+                self.circ._add_to_parameters(el)
 
         self.processed = True
 
@@ -397,7 +400,7 @@ class Circuit:
             Junction: [],
         }
         self.loops: List[Loop] = []
-          
+
         self._parameters = OrderedDict()
 
         self.C, self.L, self.W, self.B = self._get_LCWB()
@@ -503,8 +506,13 @@ class Circuit:
 
     @parameters.setter
     def parameters(self, new_params: Union[Tensor, List[Tensor]]) -> None:
-        for i, element in enumerate(self._parameters.keys()):
-            element.internal_value = new_params[i]
+        raise_optim_error_if_needed()
+
+        try:
+            for i, element in enumerate(self._parameters.keys()):
+                element.internal_value = new_params[i]
+        except IndexError as e:
+            raise ValueError('Shape of new parameters does not match.') from e
 
         self.update()
 
@@ -532,17 +540,22 @@ class Circuit:
         """The dictionary of (element, value) pairs for the elements in
         the circuit which require gradient.
         """
+        raise_optim_error_if_needed()
+
         return self._parameters
 
     @property
     def parameters_elems(self) -> List[Union[Element, Loop]]:
         """The elements in the circuit which require gradient.
         """
+        raise_optim_error_if_needed()
+
         return list(self._parameters.keys())
 
     def get_params_type(self) -> List[Union[Type[Element], Type[Loop]]]:
         """List of the types for each element in the circuit's parameters.
         """
+        raise_optim_error_if_needed()
 
         elements_flattened = list(self._parameters.keys())
 
@@ -551,14 +564,14 @@ class Circuit:
         return params_type
 
     def zero_parameters_grad(self) -> None:
-        """Set the gradient of all values in `self.parameters` to `None`.
+        """Set the gradient of all values in ``self.parameters`` to ``None``.
         """
         raise_optim_error_if_needed()
 
         for val in self.parameters:
             val.grad=None
 
-    def add_to_parameters(self, el: Element) -> None:
+    def _add_to_parameters(self, el: Element) -> None:
         """Add an element which requires gradient computation to ``.parameters``.
         Either
             - ``requires_grad`` is ``True``; or
@@ -574,7 +587,7 @@ class Circuit:
             self._parameters[el] = el.internal_value
 
 
-    def add_loop(self, loop: Loop) -> None:
+    def _add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
 
         Parameters
@@ -828,6 +841,8 @@ class Circuit:
         ----------
             Whether the ``i``th mode is a charge mode.
         """
+        if i >= self.n:
+            raise ValueError(f'The circuit only has {self.n} modes!')
 
         return self.omega[i] == 0
 
@@ -1051,7 +1066,7 @@ class Circuit:
             return S2, R2
 
         else:
-            print('Gram_Schmidt process failed. Retrying...')
+            logger.warning('Gram_Schmidt process failed. Retrying...')
 
             return self._get_and_apply_transformation_2()
 
@@ -1192,8 +1207,8 @@ class Circuit:
             tp:
                 If ``None`` prints out the output as Latex if SQcircuit is
                 running in a Jupyter notebook and as text if SQcircuit is
-                running in Python terminal. If ``tp`` is ``"ltx"``,
-                the output is in Latex format, and if ``tp`` is ``"txt"`` the
+                running in Python terminal. If ``tp`` is ``'ltx'``,
+                the output is in Latex format, and if ``tp`` is ``'txt'`` the
                 output is in text format.
             _test:
                 if True, return the entire description as string
@@ -1251,7 +1266,7 @@ class Circuit:
                 ..., 0, ..., (N-1).
         """
 
-        print('set_trunc_nums called')
+        logger.info('set_trunc_nums called')
 
         if not isinstance(nums, list):
             raise ValueError('The input must be be a python list')
@@ -1672,7 +1687,7 @@ class Circuit:
 
         return H
 
-    def charge_op(self, mode: int, basis: str = 'FC') -> Qobj:
+    def charge_op(self, mode: int, basis: str = 'original') -> Qobj:
         """Return charge operator for specific mode in the Fock/Charge basis or
         the eigenbasis.
 
@@ -1681,7 +1696,7 @@ class Circuit:
             mode:
                 Integer that specifies the mode number.
             basis:
-                String that specifies the basis. It can be either ``'FC'``
+                String that specifies the basis. It can be either ``'original'``
                 for original Fock/Charge basis or ``'eig'`` for eigenbasis.
 
         Returns
@@ -1691,32 +1706,32 @@ class Circuit:
         """
         if len(self.m) == 0:
             raise CircuitStateError('Please specify the truncation number for each mode.')
+        if basis not in ['original', 'eig']:
+            raise ValueError(f'Invalid basis \'{basis}\' passed. Permitted '
+                             'bases are \'original\' and \'eig\'.')
 
         # charge operator in Fock/Charge basis
         Q_FC = self._memory_ops['Q'][mode-1]
 
-        if basis == 'FC':
-
-            return Q_FC
+        if basis == 'original':
+            if get_optim_mode():
+                return sqf.qobj_to_tensor(Q_FC)
+            else:
+                return Q_FC
 
         elif basis == 'eig':
-
             if get_optim_mode():
-
-                mat_evecs = self._evecs.T
-
+                mat_evecs = self._evecs.Ts
                 Q = sqf.qobj_to_tensor(Q_FC)
-
                 Q_eig = torch.conj(mat_evecs.T) @ Q @ mat_evecs
 
                 return Q_eig
+            else:
+                mat_evecs = np.concatenate(list(map(
+                    lambda v: v.full(), self._evecs)), axis=1)
+                Q_eig = np.conj(mat_evecs.T) @ Q_FC.full() @ mat_evecs
 
-            mat_evecs = np.concatenate(list(map(
-                lambda v: v.full(), self._evecs)), axis=1)
-
-            Q_eig = np.conj(mat_evecs.T) @ Q_FC.full() @ mat_evecs
-
-            return qt.Qobj(Q_eig)
+                return qt.Qobj(Q_eig)
 
     def _get_W_idx(self, el: Junction, B_idx: int) -> Optional[int]:
         """"
@@ -1777,9 +1792,9 @@ class Circuit:
             else:
                 return self._memory_ops['sin_half'][el, B_idx]
         else:
-            raise NotImplementedError
+            raise ValueError('The operator \'{typ}\' is not supported.')
 
-    def diag_np(
+    def _diag_np(
         self,
         n_eig: int
     ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
@@ -1799,11 +1814,6 @@ class Circuit:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on numerical engine.
         """
-        if len(self.m) == 0:
-            raise CircuitStateError('Please specify the truncation number for each mode.')
-        if not isinstance(n_eig, int):
-            raise ValueError('n_eig (number of eigenvalues) should be an integer.')
-
         hamil = self.hamiltonian()
 
         # get the data out of qutip variable and use sparse scipy eigen
@@ -1886,19 +1896,24 @@ class Circuit:
                 List of eigenvectors in qutip.Qobj or Tensor format, depending
                 on numerical engine.
         """
-        print('diag called')
+        if len(self.m) == 0:
+            raise CircuitStateError('Please specify the truncation number for each mode.')
+        if not isinstance(n_eig, int):
+            raise ValueError('n_eig (number of eigenvalues) should be an integer.')
+
+        logger.info('diag called')
         if get_optim_mode():
             return self._diag_torch(n_eig)
         else:
-            return self.diag_np(n_eig)
+            return self._diag_np(n_eig)
 
     def truncate_circuit(self, K: int) -> List[int]:
-        """Set Hilbert space dimensionality of circuit to ``k=ceil(K^{1/n})``
+        """Set Hilbert space dimensionality of circuit to ``k=floor(K^{1/n})``
         for all modes, where ``n`` is the number of modes in the circuit.
         Note that charge modes have dimensionality 2*m+1, where m is the
         assigned truncation number. Consequently, to ensure equal Hilbert
         space sizing among charge and harmonic modes, a truncation number
-        of (1 / 2) * (k + 1) is assigned to charge modes.
+        of ``(1 / 2) * (k + 1)`` is assigned to charge modes.
 
 
         Parameters
@@ -1911,6 +1926,11 @@ class Circuit:
             trunc_nums:
                 List of truncation numbers for each mode of the circuit
         """
+        if not isinstance(K, int):
+            raise ValueError('The total truncation number must be an integer.')
+        if K < 1:
+            raise ValueError('The total truncation number must be >=1.')
+
         trunc_num_average = K ** (1 / len(self.omega))
         charge_cutoff = (1 / 2) * (trunc_num_average + 1)
 
@@ -2057,6 +2077,8 @@ class Circuit:
             Phase coordinate representation of the ``k``th eigenvector over
             the values of φ provided in ``grid``.
         """
+        if len(self._evecs) == 0:
+            raise CircuitStateError('Please diagonalize the circuit first.')
         if not isinstance(k, int):
             raise ValueError('The eigenstate index must be an integer.')
 
@@ -2149,7 +2171,8 @@ class Circuit:
         nodes: Tuple[int, int]
     ) -> Qobj:
         """Return the capacitive or inductive coupling operator related to the
-        specified nodes. The output has the ``qutip.Qobj`` format.
+        specified nodes. The output is in ``qutip.Qobj`` when using the
+        ``'NumPy'`` engine and as a ``torch.Tensor`` in the ``PyTorch`` engine.
 
         Parameters
         ----------
@@ -2201,7 +2224,9 @@ class Circuit:
                     op += ((K[node1 - 1, i] - K[node2 - 1, i])
                            * sqf.cast(self._memory_ops['phi'][i]))
 
-        return self._squeeze_op(op)
+        op = self._squeeze_op(op)
+
+        return op
 
     def matrix_elements(
         self,
@@ -2229,6 +2254,8 @@ class Circuit:
             Matrix element between eigenstates in ``states`` for coupling
             operator of type ``ctype`` between nodes in ``nodes``.
         """
+        if len(self._evecs) == 0:
+            raise CircuitStateError('Please diagonalize the circuit first.')
 
         state1 = self._evecs[states[0]]
         state2 = self._evecs[states[1]]
@@ -2353,9 +2380,9 @@ class Circuit:
                 1)``, we calculate the decoherence rate between the ground
                 state and the first excited state.
             total:
-                if False return a decoherence rate associated with a
-                transition from state m to state n for ``states=(m, n)``. if
-                True return a decoherence rate associated with both m to n
+                if ``False`` return a decoherence rate associated with a
+                transition from state m to state n for ``states=(m, n)``. If
+                ``True`` return a decoherence rate associated with both m to n
                 and n to m transitions.
 
         Returns
@@ -2363,6 +2390,8 @@ class Circuit:
             Decoherence/dephasing rate between ``states`` specified by 
             ``dec_type``.
         """
+        if len(self._efreqs) == 0:
+            raise CircuitStateError('Please diagonalize the circuit first.')
 
         omega1 = self._efreqs[states[0]]
         omega2 = self._efreqs[states[1]]
@@ -2605,6 +2634,10 @@ class Circuit:
             Partial derivative of eigenfrequency ``m`` with respect to ``el``,
             in units of angular frequency.
         """
+        raise_optim_error_if_needed()
+
+        if len(self._evecs) == 0:
+            raise CircuitStateError('Please diagonalize the circuit first.')
 
         state_m = self._evecs[m]
         partial_H = self._get_partial_H(el, _B_idx)
@@ -2692,6 +2725,10 @@ class Circuit:
             Partial derivative of the ``m``th eigenvector, with respect to
             ``el``.
         """
+        raise_optim_error_if_needed()
+
+        if len(self._evecs) == 0:
+            raise CircuitStateError('Please diagonalize the circuit first.')
 
         state_m = self._evecs[m]
 
