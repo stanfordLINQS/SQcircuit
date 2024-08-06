@@ -378,7 +378,7 @@ def get_B_indices(
     el: Union[Junction, Inductor]
 ) -> List[int]:
     """
-    Return the list of ``B_idx``'s with the element ``el`` (the same element
+    Return the list of ``b_id``'s with the element ``el`` (the same element
     could be placed at multiple branches).
 
     Parameters
@@ -394,13 +394,13 @@ def get_B_indices(
     """
     B_indices = []
     if isinstance(el, Junction):
-        for _, el_JJ, B_idx, _ in cr.elem_keys[Junction]:
+        for _, el_JJ, b_id, _ in cr.elem_keys[Junction]:
             if el_JJ is el:
-                B_indices.append(B_idx)
+                B_indices.append(b_id)
     elif isinstance(el, Inductor):
-        for _, el_ind, B_idx in cr.elem_keys[Inductor]:
+        for _, el_ind, b_id in cr.elem_keys[Inductor]:
             if el_ind is el:
-                B_indices.append(B_idx)
+                B_indices.append(b_id)
 
     return B_indices
 
@@ -652,7 +652,7 @@ class DecRateCharge(Function):
 def partial_squared_H_EJ(
     cr: 'Circuit',
     EJ_el: Junction,
-    B_idx: int,
+    b_id: int,
     grad_el: SupportedGradElements
 ) -> qt.Qobj:
     """ Calculates the second derivative of the Hamiltonian of ``cr`` with 
@@ -664,7 +664,7 @@ def partial_squared_H_EJ(
             The ``Circuit`` object to differentiate the Hamiltonian of.
         EJ_el:
             The Josephson junction to differentiate with respect to.
-        B_idx:
+        b_id:
             The index of the ``cr.B`` matrix identifying which branch the 
             ``EJ_el`` is on.
         grad_el:
@@ -679,13 +679,13 @@ def partial_squared_H_EJ(
         return 0
 
     loop_idx = cr.loops.index(grad_el)
-    return cr.B[B_idx, loop_idx] * cr._memory_ops['sin'][(EJ_el, B_idx)]
+    return cr.B[b_id, loop_idx] * cr._memory_ops['sin'][(EJ_el, b_id)]
 
 
 def partial_squared_omega_mn_EJ(
     cr: 'Circuit',
     EJ_el: Junction,
-    B_idx: int,
+    b_id: int,
     grad_el: SupportedGradElements,
     states: Tuple[int, int]
 ) -> float:
@@ -698,7 +698,7 @@ def partial_squared_omega_mn_EJ(
             The ``Circuit`` object to differentiate the eigenfrequencies of.
         EJ_el:
             A Josephson junction to differentiate with respect to.
-        B_idx:
+        b_id:
             A number
         grad_el:
             A circuit element to differentiate with respect to.
@@ -710,8 +710,8 @@ def partial_squared_omega_mn_EJ(
         The second derivative of the eigenfrequency difference with respect to
         ``EJ_el`` and ``grad_el``.
     """
-    partial_H = cr._get_partial_H(EJ_el, _B_idx = B_idx)
-    partial_H_squared = partial_squared_H_EJ(cr, EJ_el, B_idx, grad_el)
+    partial_H = cr._get_partial_H(EJ_el, _b_id = b_id)
+    partial_H_squared = partial_squared_H_EJ(cr, EJ_el, b_id, grad_el)
 
     return partial_squared_omega(
         cr,
@@ -748,16 +748,16 @@ def partial_cc_dec(
     dec_rate_grad = 0
     # Sum over all cosine operators because each Josephson junction is
     # associated with exactly one.
-    for EJ_el, B_idx in cr._memory_ops['cos']:
+    for EJ_el, b_id in cr._memory_ops['cos']:
         partial_omega_mn = sqf.to_numpy(cr._get_partial_omega_mn(
             EJ_el,
             states=states,
-            _B_idx=B_idx
+            _b_id=b_id
         ))
         partial_squared_omega_mn = partial_squared_omega_mn_EJ(
             cr,
             EJ_el,
-            B_idx,
+            b_id,
             grad_el,
             states
         )
@@ -850,27 +850,27 @@ def partial_squared_H_phi(
 
     H_squared = 0
     if isinstance(grad_el, Junction):
-        for B_idx in B_indices:
-            H_squared += cr.B[B_idx, loop_idx] * cr._memory_ops['sin'][(grad_el, B_idx)]
+        for b_id in B_indices:
+            H_squared += cr.B[b_id, loop_idx] * cr._memory_ops['sin'][(grad_el, b_id)]
         return H_squared
     elif isinstance(grad_el, Inductor):
-        for B_idx in B_indices:
+        for b_id in B_indices:
             H_squared += (
-                cr.B[B_idx, loop_idx]
+                cr.B[b_id, loop_idx]
                 / -sqf.to_numpy(grad_el.get_value()**2)
                 * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
-                * cr._memory_ops["ind_hamil"][(grad_el, B_idx)]
+                * cr._memory_ops["ind_hamil"][(grad_el, b_id)]
             )
         return H_squared
     elif isinstance(grad_el, Loop):
         loop_idx_1 = cr.loops.index(loop)
         loop_idx_2 = cr.loops.index(grad_el)
-        for edge, el_JJ, B_idx, W_idx in cr.elem_keys[Junction]:
+        for edge, el_JJ, b_id, W_idx in cr.elem_keys[Junction]:
             H_squared += (
                 sqf.to_numpy(el_JJ.get_value())
-                * cr.B[B_idx, loop_idx_2]
-                * cr.B[B_idx, loop_idx_1]
-                * cr._memory_ops['cos'][(el_JJ, B_idx)]
+                * cr.B[b_id, loop_idx_2]
+                * cr.B[b_id, loop_idx_1]
+                * cr._memory_ops['cos'][(el_JJ, b_id)]
             )
         return H_squared
     else:

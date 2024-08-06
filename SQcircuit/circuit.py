@@ -96,62 +96,63 @@ class CircuitEdge:
         This helps to construct the capacitance and susceptance matrices.
         """
 
-        A = np.zeros((self.circ.n, self.circ.n))
+        edge_mat = np.zeros((self.circ.n, self.circ.n))
 
         if 0 in self.edge:
             i = self.edge[0] + self.edge[1] - 1
-            A[i, i] = 1
+            edge_mat[i, i] = 1
         else:
             i = self.edge[0] - 1
             j = self.edge[1] - 1
 
-            A[i, i] = 1
-            A[j, j] = 1
-            A[i, j] = -1
-            A[j, i] = -1
+            edge_mat[i, i] = 1
+            edge_mat[j, j] = 1
+            edge_mat[i, j] = -1
+            edge_mat[j, i] = -1
 
-        return A
+        return edge_mat
 
     def update_circuit_loop_from_element(
         self,
         el: Union[Inductor, Junction],
-        B_idx: int,
+        b_id: int,
     ) -> None:
         """Update loop properties related to circuit from element in the edge
-        with its inductive index (B_idx).
+        with its inductive index (b_id).
 
         Parameters
         ----------
             el:
                 Inductive element.
-            B_idx:
+            b_id:
                 Inductive index.
         """
 
         for loop in el.loops:
+
             self.circ._add_loop(loop)
-            loop.add_index(B_idx)
-            loop.add_K1(self.w)
+            loop.add_index(b_id)
+            loop.add_to_k_mat(self.w)
 
             if get_optim_mode():
                 self.circ._add_to_parameters(loop)
 
     def process_edge_and_update_circ(
         self,
-        B_idx: int,
-        W_idx: int,
-        K1: list,
+        b_id: int,
+        w_id: int,
+        k_mat: list,
         c_edge_mat: list,
     ) -> Tuple[int, list, list]:
         """Process the edge and update the related circuit properties.
 
         Parameters
         ----------
-            B_idx:
+            b_id:
                 Point to each row of B matrix of the circuit.
-            W_idx:
+            w_id:
                 Point to each row of W matrix of the circuit.
-            K1:
+            k_mat:
                 Matrix related to loop calculation
             c_edge_mat:
                 edge capacitance matrix
@@ -174,14 +175,14 @@ class CircuitEdge:
                         )
 
                 self.circ.elem_keys[el.type].append(
-                    el.get_key(self.edge, B_idx, W_idx)
+                    el.get_key(self.edge, b_id, w_id)
                 )
 
-                self.update_circuit_loop_from_element(el, B_idx)
+                self.update_circuit_loop_from_element(el, b_id)
 
-                B_idx += 1
+                b_id += 1
 
-                K1.append(self.w)
+                k_mat.append(self.w)
 
                 c_edge_mat.append(
                     el.get_cap_for_flux_dist(self.circ.flux_dist)
@@ -198,7 +199,7 @@ class CircuitEdge:
 
         self.processed = True
 
-        return B_idx, K1, c_edge_mat
+        return b_id, k_mat, c_edge_mat
 
     def _check_if_edge_is_processed(self) -> None:
 
@@ -297,16 +298,16 @@ class Circuit:
         # number of nodes without ground
         self.n: int = max(max(self.elements))
 
-        # number of branches that contain JJ without parallel inductor.
-        self.countJJnoInd: int = 0
+        # number of branches that contain junctions without a parallel inductor.
+        self.num_jun_without_ind: int = 0
 
         self.elem_keys = {
-            # inductor element keys: (edge, el, B_idx) B_idx point to
+            # inductor element keys: (edge, el, b_id) b_id point to
             # each row of B matrix (external flux distribution of that element)
             Inductor: [],
-            # junction element keys: (edge, el, B_idx, W_idx) B_idx point to
+            # junction element keys: (edge, el, b_id, w_id) b_id point to
             # each row of B matrix (external flux distribution of that element)
-            # and W_idx point to each row of W matrix
+            # and w_id point to each row of W matrix
             Junction: [],
         }
 
@@ -586,7 +587,6 @@ class Circuit:
         if (el.requires_grad or not el.is_leaf) and el not in self._parameters:
             self._parameters[el] = el.internal_value
 
-
     def _add_loop(self, loop: Loop) -> None:
         """Add loop to the circuit loops.
 
@@ -672,12 +672,12 @@ class Circuit:
                 Inductor: [],
                 Junction: [],
             }
-            for edge, el, B_idx, W_idx in self.elem_keys[Junction]:
+            for edge, el, b_id, w_id in self.elem_keys[Junction]:
                 new_el = replacement_dict[el]
-                new_circuit.elem_keys[Junction].append((edge, new_el, B_idx, W_idx))
-            for edge, el, B_idx in self.elem_keys[Inductor]:
+                new_circuit.elem_keys[Junction].append((edge, new_el, b_id, w_id))
+            for edge, el, b_id in self.elem_keys[Inductor]:
                 new_el = replacement_dict[el]
-                new_circuit.elem_keys[Inductor].append((edge, new_el, B_idx))
+                new_circuit.elem_keys[Inductor].append((edge, new_el, b_id))
 
             # Update the `.partial_mats` dictionary
             new_circuit.partial_mats = defaultdict(lambda: 0)
@@ -697,9 +697,9 @@ class Circuit:
                     new_circuit._memory_ops[op_type] = self._memory_ops[op_type]
                 else:
                     new_circuit._memory_ops[op_type] = {}
-                    for el, B_idx in self._memory_ops[op_type].keys():
-                        new_circuit._memory_ops[op_type][(replacement_dict[el], B_idx)] = (
-                            self._memory_ops[op_type][(el, B_idx)]
+                    for el, b_id in self._memory_ops[op_type].keys():
+                        new_circuit._memory_ops[op_type][(replacement_dict[el], b_id)] = (
+                            self._memory_ops[op_type][(el, b_id)]
                         )
 
         # Remove old eigenvectors/values, if desired
@@ -726,7 +726,7 @@ class Circuit:
         ----------
             Copy of self with ``._toggle_fullcopy = False``.
         """
-       # Instantiate new container
+        # Instantiate new container
         new_circuit = copy(self)
 
         # Remove large objects when saving
@@ -743,91 +743,89 @@ class Circuit:
             A tuple of the (capacitance, susceptance, W, B) matrices.
         """
 
-        cMat = sqf.zeros((self.n, self.n), dtype=torch.float64)
-        lMat = sqf.zeros((self.n, self.n), dtype=torch.float64)
-        wMat = []
-        bMat = sqf.array([])
+        c_mat = sqf.zeros((self.n, self.n), dtype=torch.float64)
+        l_mat = sqf.zeros((self.n, self.n), dtype=torch.float64)
+        w_mat = []
+        b_mat = sqf.array([])
 
         self.partial_mats = defaultdict(lambda: 0)
 
         # point to each row of B matrix (external flux distribution of that
         # element) or count the number of inductive elements.
-        B_idx = 0
+        b_id = 0
 
-        # W_idx point to each row of W matrix for junctions or count the
+        # w_id point to each row of W matrix for junctions or count the
         # number of edges contain JJ
-        W_idx = 0
+        w_id = 0
 
-        # number of branches that contain JJ without parallel inductor.
-        countJJnoInd = 0
+        # number of branches that contain JJ without a parallel inductor.
+        num_jun_without_ind = 0
 
-        # K1 is a matrix that transfers node coordinates to the edge phase drop
-        # for inductive elements
-        K1 = []
+        # k_mat is a matrix that transfers node coordinates to the edge phase
+        # drop for inductive elements (In the paper Appendix D we referred to it
+        # as W matrix)
+        k_mat = []
 
-        # capacitor at each inductive elements
+        # capacitor at each inductive element
         c_edge_mat = []
 
         for edge in self.elements.keys():
 
             circ_edge = CircuitEdge(self, edge)
 
-            B_idx, K1, c_edge_mat = circ_edge.process_edge_and_update_circ(
-                B_idx,
-                W_idx,
-                K1,
+            b_id, k_mat, c_edge_mat = circ_edge.process_edge_and_update_circ(
+                b_id,
+                w_id,
+                k_mat,
                 c_edge_mat
             )
 
             if circ_edge.is_JJ_without_ind():
-                countJJnoInd += 1
+                num_jun_without_ind += 1
 
-            cMat += sqf.array(circ_edge.get_eff_cap_value()) * sqf.array(
+            c_mat += sqf.array(circ_edge.get_eff_cap_value()) * sqf.array(
                 circ_edge.mat_rep)
 
-            lMat += sqf.array(circ_edge.get_eff_ind_value()) * sqf.array(
+            l_mat += sqf.array(circ_edge.get_eff_ind_value()) * sqf.array(
                 circ_edge.mat_rep)
 
             if circ_edge.is_JJ_in_this_edge():
-                wMat.append(circ_edge.w)
-                W_idx += 1
+                w_mat.append(circ_edge.w)
+                w_id += 1
 
-        wMat = np.array(wMat)
+        w_mat = np.array(w_mat)
 
         try:
-            K1 = np.array(K1)
-            a = np.zeros_like(K1)
-            select = np.sum(K1 != a, axis=0) != 0
-            # eliminate the zero columns
-            K1 = K1[:, select]
-            if K1.shape[0] == K1.shape[1]:
-                K1 = K1[:, 0:-1]
+            k_mat = np.array(k_mat)
 
-            X = K1.T @ np.diag([sqf.to_numpy(c) for c in c_edge_mat])
+            k_mat = sqf.remove_dependent_columns(k_mat)
+
+            x_mat = k_mat.T @ np.diag([sqf.to_numpy(c) for c in c_edge_mat])
+
             for loop in self.loops:
-                p = np.zeros((1, B_idx))
-                p[0, loop.indices] = loop.get_P()
-                X = np.concatenate((X, p), axis=0)
+                g = np.zeros((1, b_id))
+                g[0, loop.indices] = loop.get_g()
+                x_mat = np.concatenate((x_mat, g), axis=0)
 
             # number of inductive loops of the circuit
             n_loops = len(self.loops)
 
             if n_loops != 0:
-                Y = np.concatenate(
-                    (np.zeros((B_idx - n_loops, n_loops)), np.eye(n_loops)),
+                i_mat = np.concatenate(
+                    (np.zeros((b_id - n_loops, n_loops)), np.eye(n_loops)),
                     axis=0
                 )
-                bMat = np.linalg.inv(X) @ Y
-                bMat = np.around(bMat, 5)
+                b_mat = np.linalg.inv(x_mat) @ i_mat
+                b_mat = np.around(b_mat, 5)
 
         except ValueError:
             raise ValueError('The edge list does not specify a connected graph '
                              'or all inductive loops of the circuit are not '
                              'specified.') from None
 
-        self.countJJnoInd = countJJnoInd
+        self.num_jun_without_ind = num_jun_without_ind
 
-        return cMat, lMat, wMat, bMat
+        return c_mat, l_mat, w_mat, b_mat
 
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
@@ -875,33 +873,35 @@ class Circuit:
             A tuple of the (S1, R1) matrices.
         """
 
-        cMatRoot = sqrtm(sqf.to_numpy(self.C))
-        cMatRootInv = np.linalg.inv(cMatRoot)
-        lMatRoot = sqrtm(sqf.to_numpy(self.L))
+        c_mat_root = sqrtm(sqf.to_numpy(self.C))
+        c_mat_root_inv = np.linalg.inv(c_mat_root)
+        l_mat_root = sqrtm(sqf.to_numpy(self.L))
 
-        V, D, U = np.linalg.svd(lMatRoot @ cMatRootInv)
+        _, D, U = np.linalg.svd(l_mat_root @ c_mat_root_inv)
 
         # the case that there is not any inductor in the circuit
         if np.max(D) == 0:
             D = np.diag(np.eye(self.n))
-            singLoc = list(range(0, self.n))
+            sing_locs = list(range(0, self.n))
         else:
-            # find the number of singularity in the circuit
+            # find the number of singularities in the circuit
 
-            lEig, _ = np.linalg.eig(sqf.to_numpy(self.L))
-            numSing = len(lEig[lEig / np.max(lEig) < ACC['sing_mode_detect']])
-            singLoc = list(range(self.n - numSing, self.n))
-            D[singLoc] = np.max(D)
+            l_mat_eigs, _ = np.linalg.eig(sqf.to_numpy(self.L))
+            num_sings = len(l_mat_eigs[
+                    l_mat_eigs / np.max(l_mat_eigs) < ACC["sing_mode_detect"]
+            ])
+            sing_locs = list(range(self.n - num_sings, self.n))
+            D[sing_locs] = np.max(D)
 
         # build S1 and R1 matrix
-        S1 = cMatRootInv @ U.T @ np.diag(np.sqrt(D))
-        R1 = np.linalg.inv(S1).T
+        s_1 = c_mat_root_inv @ U.T @ np.diag(np.sqrt(D))
+        r_1 = np.linalg.inv(s_1).T
 
-        self._apply_transformation(S1, R1)
+        self._apply_transformation(s_1, r_1)
 
-        self.lTrans[singLoc, singLoc] = 0
+        self.lTrans[sing_locs, sing_locs] = 0
 
-        return S1, R1
+        return s_1, r_1
 
     @staticmethod
     def _independent_rows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
@@ -956,7 +956,7 @@ class Circuit:
 
         rounded_W = W.copy()
 
-        if self.countJJnoInd == 0:
+        if self.num_jun_without_ind == 0:
             rounded_W[:, self.omega == 0] = 0
 
         charge_only_W = rounded_W[:, self.omega == 0]
@@ -969,7 +969,7 @@ class Circuit:
 
         return rounded_W
 
-    def _is_Gram_Schmidt_successful(self, S) -> bool:
+    def _is_gram_schmidt_successful(self, S) -> bool:
         """Check if the Gram_Schmidt process has the sufficient accuracy for
         the ``S`` transformation matrix.
 
@@ -986,13 +986,11 @@ class Circuit:
         is_successful = True
 
         # absolute value of the current wTrans
-        cur_wTrans = self.wTrans @ S
-
-        cur_wTrans = self._round_to_zero_one(cur_wTrans)
+        cur_w_trans = self._round_to_zero_one(self.wTrans @ S)
 
         for j in range(self.n):
             if self._is_charge_mode(j):
-                for abs_w in np.abs(cur_wTrans[:, j]):
+                for abs_w in np.abs(cur_w_trans[:, j]):
                     if abs_w != 0 and abs_w != 1:
                         is_successful = False
 
@@ -1019,51 +1017,65 @@ class Circuit:
         """
 
         if len(self.W) != 0:
+            # remove independent rows
+            w_t = sqf.remove_dependent_columns(self.W.T)
+            w_reduced = w_t.T
+            w_reduced_transformed = w_reduced @ self.S1
+            
+            # charge part of the reduced w_mat
+            w_charge = w_reduced_transformed[:, self.omega == 0].copy()
+
             # get the charge basis part of the wTrans matrix
-            wQ = self.wTrans[:, self.omega == 0].copy()
+            # w_charge = self.wTrans[:, self.omega == 0].copy()
+
             # number of operators represented in charge bases
-            nq = wQ.shape[1]
+            nq = w_charge.shape[1]
         else:
             nq = 0
-            wQ = np.array([])
+            w_charge = np.array([])
 
-        # if we need to represent an operator in charge basis
-        if nq != 0 and self.countJJnoInd != 0:
+        # if we need to represent an operator in the charge basis
+        if nq != 0 and self.num_jun_without_ind != 0:
 
             # list of indices of w vectors that are independent
-            indList = []
+            ind_lst = []
 
-            X = []
+            # random vectors to complete the basis
+            rnd_vecs = []
+
             # use Gram–Schmidt to find the linear independent rows of
-            # normalized wQ (wQ_norm)
+            # normalized w_charge (w_charge_norm)
             basis = []
 
             while len(basis) != nq:
                 if len(basis) == 0:
-                    indList, basis = self._independent_rows(wQ)
+                    ind_lst, basis = self._independent_rows(w_charge)
                 else:
-                    # to complete the basis
-                    X = list(np.random.randn(nq - len(basis), nq))
-                    basisComplete = np.array(basis + X)
-                    _, basis = self._independent_rows(basisComplete)
+                    # random vectors to complete the basis
+                    rnd_vecs = list(
+                        np.linalg.norm(w_charge, 'fro')
+                        * np.random.randn(nq - len(basis), nq)
+                    )
+                    completed_basis = np.array(basis + rnd_vecs)
+                    _, basis = self._independent_rows(completed_basis)
 
             # the second S and R matrix are:
-            F = np.array(list(wQ[indList, :]) + X)
-            S2 = block_diag(np.eye(self.n - nq), np.linalg.inv(F))
+            f_mat = np.array(list(w_charge[ind_lst, :]) + rnd_vecs)
+            s_2 = block_diag(np.eye(self.n - nq), np.linalg.inv(f_mat))
 
-            R2 = np.linalg.inv(S2.T)
+            r_2 = np.linalg.inv(s_2.T)
 
         else:
-            S2 = np.eye(self.n, self.n)
-            R2 = S2
+            s_2 = np.eye(self.n, self.n)
+            r_2 = s_2
 
-        if self._is_Gram_Schmidt_successful(S2):
+        if self._is_gram_schmidt_successful(s_2):
 
-            self._apply_transformation(S2, R2)
+            self._apply_transformation(s_2, r_2)
 
             self.wTrans = self._round_to_zero_one(self.wTrans)
 
-            return S2, R2
+            return s_2, r_2
 
         else:
             logger.warning('Gram_Schmidt process failed. Retrying...')
@@ -1079,7 +1091,7 @@ class Circuit:
             A tuple of the (S3, R3) transformation matrices.
         """
 
-        S3 = np.eye(self.n)
+        s_3 = np.eye(self.n)
 
         for j in range(self.n):
 
@@ -1100,22 +1112,22 @@ class Circuit:
                     # find the coefficient in wTrans for j-th mode that
                     # has maximum alpha
                     s = np.abs(self.wTrans[np.argmax(jth_alphas), j])
-                    S3[j, j] = 1 / s
+                    s_3[j, j] = 1 / s
                 else:
                     # scale the uncoupled mode
                     s = np.max(np.abs(self.S[:, j]))
-                    S3[j, j] = 1 / s
+                    s_3[j, j] = 1 / s
 
             else:
                 # scale the uncoupled mode
                 s = np.max(np.abs(self.S[:, j]))
-                S3[j, j] = 1 / s
+                s_3[j, j] = 1 / s
 
-        R3 = np.linalg.inv(S3.T)
+        r_3 = np.linalg.inv(s_3.T)
 
-        self._apply_transformation(S3, R3)
+        self._apply_transformation(s_3, r_3)
 
-        return S3, R3
+        return s_3, r_3
 
     def _transform_hamil(self) -> None:
         """Transform the Hamiltonian of the circuit into the charge and Fock
@@ -1179,10 +1191,10 @@ class Circuit:
                                            / (2 * np.pi * unt.get_unit_freq()))
         self.descrip_vars['EL'] = []
         self.descrip_vars['EL_incl'] = []
-        for _, el, B_idx in self.elem_keys[Inductor]:
+        for _, el, b_id in self.elem_keys[Inductor]:
             self.descrip_vars['EL'].append(sqf.to_numpy(el.get_value(unt._unit_ind)))
             self.descrip_vars['EL_incl'].append(
-                np.sum(np.abs(self.descrip_vars['B'][B_idx, :])) != 0)
+                np.sum(np.abs(self.descrip_vars['B'][b_id, :])) != 0)
 
         self.descrip_vars['EC'] = dict()
         for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
@@ -1639,7 +1651,7 @@ class Circuit:
 
     def _get_external_flux_at_element(
         self,
-        B_idx: int,
+        b_id: int,
         torch = False
     ) -> Union[float, Tensor]:
         """
@@ -1647,7 +1659,7 @@ class Circuit:
 
         Parameters
         ----------
-            B_idx:
+            b_id:
                 An integer point to each row of B matrix (external flux
                 distribution of that element)
             torch:
@@ -1655,11 +1667,11 @@ class Circuit:
 
         Returns
         ----------
-            The external flux at the element referenced by ``B_idx.``
+            The external flux at the element referenced by ``b_id.``
         """
         phi_ext = sqf.zero()
         for i, loop in enumerate(self.loops):
-            phi_ext += loop.value() * self.B[B_idx, i]
+            phi_ext += loop.value() * self.B[b_id, i]
 
         if isinstance(phi_ext, Tensor) and not torch:
             return sqf.to_numpy(phi_ext)
@@ -1675,10 +1687,10 @@ class Circuit:
         """
 
         H = 0
-        for edge, el, B_idx in self.elem_keys[Inductor]:
+        for edge, el, b_id in self.elem_keys[Inductor]:
             # phi = 0
-            # if B_idx is not None:
-            phi = self._get_external_flux_at_element(B_idx)
+            # if b_id is not None:
+            phi = self._get_external_flux_at_element(b_id)
 
             # summation of the 1 over inductor values.
             x = np.squeeze(sqf.to_numpy(1 / el.get_value()))
@@ -1686,24 +1698,24 @@ class Circuit:
             H += x * phi * (unt.Phi0 / 2 / np.pi) * op / np.sqrt(unt.hbar)
 
             # save the operators for loss calculation
-            self._memory_ops['ind_hamil'][(el, B_idx)] = op
-        for _, el, B_idx, W_idx in self.elem_keys[Junction]:
+            self._memory_ops["ind_hamil"][(el, b_id)] = op
+        for _, el, b_id, w_id in self.elem_keys[Junction]:
             # phi = 0
-            # if B_idx is not None:
-            phi = self._get_external_flux_at_element(B_idx)
+            # if b_id is not None:
+            phi = self._get_external_flux_at_element(b_id)
 
             EJ = sqf.to_numpy(el.get_value())
 
-            exp = np.exp(1j * phi) * self._memory_ops['exp'][W_idx]
-            root_exp = np.exp(1j * phi / 2) * self._memory_ops['root_exp'][
-                W_idx]
+            exp = np.exp(1j * phi) * self._memory_ops["exp"][w_id]
+            root_exp = np.exp(1j * phi / 2) * self._memory_ops["root_exp"][
+                w_id]
             cos = (exp + exp.dag()) / 2
             sin = (exp - exp.dag()) / 2j
             sin_half = (root_exp - root_exp.dag()) / 2j
 
-            self._memory_ops['cos'][el, B_idx] = self._squeeze_op(cos)
-            self._memory_ops['sin'][el, B_idx] = self._squeeze_op(sin)
-            self._memory_ops['sin_half'][el, B_idx] = self._squeeze_op(sin_half)
+            self._memory_ops["cos"][el, b_id] = self._squeeze_op(cos)
+            self._memory_ops["sin"][el, b_id] = self._squeeze_op(sin)
+            self._memory_ops["sin_half"][el, b_id] = self._squeeze_op(sin_half)
 
             H += -EJ * cos
 
@@ -1755,7 +1767,7 @@ class Circuit:
 
                 return Qobj(Q_eig)
 
-    def _get_W_idx(self, el: Junction, B_idx: int) -> Optional[int]:
+    def _get_w_id(self, el: Junction, b_id: int) -> Optional[int]:
         """"
         Find the corresponding ``W`` matrix index given an junction and its
         ``B`` matrix index.
@@ -1764,16 +1776,16 @@ class Circuit:
         ----------
             el:
                 Josephson junction in circuit.
-            B_idx:
+            b_id:
                 Index of B matrix corresponding to ``el``.
 
         Returns
         ----------
             The corresponding ``W`` matrix index, if it exists.
         """
-        for _, o_el, o_B_idx, W_idx in self.elem_keys[Junction]:
-            if o_el == el and o_B_idx == B_idx:
-                return W_idx
+        for _, o_el, o_b_id, w_id in self.elem_keys[Junction]:
+            if o_el == el and o_b_id == b_id:
+                return w_id
 
         return None
 
@@ -1797,22 +1809,22 @@ class Circuit:
             The `typ` operator of the circuit specified by ``keywords``.
         """
         if typ == 'sin_half':
-            B_idx = keywords['B_idx']
+            b_id = keywords['b_id']
             el = keywords['el']
             if get_optim_mode():
-                W_idx = self._get_W_idx(el, B_idx)
+                w_id = self._get_w_id(el, b_id)
 
-                phi = self._get_external_flux_at_element(B_idx, torch=True)
+                phi = self._get_external_flux_at_element(b_id, torch=True)
                 root_exp = (
                     torch.exp(1j * phi / 2)
-                    * sqf.qobj_to_tensor(self._memory_ops['root_exp'][W_idx])
+                    * sqf.qobj_to_tensor(self._memory_ops["root_exp"][w_id])
                 )
 
                 sin_half = (root_exp - sqf.dag(root_exp)) / 2j
                 # ToDo: need to squeeze?
                 return sin_half
             else:
-                return self._memory_ops['sin_half'][el, B_idx]
+                return self._memory_ops['sin_half'][el, b_id]
         else:
             raise ValueError('The operator \'{typ}\' is not supported.')
 
@@ -1954,7 +1966,7 @@ class Circuit:
             raise ValueError('The total truncation number must be >=1.')
 
         trunc_num_average = K ** (1 / len(self.omega))
-        charge_cutoff = (1 / 2) * (trunc_num_average - 1)
+        charge_cutoff = (1 / 2) * (trunc_num_average + 1)
 
         trunc_nums = []
         for mode_idx in range(len(self.omega)):
@@ -2057,7 +2069,7 @@ class Circuit:
 
         Returns
         ----------
-            indList:
+            ind_lst:
                 A list of mode indices (self.n)
         """
 
@@ -2070,16 +2082,16 @@ class Circuit:
             else:
                 mP = [mP[0] * self.m[-1 - i]] + mP
 
-        indList = []
+        ind_lst = []
         indexP = tensorIndex
         for i in range(self.n):
             if i == self.n - 1:
-                indList.append(indexP)
+                ind_lst.append(indexP)
                 continue
-            indList.append(int(indexP / mP[i]))
+            ind_lst.append(int(indexP / mP[i]))
             indexP = indexP % mP[i]
 
-        return indList
+        return ind_lst
 
     def eig_phase_coord(self, k: int, grid: Sequence[ndarray]) -> ndarray:
         """
@@ -2116,7 +2128,7 @@ class Circuit:
 
             # decomposes the tensor product space index (i) to each mode
             # indices as a list
-            indList = self._tensor_to_modes(i)
+            ind_lst = self._tensor_to_modes(i)
 
             if get_optim_mode():
                 term = self._evecs[k][i].item()
@@ -2126,7 +2138,7 @@ class Circuit:
             for mode in range(self.n):
 
                 # mode number related to that node
-                n = indList[mode]
+                n = ind_lst[mode]
 
                 # For charge basis
                 if self._is_charge_mode(mode):
@@ -2398,8 +2410,10 @@ class Circuit:
             Critical current dephasing rate between ``states``.
         """
         decay = 0
-        for el, B_idx in self._memory_ops['cos']:
-            partial_omega = self._get_partial_omega_mn(el, states=states, _B_idx=B_idx)
+        for el, b_id in self._memory_ops['cos']:
+            partial_omega = self._get_partial_omega_mn(
+                el, states=states, _b_id=b_id
+            )
             A = el.A * el.get_value()
             decay = decay + self._dephasing(A, partial_omega)
 
@@ -2492,10 +2506,9 @@ class Circuit:
                 else:
                     decay = decay + tempS / Q / el.get_value() * sqf.abs(
                         sqf.operator_inner_product(state1, op, state2)) ** 2
-
         elif dec_type == 'quasiparticle':
-            for el, B_idx in self._memory_ops['sin_half']:
-                op = self.op('sin_half', {'el': el, 'B_idx': B_idx})
+            for el, b_id in self._memory_ops['sin_half']:
+                op = self.op('sin_half', {'el': el, 'b_id': b_id})
                 Y = el.Y(omega, ENV['T'])
                 if np.isnan(sqf.to_numpy(Y)):
                     logger.warning('Calculated Y for %s was NaN', el)
@@ -2516,7 +2529,6 @@ class Circuit:
                 decay = decay + sqtorch.dec_rate_cc_torch(self, states)
             else:
                 decay = decay + self._dec_rate_cc_np(states)
-
         elif dec_type == 'flux':
             if get_optim_mode():
                 decay = decay + sqtorch.dec_rate_flux_torch(self, states)
@@ -2585,7 +2597,7 @@ class Circuit:
     def _get_partial_H(
         self,
         el: Union[Capacitor, Inductor, Junction, Loop],
-        _B_idx: Optional[int] = None,
+        _b_id: Optional[int] = None,
     ) -> Qobj:
         """
         Compute the gradient of the Hamiltonian with respect to elements or
@@ -2595,7 +2607,7 @@ class Circuit:
             el:
                 Element of a circuit that can be either ``Capacitor``,
                 ``Inductor``, ``Junction``, or ``Loop``.
-            _B_idx:
+            _b_id:
                 Optional integer to indicate which row of the B matrix
                 (per-element external flux distribution) to use. This specifies
                 which JJ of the circuit to consider specifically (ex. for
@@ -2618,12 +2630,12 @@ class Circuit:
             A = -self.S.T @ self.partial_mats[el]  @ self.S
             partial_H += self._get_quadratic_phi(A)
 
-            for edge, el_ind, B_idx in self.elem_keys[Inductor]:
+            for edge, el_ind, b_id in self.elem_keys[Inductor]:
                 if el == el_ind:
 
-                    phi = self._get_external_flux_at_element(B_idx)
+                    phi = self._get_external_flux_at_element(b_id)
 
-                    partial_H += -(self._memory_ops['ind_hamil'][(el, B_idx)]
+                    partial_H += -(self._memory_ops['ind_hamil'][(el, b_id)]
                                    / np.squeeze(sqf.to_numpy(el.get_value()))**2 / np.sqrt(unt.hbar)
                                    * (unt.Phi0/2/np.pi) * phi)
 
@@ -2631,27 +2643,27 @@ class Circuit:
 
             loop_idx = self.loops.index(el)
 
-            for edge, el_ind, B_idx in self.elem_keys[Inductor]:
+            for edge, el_ind, b_id in self.elem_keys[Inductor]:
                 partial_H += (
-                    self.B[B_idx, loop_idx]
-                    * self._memory_ops['ind_hamil'][(el_ind, B_idx)]
+                    self.B[b_id, loop_idx]
+                    * self._memory_ops["ind_hamil"][(el_ind, b_id)]
                     / sqf.to_numpy(el_ind.get_value())
                     * unt.Phi0 / np.sqrt(unt.hbar) / 2 / np.pi
                 )
 
-            for edge, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
-                partial_H += (self.B[B_idx, loop_idx] * sqf.to_numpy(el_JJ.get_value())
-                              * self._memory_ops['sin'][(el_JJ, B_idx)])
+            for edge, el_JJ, b_id, w_id in self.elem_keys[Junction]:
+                partial_H += (self.B[b_id, loop_idx] * sqf.to_numpy(el_JJ.get_value())
+                              * self._memory_ops['sin'][(el_JJ, b_id)])
 
         elif isinstance(el, Junction):
 
-            for _, el_JJ, B_idx, W_idx in self.elem_keys[Junction]:
+            for _, el_JJ, b_id, w_id in self.elem_keys[Junction]:
 
-                if el == el_JJ and _B_idx is None:
-                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
+                if el == el_JJ and _b_id is None:
+                    partial_H += -self._memory_ops['cos'][(el, b_id)]
 
-                elif el == el_JJ and _B_idx == B_idx:
-                    partial_H += -self._memory_ops['cos'][(el, B_idx)]
+                elif el == el_JJ and _b_id == b_id:
+                    partial_H += -self._memory_ops['cos'][(el, b_id)]
 
         return partial_H
 
@@ -2660,7 +2672,7 @@ class Circuit:
         el: Union[Capacitor, Inductor, Junction, Loop],
         m: int,
         subtract_ground: bool = True,
-        _B_idx: Optional[int] = None,
+        _b_id: Optional[int] = None,
     ) -> float:
         """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format.
@@ -2676,7 +2688,7 @@ class Circuit:
             subtract_ground:
                 If ``True``, it subtracts the ground state frequency from the
                 desired frequency.
-            _B_idx:
+            _b_id:
                 Optional integer to indicate which row of the B matrix
                 (per-element external flux distribution) to use. This specifies
                 which JJ of the circuit to consider specifically (ex. for
@@ -2691,7 +2703,7 @@ class Circuit:
             raise CircuitStateError('Please diagonalize the circuit first.')
 
         state_m = self._evecs[m]
-        partial_H = self._get_partial_H(el, _B_idx)
+        partial_H = self._get_partial_H(el, _b_id)
         partial_omega_m = sqf.operator_inner_product(
             state_m, partial_H, state_m
         )
@@ -2710,7 +2722,7 @@ class Circuit:
         self,
         el: Union[Capacitor, Inductor, Junction, Loop],
         states: Tuple[int, int],
-        _B_idx: Optional[int] = None,
+        _b_id: Optional[int] = None,
     ) -> float:
         """Return the gradient of the eigen angular frequency with respect to
         elements or loop as ``qutip.Qobj`` format. Note that if
@@ -2724,7 +2736,7 @@ class Circuit:
             states:
                 Integers indicating indices of eigenenergies to calculate
                 the difference of.
-            _B_idx:
+            _b_id:
                 Optional integer to indicate which row of the B matrix (external
                 flux distribution of that element) to use. This specifies which
                 JJ of the circuit to consider specifically (ex. for critical
@@ -2739,7 +2751,7 @@ class Circuit:
         state_m = self._evecs[states[0]]
         state_n = self._evecs[states[1]]
 
-        partial_H = self._get_partial_H(el, _B_idx)
+        partial_H = self._get_partial_H(el, _b_id)
 
         partial_omega_m = sqf.operator_inner_product(
             state_m, partial_H, state_m

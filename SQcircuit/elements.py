@@ -630,8 +630,8 @@ class Loop(CircuitComponent):
         self.A = A * 2 * np.pi
         # indices of inductive elements.
         self.indices = []
-        # k1 matrix related to this specific loop
-        self.K1 = []
+        # k matrix related to this specific loop
+        self.k_mat = []
 
         if id_str is None:
             self.id_str = 'loop'
@@ -639,7 +639,7 @@ class Loop(CircuitComponent):
             self.id_str = id_str
 
     def reset(self) -> None:
-        self.K1 = []
+        self.k_mat = []
         self.indices = []
 
     def value(self, random: bool = False) -> float:
@@ -677,21 +677,17 @@ class Loop(CircuitComponent):
     def add_index(self, index):
         self.indices.append(index)
 
-    def add_K1(self, w):
-        self.K1.append(w)
+    def add_to_k_mat(self, w):
+        self.k_mat.append(w)
 
-    def get_P(self):
-        K1 = np.array(self.K1)
-        a = np.zeros_like(K1)
-        select = np.sum(K1 != a, axis=0) != 0
-        # eliminate the zero columns
-        K1 = K1[:, select]
-        if K1.shape[0] == K1.shape[1]:
-            K1 = K1[:, 0:-1]
-        b = np.zeros((1, K1.shape[0]))
+    def get_g(self):
+
+        k_mat = sqf.remove_dependent_columns(np.array(self.k_mat))
+
+        b = np.zeros((1, k_mat.shape[0]))
         b[0, 0] = 1
-        p = np.linalg.inv(np.concatenate((b, K1.T), axis=0)) @ b.T
-        return p.T
+        g = np.linalg.inv(np.concatenate((b, k_mat.T), axis=0)) @ b.T
+        return g.T
 
 
 class Charge:
