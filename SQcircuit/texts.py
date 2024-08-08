@@ -46,7 +46,12 @@ class HamilTxt:
             self.printer = LatexPrinter({'order': 'none', 'fold_short_frac': True})
         elif tp == 'txt':
             prettyForm.__truediv__ = newDiv
-            self.printer = PrettyPrinter({'use_unicode': False, 'order': 'none'})
+            self.printer = PrettyPrinter({
+                'use_unicode': False,
+                'order': 'none',
+                'wrap_line': True,
+                'num_columns': 80
+            })
         else:
             raise ValueError('Permitted values for `tp` are \'ltx\' and '
                              '\'txt\'.')
