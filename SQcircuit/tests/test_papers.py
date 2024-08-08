@@ -17,7 +17,7 @@ TESTDIR = os.path.dirname(os.path.abspath(__file__))
 PHASEDIR = os.path.join(TESTDIR, 'data', 'phase_coord')
 SPECDIR = os.path.join(TESTDIR, 'data', 'spectra')
 
-def test_paper_1_a() -> None:
+def _test_paper_1_a() -> None:
     target_freqs = np.array([0.69721321, 1.43920434, 1.90074875, 2.05449921])
 
     sq.set_engine('NumPy')

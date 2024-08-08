@@ -1148,36 +1148,19 @@ class Circuit:
         # scaling the modes by third transformation
         self.S3, self.R3 = self._get_and_apply_transformation_3()
 
-    def _compute_params(self) -> None:
+    def _compute_descrip_vars(self) -> None:
         """Compute parameters of transformed Hamiltonian to reduced number
         of significant figures and in the frequency units of ``SQcircuit``;
         store in the ``.descrip_vars`` dictionary for easy access.
         """
 
-        # dimensions of modes of circuit
+        # Dimensions of modes of circuit
         self.descrip_vars['n_modes'] = self.n
         self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
-        har_dim = self.descrip_vars['har_dim']
         self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
-        self.descrip_vars['omega'] = (
-            self.omega / (2 * np.pi * unt.get_unit_freq())
-        )
+        self.descrip_vars['n_loops'] = len(self.loops)
 
-        self.descrip_vars['phi_zp'] = (
-            (2 * np.pi / unt.Phi0)
-            * np.sqrt(unt.hbar 
-                      / (2 * np.sqrt(
-                          np.diag(self.lTrans)[:har_dim]
-                          / np.diag(self.cInvTrans)[:har_dim]
-        ))))
-        self.descrip_vars['ng'] = [self.charge_islands[i].value()
-                                    for i in range(har_dim, self.n)]
-        self.descrip_vars['EC'] = (
-            ((2 * unt.e) ** 2 / (unt.hbar * 2 * np.pi * unt.get_unit_freq()))
-            * np.diag(np.repeat(0.5, self.n))
-            * self.cInvTrans
-        )
-
+        # Rounded matrices describing circuit layout
         self.descrip_vars['W'] = np.round(self.wTrans, 6)
         self.descrip_vars['S'] = np.round(self.S, 3)
         if self.loops:
@@ -1186,32 +1169,52 @@ class Circuit:
             self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
                           + len(self.elem_keys[Inductor]), 1))
 
+        # Harmonic mode variables
+        self.descrip_vars['omega'] = (
+            self.omega / (2 * np.pi * unt.get_unit_freq())
+        )
+        self.descrip_vars['phi_zp'] = [
+            self._phi_zp(i) for i in range(self.descrip_vars['har_dim'])
+        ]
+
+        # Compute the element values in the correct units
+        ## Junction energies
         self.descrip_vars['EJ'] = []
         for _, el, _, _ in self.elem_keys[Junction]:
-            self.descrip_vars['EJ'].append(sqf.to_numpy(el.get_value())
-                                           / (2 * np.pi * unt.get_unit_freq()))
+            self.descrip_vars['EJ'].append(
+                sqf.to_numpy(el.get_value('Hz'))
+                / (2 * np.pi * unt.get_unit_freq())
+            )
+
+        ## Inductive energies
         self.descrip_vars['EL'] = []
-        self.descrip_vars['EL_incl'] = []
+        self.descrip_vars['EL_has_ext_flux'] = []
         for _, el, b_id in self.elem_keys[Inductor]:
-            self.descrip_vars['EL'].append(sqf.to_numpy(el.get_value(unt._unit_ind)))
-            self.descrip_vars['EL_incl'].append(
-                np.sum(np.abs(self.descrip_vars['B'][b_id, :])) != 0)
+            self.descrip_vars['EL'].append(
+                sqf.to_numpy(el.get_value('Hz')) / unt.get_unit_freq()
+            )
+            # Check if the element has any external flux associated with it
+            # (corresponding row of B is nonzero)
+            self.descrip_vars['EL_has_ext_flux'].append(
+                np.sum(np.abs(self.descrip_vars['B'][b_id, :])) != 0
+            )
 
-        self.descrip_vars['EC'] = dict()
-        for i in range(self.descrip_vars['har_dim'], self.descrip_vars['n_modes']):
-            for j in range(i, self.descrip_vars['n_modes']):
-                self.descrip_vars['EC'][(i,j)] = (
-                    (2 * unt.e) ** 2 
-                    / (unt.hbar * 2 * np.pi * unt.get_unit_freq()) 
-                    * self.cInvTrans[i, j]
-                )
-                if i == j:
-                    self.descrip_vars['EC'][(i,j)] /= 2
+        ## Charging energies
+        self.descrip_vars['EC'] = (
+            (2 * unt.e) **2
+            / (unt.hbar * 2 * np.pi * unt.get_unit_freq())
+            * self._get_quadratic_cInvTrans()
+        )
 
-        # values of loops
-        self.descrip_vars['n_loops'] = len(self.loops)
-        self.descrip_vars['loops'] = [sqf.to_numpy(self.loops[i].value()) / 2 / np.pi
-                                      for i in range(len(self.loops))]
+        # Values of external flux and gate charge
+        self.descrip_vars['loops'] = [
+            sqf.to_numpy(self.loops[i].value()) / 2 / np.pi
+            for i in range(self.descrip_vars['n_loops'])
+        ]
+        self.descrip_vars['ng'] = [
+            self.charge_islands[i].value()
+            for i in range(self.descrip_vars['har_dim'], self.n)
+        ]
 
     def description(
         self,
@@ -1219,17 +1222,20 @@ class Circuit:
         _test: bool = False,
     ) -> Optional[str]:
         """Print out Hamiltonian and a listing of the modes (whether they are
-        harmonic or charge modes with the frequency for each harmonic mode),
-        Hamiltonian parameters, and external flux values. Constructs a
-        symbolic Hamiltonian, which is stored in `.descrip_vars['H']`.
+        harmonic or charge modes, with the frequency for each harmonic mode),
+        Hamiltonian parameters, and external flux values.
+
+        Values printed in the description can be accessed using the
+        ``.descrip_vars`` dictionary, including a symbolic Hamiltonian in
+        ``.descrip_vars['H']``.
 
         Parameters
         ----------
             tp:
-                If ``None`` prints out the output as Latex if SQcircuit is
+                If ``None`` prints out the output as LaTeX if SQcircuit is
                 running in a Jupyter notebook and as text if SQcircuit is
                 running in Python terminal. If ``tp`` is ``'ltx'``,
-                the output is in Latex format, and if ``tp`` is ``'txt'`` the
+                the output is in LaTeX format, and if ``tp`` is ``'txt'`` the
                 output is in text format.
             _test:
                 if True, return the entire description as string
@@ -1247,7 +1253,7 @@ class Circuit:
         else:
             txt = HamilTxt(tp)
 
-        self._compute_params()
+        self._compute_descrip_vars()
         self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)
 
         final_txt = txt.print_circuit_description(self.descrip_vars)
@@ -1388,6 +1394,21 @@ class Circuit:
         op_sq.dims = self._get_op_dims()
         return op_sq
 
+    def _impedance(self, i: int) -> float:
+        """Compute the impedance of the ``i``th mode.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode (starts from zero for the first mode).
+        
+        Returns
+        ----------
+            The impedance Z of mode ``i``.
+        """
+        return np.sqrt(
+            self.cInvTrans[i, i] / self.lTrans[i, i]
+        )
 
     def _charge_op_isolated(self, i: int) -> Qobj:
         """Return charge operator for each isolated mode normalized by
@@ -1397,7 +1418,7 @@ class Circuit:
         Parameters
         ----------
             i:
-                Index of the mode. (starts from zero for the first mode)
+                Index of the mode (starts from zero for the first mode).
 
         Returns
         ----------
@@ -1407,10 +1428,8 @@ class Circuit:
         if self._is_charge_mode(i):
             ng = self.charge_islands[i].value()
             op = (2*unt.e/np.sqrt(unt.hbar)) * (qt.charge((self.m[i]-1)/2)-ng)
-
         else:
-            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
-            Q_zp = -1j * np.sqrt(0.5/Z)
+            Q_zp = -1j * np.sqrt(0.5 / self._impedance(i))
             if self.m[i] == 1:
                 # QuTiP 5.0.x no longer supports create/destroy with N = 1
                 op = Qobj([[0.]]).to('csr')
@@ -1436,13 +1455,11 @@ class Circuit:
 
         if self._is_charge_mode(i):
             op = qt.qeye(self.m[i])
-
         else:
-            Z = np.sqrt(self.cInvTrans[i, i] / self.lTrans[i, i])
             if self.m[i] == 1:
                 op = Qobj([[0.]]).to('csr')
             else:
-                op = np.sqrt(0.5*Z) * (
+                op = np.sqrt(0.5 * self._impedance(i)) * (
                     qt.destroy(self.m[i]) + qt.create(self.m[i])
                 )
 
@@ -1507,27 +1524,41 @@ class Circuit:
         elif w > 0:
             return d.dag()
 
-    def alpha(self, i: Union[int, range], j: int) -> float:
+    def _phi_zp(self, i: int) -> float:
+        """Return the zero-point fluctuations for the ``i``th mode's
+        flux operator.
+
+        Parameters
+        ----------
+            i:
+                Index of the mode (starts from zero for the first mode).
+
+        Returns
+        ----------
+            The zero-point fluctuations for mode ``i``.
+        """
+        return (
+            (2 * np.pi / unt.Phi0)
+            * np.sqrt(unt.hbar / 2 * self._impedance(i))
+        )
+
+    def alpha(self, i: int, j: int) -> float:
         """Return the alpha, amount of displacement, for the bosonic
         displacement operator for junction i and mode j.
 
         Parameters
         ----------
             i:
-                Index of the Junction. (starts from zero for the first mode)
+                Index of the Junction (starts from zero for the first mode)
             j:
-                Index of the mode. (starts from zero for the first mode)
+                Index of the mode (starts from zero for the first mode).
 
         Returns
         ----------
             The value of alpha for the junction ``i`` and mode ``j``.
         """
 
-        Z = np.sqrt(self.cInvTrans[j, j] / self.lTrans[j, j])
-
-        coef = 2 * np.pi / unt.Phi0 * 1j
-
-        return coef * np.sqrt(unt.hbar/2*Z) * self.wTrans[i, j]
+        return 1j * self._phi_zp(j) * self.wTrans[i, j]
 
     def _build_op_memory(self) -> None:
         """Build the charge, flux, number, and cross multiplication of charge
@@ -1624,6 +1655,21 @@ class Circuit:
         self._memory_ops['exp'] = exp_ops
         self._memory_ops['root_exp'] = root_exp_ops
 
+    def _get_quadratic_cInvTrans(self) -> ndarray:
+        """Compute a modified ``cInvTrans`` for use when computing a
+        quadratic form like
+            ``0.5 Q^T @ cInvTrans @ Q``
+        by summing over the upper/lower triangle.
+
+        Returns
+        ----------
+            ``self.cInvTrans`` with the diagonal divided by 2.
+        """
+        q_cInvTrans = self.cInvTrans.copy()
+        q_cInvTrans[np.diag_indices_from(q_cInvTrans)] /= 2
+
+        return q_cInvTrans
+
     def _get_LC_hamil(self) -> Qobj:
         """Construct the LC part of the circuit Hamiltonian.
 
@@ -1633,19 +1679,21 @@ class Circuit:
         """
         LC_hamil = 0
 
+        q_cInvTrans = self._get_quadratic_cInvTrans()
+
         for i in range(self.n):
             # we write j in this form because of "_memory_ops["QQ"]" shape
             for j in range(self.n - i):
                 if j == 0:
                     if self._is_charge_mode(i):
-                        LC_hamil += (0.5 * self.cInvTrans[i, i]
+                        LC_hamil += (q_cInvTrans[i, i]
                                      * self._memory_ops['QQ'][i][j])
                     else:
                         LC_hamil += self.omega[i] * self._memory_ops['N'][i]
 
                 elif j > 0:
                     if self.cInvTrans[i, i + j] != 0:
-                        LC_hamil += (self.cInvTrans[i, i + j]
+                        LC_hamil += (q_cInvTrans[i, i + j]
                                      * self._memory_ops['QQ'][i][j])
 
         return LC_hamil

@@ -238,7 +238,7 @@ class EigenSolver(Function):
         grad_output_eigenvalue = grad_output[:, 0]
         grad_output_eigenvector = grad_output[:, 1:]
 
-        partial_omega = torch.zeros([m, n], dtype=float)
+        partial_omega = torch.zeros([m, n], dtype=torch.float64)
         partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
         for el_idx in range(m):
             for eigen_idx in range(n):
