@@ -1247,11 +1247,11 @@ class Circuit:
         """
         if tp is None:
             if is_notebook():
-                txt = HamilTxt('ltx')
+                txt = HamilTxt('ltx', _test=_test)
             else:
-                txt = HamilTxt('txt')
+                txt = HamilTxt('txt', _test=_test)
         else:
-            txt = HamilTxt(tp)
+            txt = HamilTxt(tp, _test=_test)
 
         self._compute_descrip_vars()
         self.descrip_vars['H'] = symbolic.construct_hamiltonian(self)

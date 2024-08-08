@@ -39,19 +39,25 @@ class HamilTxt:
     latex format.
     """
 
-    def __init__(self, tp='ltx'):
+    def __init__(self, tp='ltx', _test=False):
         self.tp = tp
         self.line = 60 * "-" + "\n"
         if tp == 'ltx':
             self.printer = LatexPrinter({'order': 'none', 'fold_short_frac': True})
         elif tp == 'txt':
             prettyForm.__truediv__ = newDiv
-            self.printer = PrettyPrinter({
-                'use_unicode': False,
-                'order': 'none',
-                'wrap_line': True,
-                'num_columns': 80
-            })
+            if _test:
+                self.printer = PrettyPrinter({
+                    'use_unicode': False,
+                    'order': 'none',
+                    'wrap_line': True,
+                    'num_columns': 80
+                })
+            else:
+                self.printer = PrettyPrinter({
+                    'use_unicode': False,
+                    'order': 'none'
+                })
         else:
             raise ValueError('Permitted values for `tp` are \'ltx\' and '
                              '\'txt\'.')
