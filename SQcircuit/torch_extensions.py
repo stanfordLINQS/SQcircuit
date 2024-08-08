@@ -19,6 +19,7 @@ EIGENVECTOR_MAX_GRAD = None
 # Interfaces to custom Torch functions
 ###############################################################################
 
+
 def eigencircuit(circuit: 'Circuit', n_eig: int) -> Tensor:
     """Given a circuit, computes the concatenated tensor including both 
     eigenvalues and eigenvectors of a circuit using the ``EigenSolver`` class.
@@ -139,11 +140,13 @@ class EigenSolver(Function):
     """
 
     @staticmethod
-    def forward(ctx,
-                element_tensors: Tensor,
-                circuit: 'Circuit',
-                n_eig: int,
-                eigenvector_max_grad: Optional[int]) -> Tensor:
+    def forward(
+        ctx,
+        element_tensors: Tensor,
+        circuit: 'Circuit',
+        n_eig: int,
+        eigenvector_max_grad: Optional[int]
+    ) -> Tensor:
         """
         Forward pass for diagonalizing a `Circuit` object.
 
@@ -184,24 +187,23 @@ class EigenSolver(Function):
                                eigenvector in eigenvectors]
         eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
 
-
         # Setup context -- needs to be done after diagonalization so that
         # memory ops are filled
         eigenvalues = torch.real(eigenvalue_tensor)
         ctx.circuit = circuit.safecopy()
 
-        ## Save eigenvalues, vectors into `ctx` circuit
+        # Save eigenvalues, vectors into `ctx` circuit
         ctx.circuit._efreqs = eigenvalues
         ctx.circuit._evecs = eigenvector_tensor
 
-        ## Number of eigenvalues
+        # Number of eigenvalues
         ctx.n_eig = n_eig
-        ## Number of eigenvectors to use in computation of partial_omega
+        # Number of eigenvectors to use in computation of partial_omega
         if eigenvector_max_grad is None:
             ctx.eigenvector_max_grad = ctx.n_eig
         else:
             ctx.eigenvector_max_grad = eigenvector_max_grad
-        ## Output shape
+        # Output shape
         ctx.out_shape = element_tensors.shape
 
         # Return concatenated Tensor
@@ -267,11 +269,17 @@ class EigenSolver(Function):
             partial_eigenvec * torch.conj(grad_output_eigenvector),
             axis=(-1, -2))
 
-        return torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape), None, None, None
+        return (
+            torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape),
+            None,
+            None,
+            None
+        )
 
 ###############################################################################
 # Decoherence rate helper functions
 ###############################################################################
+
 
 def partial_squared_omega(
     cr: 'Circuit',
@@ -311,8 +319,8 @@ def partial_squared_omega(
     state_n = cr.evecs[n]
     partial_state_n = cr.get_partial_vec(grad_el, n)
 
-    # Compute the first term of the second-order derivative, from differentiating
-    # the state
+    # Compute the first term of the second-order derivative, from
+    # differentiating the state
     if partial_H == 0:
         # operator_inner_product behaves badly if passed a float
         p2_omega_1 = 0
@@ -322,8 +330,8 @@ def partial_squared_omega(
             - sqf.operator_inner_product(partial_state_n, partial_H, state_n)
         )
 
-    # Compute the second term of the second-order derivative, from differentating
-    # partial_H
+    # Compute the second term of the second-order derivative, from
+    # differentating partial_H
     if partial_H_squared == 0:
         p2_omega_2 = 0
     else:
@@ -334,9 +342,9 @@ def partial_squared_omega(
 
     # Return sum
     p2_omega = p2_omega_1 + p2_omega_2
-    ## The eigenfrequencies (and hence derivatives) should be real since H
-    ## is Hermitian, but numerical imprecision can result in small complex
-    ## components.
+    # The eigenfrequencies (and hence derivatives) should be real since H
+    # is Hermitian, but numerical imprecision can result in small complex
+    # components.
     return sqf.to_numpy(p2_omega.real)
 
 
@@ -413,7 +421,7 @@ def partial_H_ng(
     cr: 'Circuit',
     charge_idx: int
 ) -> qt.Qobj:
-    """Calculates the  derivative of the Hamiltonian of ``cr`` with 
+    """Calculates the derivative of the Hamiltonian of ``cr`` with
     respect to the gate charge on the ``charge_idx`` charge mode.
 
     Parameters
@@ -447,7 +455,8 @@ def partial_squared_H_ng(
     grad_el: SupportedGradElements
 ) -> qt.Qobj:
     """Calculates the second derivative of the Hamiltonian of ``cr`` with 
-    respect to the gate charge on the ``charge_idx`` charge mode and ``grad_el``.
+    respect to the gate charge on the ``charge_idx`` charge mode and
+    ``grad_el``.
 
     Parameters
     ----------
@@ -851,7 +860,10 @@ def partial_squared_H_phi(
     H_squared = 0
     if isinstance(grad_el, Junction):
         for b_id in B_indices:
-            H_squared += cr.B[b_id, loop_idx] * cr._memory_ops['sin'][(grad_el, b_id)]
+            H_squared += (
+                    cr.B[b_id, loop_idx]
+                    * cr._memory_ops['sin'][(grad_el, b_id)]
+            )
         return H_squared
     elif isinstance(grad_el, Inductor):
         for b_id in B_indices:
