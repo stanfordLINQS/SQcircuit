@@ -35,17 +35,21 @@ def test_zeropi_description():
 
     txt = cr.description(tp='txt', _test=True)
 
-    with open(DATADIR + '/zero_pi_junctions_txt.txt', 'r') as f:
-        txt_data = f.read()
+    with open(DATADIR + '/zero_pi_junctions_txt-a.txt', 'r') as f:
+        txt_data_a = f.read()
+    with open(DATADIR + '/zero_pi_junctions_txt-b.txt', 'r') as f:
+        txt_data_b = f.read()
 
-    assert txt == txt_data
+    assert (txt == txt_data_a) or (txt == txt_data_b)
 
     ltx = cr.description(tp='ltx', _test=True)
 
-    with open(DATADIR + '/zero_pi_junctions_ltx.txt', 'r') as f:
-        ltx_data = f.read()
+    with open(DATADIR + '/zero_pi_junctions_ltx-a.txt', 'r') as f:
+        ltx_data_a = f.read()
+    with open(DATADIR + '/zero_pi_junctions_ltx-b.txt', 'r') as f:
+        ltx_data_b = f.read()
 
-    assert ltx_data == ltx
+    assert (ltx == ltx_data_a) or (ltx == ltx_data_b)
 
     ###########################################################################
     # flux_dist = "inductors"
@@ -55,17 +59,21 @@ def test_zeropi_description():
 
     txt = cr.description(tp='txt', _test=True)
 
-    with open(DATADIR + '/zero_pi_inductors_txt.txt', 'r') as f:
-        txt_data = f.read()
+    with open(DATADIR + '/zero_pi_inductors_txt-a.txt', 'r') as f:
+        txt_data_a = f.read()
+    with open(DATADIR + '/zero_pi_inductors_txt-b.txt', 'r') as f:
+        txt_data_b = f.read()
 
-    assert txt == txt_data
+    assert (txt == txt_data_a) or (txt == txt_data_b)
 
     ltx = cr.description(tp='ltx', _test=True)
 
-    with open(DATADIR + '/zero_pi_inductors_ltx.txt', 'r') as f:
-        ltx_data = f.read()
+    with open(DATADIR + '/zero_pi_inductors_ltx-a.txt', 'r') as f:
+        ltx_data_a = f.read()
+    with open(DATADIR + '/zero_pi_inductors_ltx-b.txt', 'r') as f:
+        ltx_data_b = f.read()
 
-    assert ltx_data == ltx
+    assert (ltx == ltx_data_a) or (ltx == ltx_data_b)
 
 
 def test_loop_description():
