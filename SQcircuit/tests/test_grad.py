@@ -61,14 +61,18 @@ def function_grad_test(circuit_numpy: Circuit,
     """
     set_optim_mode(False)
     circuit_numpy.diag(num_eigenvalues)
+    numpy_val = function_numpy(circuit_numpy)
 
     set_optim_mode(True)
     circuit_torch.diag(num_eigenvalues)
     tensor_val = function_torch(circuit_torch)
     tensor_val.backward()
+    
+    assert np.isclose(tensor_val.detach().numpy(), numpy_val)
 
-    for edge_idx, elements_by_edge in enumerate(circuit_numpy.elements.values()):
+    for edge, elements_by_edge in circuit_numpy.elements.items():
         for element_idx, element_numpy in enumerate(elements_by_edge):
+            print(f'Checking gradient of {element_numpy} on edge {edge}.')
             set_optim_mode(False)
             scale_factor = (1 / (2 * np.pi) if isinstance(element_numpy, Junction) else 1)
 
@@ -100,26 +104,29 @@ def function_grad_test(circuit_numpy: Circuit,
                 element_numpy.value_unit
             )
 
-            edge_elements_torch = list(circuit_torch.elements.values())[0]
-            for edge_element in edge_elements_torch:
-                print(f"edge element: {edge_element}")
-                print(f"value: {edge_element._value}")
-                print(f"value grad: {edge_element._value.grad}")
-            grad_torch = edge_elements_torch[element_idx].internal_value.grad.detach().numpy()
-            # TODO: Modify Element class so that following gradient scaling is not necessary
+            set_optim_mode(True)
+            torch_el = circuit_torch.elements[edge][element_idx]
+            if torch_el in circuit_torch.parameters_elems:
+                grad_torch = torch_el.grad
+                if grad_torch is None:
+                    grad_torch = 0
+                else:
+                    grad_torch = grad_torch.detach().numpy()
 
-            if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
-                grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            elif isinstance(element_numpy, Inductor) and element_numpy.value_unit in unt.freq_list:
-                grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
-                grad_torch /= grad_factor
-            if isinstance(element_numpy, Junction):
-                grad_torch *= (2 * np.pi)
-            print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
+                # TODO: Modify Element class so that following gradient scaling is not necessary
+                if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
+                    grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                elif isinstance(element_numpy, Inductor) and element_numpy.value_unit in unt.freq_list:
+                    grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                    grad_torch /= grad_factor
+                if isinstance(element_numpy, Junction):
+                    grad_torch *= (2 * np.pi)
+                print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
 
-            assert np.sign(grad_torch) == np.sign(grad_numpy)
-            assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+                assert np.sign(grad_torch) == np.sign(grad_numpy)
+                assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
+
     for loop_idx, loop in enumerate(circuit_numpy.loops):
         set_optim_mode(False)
 
@@ -145,16 +152,22 @@ def function_grad_test(circuit_numpy: Circuit,
         # Reset circuit
         loop.internal_value = loop_flux
 
-        grad_torch = circuit_torch.loops[loop_idx].internal_value.grad
-        if grad_torch is not None:
+        torch_loop = circuit_torch.loops[loop_idx]
+        set_optim_mode(True)
+        if torch_loop in circuit_torch.parameters_elems:
+            grad_torch = torch_loop.internal_value.grad
+            if grad_torch is None:
+                grad_torch = 0
+            else:
+                grad_torch = grad_torch.detach().numpy()
+
             print(f"loop #: {loop_idx}")
             print(f"grad torch: {grad_torch}, grad numpy: {grad_numpy}")
-            grad_torch = grad_torch.detach().numpy()
             assert np.sign(grad_torch) == np.sign(grad_numpy)
             assert max_ratio(grad_torch, grad_numpy) <= 1 + tolerance
 
     set_optim_mode(True)
-    circuit_torch.zero_parameters_grad()
+    circuit_torch.zero_grad()
 
 def first_eigendifference_numpy(circuit):
     return circuit._efreqs[1] - circuit._efreqs[0]
@@ -197,7 +210,7 @@ def test_omega_flux_transmon():
 
 def test_omega_flux_fluxonium():
     """Verify gradient of first eigendifference omega_1-omega_0 
-    in transmon circuit with linearized value."""
+    in fluxonium circuit with gradient for loop."""
 
     flux_points = [1e-2, 0.25, 0.5 - 1e-2]
     for flux_point in flux_points:
@@ -216,7 +229,7 @@ def T1_inv(circuit):
     return (
         circuit.dec_rate('capacitive', (0, 1)) 
         + circuit.dec_rate('inductive', (0, 1))
-        +  circuit.dec_rate('quasiparticle', (0, 1))
+        + circuit.dec_rate('quasiparticle', (0, 1))
     )
 
 def test_T1_transmon():
@@ -383,20 +396,24 @@ def test_T1_fluxonium():
     def T1_inv_quasiparticle(circuit):
         return circuit.dec_rate('quasiparticle', (0, 1))
 
+    # Test capacitive T1 decoherence
+    print('capacitive')
     function_grad_test(circuit_numpy,
                        T1_inv_capacitive,
                        circuit_torch,
                        T1_inv_capacitive,
                        delta=1e-6)
-    print('inductive')
+
     # Test inductive T1 decoherence
+    print('inductive')
     function_grad_test(circuit_numpy,
                        T1_inv_inductive,
                        circuit_torch,
                        T1_inv_inductive,
                        delta=1e-6)
-    print('quasiparticle')
+
     # Test quasiparticle T1 decoherence
+    print('quasiparticle')
     function_grad_test(circuit_numpy,
                        T1_inv_quasiparticle,
                        circuit_torch,

@@ -8,7 +8,7 @@ import numpy as np
 import qutip as qt
 
 from numpy import ndarray
-from qutip.qobj import Qobj
+from qutip import Qobj
 
 import SQcircuit.units as unt
 import SQcircuit.functions as sqf

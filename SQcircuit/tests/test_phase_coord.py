@@ -6,7 +6,7 @@ import dill as pickle
 import SQcircuit as sq
 
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
-DATADIR = os.path.join(TESTDIR, "data/phase_coord")
+DATADIR = os.path.join(TESTDIR, 'data', 'phase_coord')
 
 ###############################################################################
 # zeropi phase coord representation test
@@ -16,10 +16,10 @@ DATADIR = os.path.join(TESTDIR, "data/phase_coord")
 def test_phase_coord_zeropi():
     loop1 = sq.Loop()
 
-    C = sq.Capacitor(0.15, "GHz")
-    CJ = sq.Capacitor(10, "GHz")
-    JJ = sq.Junction(5, "GHz", loops=[loop1])
-    L = sq.Inductor(0.13, "GHz", loops=[loop1])
+    C = sq.Capacitor(0.15, 'GHz')
+    CJ = sq.Capacitor(10, 'GHz')
+    JJ = sq.Junction(5, 'GHz', loops=[loop1])
+    L = sq.Inductor(0.13, 'GHz', loops=[loop1])
 
     elements = {
         (0, 1): [CJ, JJ],
@@ -45,7 +45,7 @@ def test_phase_coord_zeropi():
     # the ground state
     state0 = zrpi.eig_phase_coord(0, grid=[phi1, phi2, phi3])
 
-    with open(DATADIR + '/zeropi_0', 'rb') as inp:
+    with open(os.path.join(DATADIR, 'zeropi_0'), 'rb') as inp:
         state0_data = pickle.load(inp)
 
     assert np.allclose(np.abs(state0), np.abs(state0_data), rtol=1e-4, atol=1e-3)
@@ -53,7 +53,7 @@ def test_phase_coord_zeropi():
     # the first excited state
     state1 = zrpi.eig_phase_coord(1, grid=[phi1, phi2, phi3])
 
-    with open(DATADIR + '/zeropi_1', 'rb') as inp:
+    with open(os.path.join(DATADIR, 'zeropi_1'), 'rb') as inp:
         state1_data = pickle.load(inp)
 
     assert np.allclose(np.abs(state1), np.abs(state1_data), rtol=1e-4, atol=1e-3)

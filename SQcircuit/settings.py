@@ -3,15 +3,15 @@
 # accuracy settings related to computation in SQcircuit algorithm
 ACC = {
     'sing_mode_detect': 1e-11,  # singular mode detection accuracy
-    'Gram–Schmidt': 1e-6,  # Gram–Schmidt process accuracy
+    'Gram-Schmidt': 1e-6,  # Gram–Schmidt process accuracy
     'har_mode_elim': 1e-11,  # harmonic mode elimination accuracy
 }
 
-# General flag which states that SQcircuit is in optimization mode.
-_OPTIM_MODE = False
+# Global variable holding current engine
 _ENG = 'numpy'
 
 SUPPORTED_ENGINES = ['NumPy', 'PyTorch']
+SUPPORTED_ENGINES_LOWER = [e.lower() for e in SUPPORTED_ENGINES]
 SUPPORTED_OPTIM_ENGINES = ['PyTorch']
 
 def set_engine(eng: str) -> None:
@@ -31,11 +31,7 @@ def set_engine(eng: str) -> None:
 
     eng = eng.lower()
 
-    if eng == 'numpy':
-        set_optim_mode(False)
-    elif eng == 'pytorch':
-        set_optim_mode(True)
-    else:
+    if eng not in SUPPORTED_ENGINES_LOWER:
         raise ValueError(
             'Invalid engine passed. Currently SQcircuit supports '
             + ' and '.join([f"'{eng}'" for eng in SUPPORTED_ENGINES])
@@ -51,7 +47,7 @@ def get_engine() -> str:
     ----------
         The numerical engine currently in use.
     """
-    return _ENG
+    return _ENG.lower()
 
 
 def set_optim_mode(s: bool) -> None:
@@ -65,9 +61,12 @@ def set_optim_mode(s: bool) -> None:
         State of the optimization mode as boolean variable.
     """
 
-    global _OPTIM_MODE
+    if s:
+        eng = 'PyTorch'
+    else:
+        eng = 'NumPy'
 
-    _OPTIM_MODE = s
+    set_engine(eng)
 
 
 def get_optim_mode() -> bool:
@@ -80,4 +79,4 @@ def get_optim_mode() -> bool:
         If the numerical engine is NumPy (``False``) or PyTorch (``True``)
     """
 
-    return _OPTIM_MODE
+    return get_engine() == 'pytorch'
