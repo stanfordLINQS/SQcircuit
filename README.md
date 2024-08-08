@@ -1,8 +1,8 @@
-<picture>
+<div align="center"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="pics/dark_logo_sq.png">
   <source media="(prefers-color-scheme: light)" srcset="pics/light_logo_sq.png">
   <img alt="Logo image" src="pics/dark_logo_sq.png" width="350" height="auto">
-</picture>
+</picture></div>
 
 # SQcircuit: Superconducting Quantum Circuit Analyzer
 [**What is SQcircuit?**](#What-is-SQcircuit?)
