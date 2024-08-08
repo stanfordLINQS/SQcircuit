@@ -178,13 +178,14 @@ class EigenSolver(Function):
         # Construct eigenvalues tensor
         eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
                        eigenvalue in eigenvalues]
-        eigenvalue_tensors = [torch.as_tensor(eigenvalue) for
-                              eigenvalue in eigenvalues]
+        eigenvalue_tensors = [torch.as_tensor(eigenvalue, dtype=torch.float64)
+                              for eigenvalue in eigenvalues]
         eigenvalue_tensor = torch.stack(eigenvalue_tensors)
         eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
         # Construct eigenvectors tensor
-        eigenvector_tensors = [torch.as_tensor(eigenvector.full()) for
-                               eigenvector in eigenvectors]
+        eigenvector_tensors = [torch.as_tensor(eigenvector.full(),
+                                               dtype=torch.complex128)
+                                for eigenvector in eigenvectors]
         eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
 
         # Setup context -- needs to be done after diagonalization so that
@@ -260,7 +261,8 @@ class EigenSolver(Function):
                         ctx.circuit.get_partial_vec(
                             el=elements[el_idx],
                             m=eigen_idx
-                        )
+                        ),
+                        dtype=torch.complex128
                     ))
                     partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
         eigenvalue_grad = torch.sum(
@@ -630,7 +632,8 @@ class DecRateCharge(Function):
         circuit: 'Circuit',
         states: Tuple[int, int]
     ) -> Tensor:
-        return torch.as_tensor(circuit._dec_rate_charge_np(states))
+        return torch.as_tensor(circuit._dec_rate_charge_np(states),
+                               dtype=torch.float64)
 
     @staticmethod
     def setup_context(ctx, inputs, output):
@@ -799,7 +802,8 @@ class DecRateCC(Function):
         states: Tuple[int, int]
     ) -> Tensor:
 
-        return torch.as_tensor(circuit._dec_rate_cc_np(states))
+        return torch.as_tensor(circuit._dec_rate_cc_np(states),
+                               dtype=torch.float64)
 
     @staticmethod
     def setup_context(ctx, inputs, output):
@@ -987,7 +991,8 @@ class DecRateFlux(Function):
         circuit: 'Circuit',
         states: Tuple[int, int]
     ) -> Tensor:
-        return torch.as_tensor(circuit._dec_rate_flux_np(states))
+        return torch.as_tensor(circuit._dec_rate_flux_np(states),
+                               dtype=torch.float64)
 
     @staticmethod
     def setup_context(ctx, inputs, output):

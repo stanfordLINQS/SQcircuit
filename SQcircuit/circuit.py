@@ -1644,7 +1644,7 @@ class Circuit:
                 else:
                     if self.m[j] == 1:
                         exp.append(qt.qeye(1).to('csr'))
-                        exp.append(qt.qeye(1).to('csr'))
+                        exp_h.append(qt.qeye(1).to('csr'))
                     else:
                         exp.append(qt.displace(self.m[j], self.alpha(i, j)).to('csr'))
                         exp_h.append(qt.displace(self.m[j], self.alpha(i, j) / 2).to('csr'))
@@ -2511,7 +2511,7 @@ class Circuit:
 
         omega = sqf.abs(omega2 - omega1)
 
-        decay = sqf.zero(dtype=torch.float32, requires_grad=True)
+        decay = sqf.zero(dtype=torch.float64, requires_grad=True)
 
         # prevent the exponential overflow (exp(709) is the biggest number
         # that numpy can calculate)
