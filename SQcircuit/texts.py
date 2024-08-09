@@ -7,9 +7,15 @@ from sympy.printing.latex import LatexPrinter
 from sympy.printing.pretty.pretty import PrettyPrinter
 from sympy.printing.pretty.stringpict import prettyForm
 
-from SQcircuit.elements import Inductor, Junction
+from SQcircuit.elements import Capacitor, Inductor, Junction
 import SQcircuit.symbolic as sym
 
+
+ELEMENT_NAMES = {
+    Capacitor: 'C',
+    Inductor: 'L',
+    Junction: 'JJ'
+}
 
 def is_notebook():
     """Checks whether we are working in notebook environment or the Python
@@ -62,23 +68,23 @@ class HamilTxt:
             raise ValueError('Permitted values for `tp` are \'ltx\' and '
                              '\'txt\'.')
 
-    def tab(self):
+    def tab(self) -> str:
         if self.tp == 'ltx':
             return 11*"~"
         elif self.tp == 'txt':
             return 7*" "
 
-    def plaintxt(self, text):
+    def plaintxt(self, text) -> str:
         if self.tp == 'ltx':
             return rf'\text{{{text}}}'
         else:
             return text
 
-    def ham_txt(self, coeff_dict):
+    def ham_txt(self, coeff_dict) -> str:
         sym_ham = coeff_dict['H']
         return self.printer.doprint(sm.Eq(sym.H, sym_ham)) + '\n'
 
-    def mode_txt(self, coeff_dict):
+    def mode_txt(self, coeff_dict) -> str:
         txt = ''
         for i in range(coeff_dict['n_modes']):
             if i < coeff_dict['har_dim']:
@@ -102,7 +108,7 @@ class HamilTxt:
             txt += self.tab().join([self.printer.doprint(e) for e in info]) + '\n'
         return txt
 
-    def param_txt(self, coeff_dict):
+    def param_txt(self, coeff_dict) -> str:
         params = []
         # For the LC part, only print out if not completely absorbed into the
         # omegas of the harmonic modes.
@@ -126,7 +132,7 @@ class HamilTxt:
         )
         return txt + '\n'
 
-    def loop_txt(self, coeff_dict):
+    def loop_txt(self, coeff_dict) -> str:
         info = [sm.Eq(sym.phi_ext(i+1)/(2*sm.pi),
                       np.round(coeff_dict['loops'][i], 2))
                 for i in range(coeff_dict['n_loops'])]
@@ -136,7 +142,7 @@ class HamilTxt:
         )
         return txt
 
-    def print_circuit_description(self, coeff_dict):
+    def print_circuit_description(self, coeff_dict) -> str:
         finalTxt = (
             self.ham_txt(coeff_dict) + self.line
             + self.mode_txt(coeff_dict) + self.line 
@@ -148,7 +154,7 @@ class HamilTxt:
         return finalTxt
 
     @staticmethod
-    def print_loop_description(cr):
+    def print_loop_description(cr) -> str:
         # maximum length of element ID strings
         nr = max(
             [len(el.id_str) for _, el, _, _ in cr.elem_keys[Junction]]
@@ -192,7 +198,20 @@ class HamilTxt:
         print(loop_description_txt)
         return loop_description_txt
 
-    def display(self, text):
+    @staticmethod
+    def print_el_description(elements, precision=3) -> str:
+        txt = ''
+        for edge, el_list in elements.items():
+            txt += f'Edge {edge}:\n'
+            for el in el_list:
+                txt += (f'\t{ELEMENT_NAMES[type(el)]} = '
+                        f'{el.get_value(el.value_unit):.{precision}e} '
+                        f'{el.value_unit}\n')
+
+        print(txt, end=None)
+        return txt
+
+    def display(self, text) -> None:
         if self.tp == 'ltx':
             for line in text.split('\n'):
                 display(Math(line))

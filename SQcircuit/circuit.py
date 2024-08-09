@@ -1262,14 +1262,13 @@ class Circuit:
             return final_txt
 
     def loop_description(self, _test: bool = False) -> Optional[str]:
-        """
-        Print out the external flux distribution over inductive elements.
+        """Print out the external flux distribution over inductive elements.
 
         Parameters
         ----------
             _test:
                 if True, return the entire description as string
-                text. (use only for testing the function)
+                text (use only for testing the function).
 
         Returns
         ----------
@@ -1280,6 +1279,25 @@ class Circuit:
 
         if _test:
             return loop_description_txt
+        
+    def element_description(self, _test: bool = False) -> Optional[str]:
+        """Print out the element
+        
+        Parameters
+        ----------
+            _test:
+                if True, return the entire description as string
+                text (use only for testing the function).
+
+        Returns
+        ----------
+            The text of the external flux distribution, if ``_test`` is
+            ``True``.
+        """
+        el_description_txt = HamilTxt.print_el_description(self.elements)
+
+        if _test:
+            return el_description_txt
 
     def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
