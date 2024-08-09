@@ -84,11 +84,13 @@ class HamilTxt:
             if i < coeff_dict['har_dim']:
                 kind = 'harmonic'
                 omega_val  = np.round(coeff_dict['omega'][i], 5)
-                zp_val = np.round(coeff_dict['phi_zp'][i], 2)
-                info = [sm.Eq(sym.phi_op(i+1),
-                              sym.phi_zp(i+1)*(sym.a(i+1) + sym.ad(i+1))),
-                        sm.Eq(sym.omega(i+1)/(2 * sm.pi), omega_val),
-                        sm.Eq(sym.phi_zp(i+1), zp_val)]
+                zp_val = coeff_dict['phi_zp'][i]
+                info = [
+                    sm.Eq(sym.phi_op(i+1),
+                          sym.phi_zp(i+1)*(sym.a(i+1) + sym.ad(i+1))),
+                    sm.Eq(sym.omega(i+1)/(2 * sm.pi), float(f'{omega_val:.5e}')),
+                    sm.Eq(sym.phi_zp(i+1), float(f'{zp_val:.2e}'))
+                ]
             else:
                 kind = 'charge'
                 ng_val = np.round(coeff_dict['ng'][i - coeff_dict['har_dim']], 3)
@@ -98,7 +100,7 @@ class HamilTxt:
                 + self.plaintxt(kind) + self.tab()
             )
             txt += self.tab().join([self.printer.doprint(e) for e in info]) + '\n'
-        return txt + '\n'
+        return txt
 
     def param_txt(self, coeff_dict):
         params = []
