@@ -11,6 +11,9 @@ import numpy as np
 import qutip as qt
 import scipy.special
 import scipy.sparse
+import cupy as cp
+import cupyx.scipy.sparse as cusparse
+from cupyx.scipy.sparse.linalg import eigsh
 import torch
 
 import mpmath
@@ -1917,17 +1920,25 @@ class Circuit:
         """
         hamil = self.hamiltonian()
 
-        # get the data out of qutip variable and use sparse SciPy 
-        # eigensolver which is faster.
+        # Get the data out of QuTip and convert to sparse Scipy array
+        scipy_matrix = hamil.data_as('csr_matrix')
+        # Now convert from scipy -> cupy for GPU processing
+        data = cp.array(scipy_matrix.data)
+        indices = cp.array(scipy_matrix.indices)
+        indptr = cp.array(scipy_matrix.indptr)
+        cupy_matrix = cusparse.csr_matrix((data, indices, indptr), shape=scipy_matrix.shape)
         try:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, which='SR'
+            efreqs, evecs = eigsh(
+                cupy_matrix, k=n_eig, which='SA'
             )
         except ArpackNoConvergence:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, ncv=10*n_eig, which='SR'
+            efreqs, evecs = eigsh(
+                cupy_matrix, k=n_eig, ncv=10*n_eig, which='SA'
             )
-        # the output of eigen solver is not sorted
+        # Extract diagonalized result back to numpy
+        efreqs = efreqs.get()
+        evecs = evecs.get()
+        # The output of the eigensolver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
         sort_arg = np.argsort(efreqs)
@@ -1939,7 +1950,7 @@ class Circuit:
             for ind in sort_arg
         ]
 
-        # store the eigenvalues and eigenvectors of the circuit Hamiltonian
+        # Store the eigenvalues and eigenvectors of the circuit Hamiltonian
         self._efreqs = efreqs_sorted
         self._evecs = evecs_sorted
 
