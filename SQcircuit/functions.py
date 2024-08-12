@@ -10,6 +10,8 @@ from qutip.core.data import Dia, CSR, Dense
 import scipy
 from scipy.special import kve
 import torch
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 from torch import Tensor
 from torch.autograd.function import once_differentiable
 
@@ -153,7 +155,7 @@ class K0eSolver(torch.autograd.Function):
         x = to_numpy(x)
 
         return grad_output * torch.tensor(kve(0, x) - kve(1, x),
-                                          dtype=torch.float64)
+                                          dtype=torch.float64).to(DEVICE)
 
 
 class LogK0Solver(torch.autograd.Function):
@@ -178,7 +180,7 @@ class LogK0Solver(torch.autograd.Function):
         # K0'(z) = -K1(z); see Eq. 10.29.3 of DLMF
         return grad_output * -1 * torch.exp(
             torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x),
-                         dtype=torch.float64)
+                         dtype=torch.float64).to(DEVICE)
         )
 
 
@@ -195,19 +197,19 @@ def eye(N: int) -> Union[Qobj, Tensor]:
             Size of the operator.
     """
     if get_optim_mode():
-        return torch.eye(N)
+        return torch.eye(N).to(DEVICE)
     return qt.qeye(N)
 
 
 def zero(dtype=torch.complex128, requires_grad=False):
     if get_optim_mode():
-        return torch.tensor(0, dtype=dtype, requires_grad=requires_grad)
+        return torch.tensor(0, dtype=dtype, requires_grad=requires_grad).to(DEVICE)
     return 0
 
 
 def zeros(shape, dtype=torch.complex128):
     if get_optim_mode():
-        return torch.zeros(shape, dtype=dtype)
+        return torch.zeros(shape, dtype=dtype).to(DEVICE)
     return np.zeros(shape)
 
 
@@ -247,7 +249,7 @@ def diag(v):
 
 def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
     if get_optim_mode():
-        return tensor_product_torch(*args)
+        return tensor_product_torch(*args).to(DEVICE)
 
     return qt.tensor(*args)
 
@@ -288,8 +290,8 @@ def mat_mul(A, B):
             return torch.sparse.mm(A, B)
         A = dense(A)
         B = dense(B)
-        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128),
-                            torch.as_tensor(B, dtype=torch.complex128))
+        return torch.matmul(torch.as_tensor(A, dtype=torch.complex128).to(DEVICE),
+                            torch.as_tensor(B, dtype=torch.complex128).to(DEVICE))
     if isinstance(A, Qobj) and isinstance(B, Qobj):
         return A * B
     return A @ B
@@ -348,7 +350,7 @@ def sort(a):
 
 def array(object, dtype=torch.float64):
     if get_optim_mode():
-        return torch.as_tensor(object, dtype=dtype)
+        return torch.as_tensor(object, dtype=dtype).to(DEVICE)
     return np.array(object)
 
 
@@ -377,7 +379,7 @@ def mat_to_op(A: Union[ndarray, Tensor]):
 
 def to_numpy(A: Union[ndarray, float, Tensor]):
     if isinstance(A, Tensor):
-        return A.detach().numpy()
+        return A.cpu().detach().numpy()
     elif isinstance(A, Qobj):
         return A.full()
     return A
@@ -393,7 +395,7 @@ def qobj_to_tensor(qobj, dtype=torch.complex128):
     elif qobj.dtype == Dia:
         coo_scipy = qobj.data_as('dia_matrix').tocoo()
     elif qobj.dtype == Dense:
-        return torch.as_tensor(qobj.full(), dtype=dtype)
+        return torch.as_tensor(qobj.full(), dtype=dtype).to(DEVICE)
     else:
         raise ValueError(f'The datatype {qobj.dtype} is not supported.')
 
@@ -406,7 +408,7 @@ def qobj_to_tensor(qobj, dtype=torch.complex128):
     values_tensor = torch.tensor(values, dtype=dtype)
     coo_tensor = torch.sparse_coo_tensor(
         indices_tensor, values_tensor, torch.Size(shape), dtype=dtype
-    )
+    ).to(DEVICE)
 
     return coo_tensor
 

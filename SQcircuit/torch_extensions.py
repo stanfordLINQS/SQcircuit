@@ -4,6 +4,7 @@ import numpy as np
 import qutip as qt
 import torch
 from torch import Tensor
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 
@@ -208,7 +209,7 @@ class EigenSolver(Function):
         ctx.out_shape = element_tensors.shape
 
         # Return concatenated Tensor
-        return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
+        return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1).to(DEVICE)
 
     @staticmethod
     @once_differentiable

@@ -12,6 +12,7 @@ import qutip as qt
 import scipy.special
 import scipy.sparse
 import torch
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 import mpmath
 from numpy import ndarray
@@ -511,7 +512,7 @@ class Circuit:
 
         try:
             for i, element in enumerate(self._parameters.keys()):
-                element.internal_value = new_params[i]
+                element.internal_value = new_params[i].to(DEVICE)
         except IndexError as e:
             raise ValueError('Shape of new parameters does not match.') from e
 
