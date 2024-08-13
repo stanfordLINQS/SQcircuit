@@ -58,7 +58,7 @@ def function_grad_test(
             Integer specifying the number of eigenvalues to use.
         delta:
             Perturbation dx to each parameter value in `circuit_numpy` to
-            compute linear gradient df/dx~(f(x+dx)-f(x)/dx).
+            compute linear gradient df/dx~(f(x+dx)-f(x))/dx.
     """
     set_optim_mode(False)
     circuit_numpy.diag(num_eigenvalues)
