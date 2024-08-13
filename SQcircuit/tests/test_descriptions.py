@@ -5,11 +5,15 @@ import os
 
 import SQcircuit as sq
 
+from SQcircuit.settings import set_optim_mode
+
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(TESTDIR, 'data', 'descriptions')
 
 
 def test_zeropi_description():
+
+    set_optim_mode(True)
 
     loop1 = sq.Loop(0.5)
 
@@ -74,6 +78,8 @@ def test_zeropi_description():
         ltx_data_b = f.read()
 
     assert (ltx == ltx_data_a) or (ltx == ltx_data_b)
+
+    set_optim_mode(False)
 
 
 def test_loop_description():

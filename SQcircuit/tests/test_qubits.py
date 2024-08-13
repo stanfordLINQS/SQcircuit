@@ -77,7 +77,7 @@ def test_zero_pi() -> None:
 
     zrpi = sq.Circuit(elements)
 
-    zrpi.set_trunc_nums([25, 1, 13])
+    zrpi.set_trunc_nums([25, 13])
 
     assert_qubit_freq_sweep(zrpi, target_freqs)
 
@@ -131,7 +131,7 @@ def test_fluxonium_with_added_node() -> None:
 
     cr = sq.Circuit(elements)
 
-    cr.set_trunc_nums([30, 1])
+    cr.set_trunc_nums([30])
 
     assert_qubit_freq_sweep(cr, target_freqs)
 
@@ -277,7 +277,7 @@ def test_loop_issue():
     ]
 
     circ_1 = sq.Circuit(circuit_dict)
-    circ_1.set_trunc_nums([20, 15, 1])
+    circ_1.set_trunc_nums([20, 15])
     efreqs, _ = circ_1.diag(2)
     q_freq_1 = efreqs[1] - efreqs[0]
 
@@ -307,7 +307,7 @@ def test_loop_issue():
 
     circ_2 = sq.Circuit(circuit_dict)
 
-    circ_2.set_trunc_nums([20, 15, 1])
+    circ_2.set_trunc_nums([20, 15])
     efreqs, _ = circ_2.diag(2)
     q_freq_2 = efreqs[1] - efreqs[0]
 

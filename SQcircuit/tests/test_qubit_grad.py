@@ -157,7 +157,7 @@ def _zeropi(
 
     cr = sq.Circuit(elements)
 
-    cr.set_trunc_nums([45, 1, 45])
+    cr.set_trunc_nums([45, 45])
 
     return cr
 

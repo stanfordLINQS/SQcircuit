@@ -340,6 +340,9 @@ class Circuit:
         # transform the Hamiltonian of the circuit
         self._transform_hamil()
 
+        if self._is_junction_in_circuit() and get_optim_mode() == False:
+            self._update_nmodes_remove_uncoupled_modes()
+
         # charge islands of the circuit
         self.charge_islands = {
             i: Charge() for i in range(self.n) if
@@ -831,6 +834,34 @@ class Circuit:
 
         return c_mat, l_mat, w_mat, b_mat
 
+    def _get_uncoupled_indices(self) -> list:
+        """Return the indices for the uncoupled mode as list"""
+
+        # number of Josephson Junctions
+        nJJs = self.wTrans.shape[0]
+
+        # boolean format of self.wTrans with elements equal to zero
+        bool_wTrans = self.wTrans == 0
+
+        return list(np.where(np.sum(bool_wTrans, axis=0) == nJJs)[0])
+
+    def _update_nmodes_remove_uncoupled_modes(self) -> None:
+        """Set the number of modes and remove uncoupled modes."""
+
+        unc_indices = self._get_uncoupled_indices()
+
+        self.n = self.n - len(unc_indices)
+
+        # remove the uncoupled modes
+        self.cInvTrans = np.delete(self.cInvTrans, unc_indices, axis=0)
+        self.cInvTrans = np.delete(self.cInvTrans, unc_indices, axis=1)
+
+        self.lTrans = np.delete(self.lTrans, unc_indices, axis=0)
+        self.lTrans = np.delete(self.lTrans, unc_indices, axis=1)
+
+        self.wTrans = np.delete(self.wTrans, unc_indices, axis=1)
+        self.omega = np.delete(self.omega, unc_indices)
+
     def _is_charge_mode(self, i: int) -> bool:
         """Check if the mode is a charge mode.
 
@@ -1165,6 +1196,9 @@ class Circuit:
         self.descrip_vars['har_dim'] = np.sum(self.omega != 0)
         self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
         self.descrip_vars['n_loops'] = len(self.loops)
+
+        print(f"self.n: {self.n}")
+        print(f"self.descrip_vars['har_dim']: {self.descrip_vars['har_dim']}")
 
         # Rounded matrices describing circuit layout
         self.descrip_vars['W'] = np.round(self.wTrans, 6)
