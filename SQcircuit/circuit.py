@@ -135,7 +135,7 @@ class CircuitEdge:
             loop.add_to_k_mat(self.w)
 
             if get_optim_mode():
-                self.circ._add_to_parameters(loop)
+                self.circ.add_to_parameters(loop)
 
     def process_edge_and_update_circ(
         self,
@@ -162,13 +162,13 @@ class CircuitEdge:
 
             self.edge_elems_by_type[el.type].append(el)
 
-            # Case of inductive element
+            # Case of the inductive element
             if hasattr(el, 'loops'):
 
                 self.edge_elems_by_type[Capacitor].append(el.cap)
 
                 if get_optim_mode():
-                    self.circ._add_to_parameters(el.cap)
+                    self.circ.add_to_parameters(el.cap)
                     if hasattr(el.cap, 'partial_mat'):
                         self.circ.partial_mats[el.cap] += (
                             el.cap.partial_mat(self.mat_rep)
@@ -195,7 +195,7 @@ class CircuitEdge:
 
             if get_optim_mode():
 
-                self.circ._add_to_parameters(el)
+                self.circ.add_to_parameters(el)
 
         self.processed = True
 
@@ -221,18 +221,18 @@ class CircuitEdge:
         self._check_if_edge_is_processed()
 
         return sum(list(map(
-            lambda l: 1/l.get_value(),
+            lambda ind: 1/ind.get_value(),
             self.edge_elems_by_type[Inductor]
         )))
 
-    def is_JJ_in_this_edge(self) -> bool:
+    def is_junc_in_this_edge(self) -> bool:
         """Check if the edge contains any JJ."""
 
         self._check_if_edge_is_processed()
 
         return len(self.edge_elems_by_type[Junction]) != 0
 
-    def is_JJ_without_ind(self) -> bool:
+    def is_junc_without_ind(self) -> bool:
         """Check if the edge only has JJ and no inductor."""
 
         self._check_if_edge_is_processed()
@@ -572,7 +572,7 @@ class Circuit:
         for val in self.parameters:
             val.grad=None
 
-    def _add_to_parameters(self, el: Element) -> None:
+    def add_to_parameters(self, el: Element) -> None:
         """Add an element which requires gradient computation to ``.parameters``.
         Either
             - ``requires_grad`` is ``True``; or
@@ -631,7 +631,9 @@ class Circuit:
             # Replace all loops in circuit with identically-valued copies
             # whose `.internal_value`s are cloned.
             new_loops: List[Loop] = []
-            replacement_dict: Dict[Union[Loop, Element], Union[Loop, Element]] = {}
+            replacement_dict: Dict[
+                Union[Loop, Element], Union[Loop, Element]
+            ] = {}
             for loop in self.loops:
                 new_loop = copy(loop)
                 new_loop.internal_value = loop.internal_value.detach().clone()
@@ -639,7 +641,7 @@ class Circuit:
                 replacement_dict[loop] = new_loop
             new_circuit.loops = new_loops
 
-            # Replace all elements in circuit with identically-valued copies
+            # Replace all elements in circuit with identically valued copies
             # whose `.internal_value`s are cloned.
             new_elements = defaultdict(list)
             for edge in self.elements:
@@ -650,8 +652,8 @@ class Circuit:
                     # with the new copies.
                     if hasattr(el, 'loops'):
                         new_loops = []
-                        for l in el.loops:
-                            new_loops.append(replacement_dict[l])
+                        for loop in el.loops:
+                            new_loops.append(replacement_dict[loop])
                         new_el.loops = new_loops
                     new_elements[edge].append(new_el)
 
@@ -781,7 +783,7 @@ class Circuit:
                 c_edge_mat
             )
 
-            if circ_edge.is_JJ_without_ind():
+            if circ_edge.is_junc_without_ind():
                 num_jun_without_ind += 1
 
             c_mat += sqf.array(circ_edge.get_eff_cap_value()) * sqf.array(
@@ -790,7 +792,7 @@ class Circuit:
             l_mat += sqf.array(circ_edge.get_eff_ind_value()) * sqf.array(
                 circ_edge.mat_rep)
 
-            if circ_edge.is_JJ_in_this_edge():
+            if circ_edge.is_junc_in_this_edge():
                 w_mat.append(circ_edge.w)
                 w_id += 1
 
@@ -820,9 +822,10 @@ class Circuit:
                 b_mat = np.around(b_mat, 5)
 
         except ValueError:
-            raise ValueError('The edge list does not specify a connected graph '
-                             'or all inductive loops of the circuit are not '
-                             'specified.') from None
+            raise ValueError(
+                'The edge list does not specify a connected graph or all '
+                'inductive loops of the circuit are not specified.'
+            ) from None
 
         self.num_jun_without_ind = num_jun_without_ind
 
@@ -845,25 +848,25 @@ class Circuit:
 
         return self.omega[i] == 0
 
-    def _apply_transformation(self, S: ndarray, R: ndarray) -> None:
+    def _apply_transformation(self, s_mat: ndarray, r_mat: ndarray) -> None:
         """Apply S and R transformation on transformed C, L, and W matrix.
 
         Parameters
         ----------
-            S:
+            s_mat:
                 Transformation matrices related to flux operators.
-            R:
+            r_mat:
                 Transformation matrices related to charge operators.
         """
 
-        self.cInvTrans = R.T @ self.cInvTrans @ R
-        self.lTrans = S.T @ self.lTrans @ S
+        self.cInvTrans = r_mat.T @ self.cInvTrans @ r_mat
+        self.lTrans = s_mat.T @ self.lTrans @ s_mat
 
         if len(self.W) != 0:
-            self.wTrans = self.wTrans @ S
+            self.wTrans = self.wTrans @ s_mat
 
-        self.S = self.S @ S
-        self.R = self.R @ R
+        self.S = self.S @ s_mat
+        self.R = self.R @ r_mat
 
     def _get_and_apply_transformation_1(self) -> Tuple[ndarray, ndarray]:
         """Get and apply the first transformation of the coordinates that
@@ -905,13 +908,13 @@ class Circuit:
         return s_1, r_1
 
     @staticmethod
-    def _independent_rows(A: ndarray) -> Tuple[List[int], List[ndarray]]:
+    def _independent_rows(a_mat: ndarray) -> Tuple[List[int], List[ndarray]]:
         """Use the Gram-Schmidt process to find the linear independent rows of 
         matrix A and return the list of row indices of A and list of the rows.
 
         Parameters
         ----------
-            A:
+            a_mat:
                 ``np.ndarray`` matrix that we try to find its independent
                 rows.
 
@@ -922,17 +925,20 @@ class Circuit:
         """
 
         # normalize the rows of matrix A
-        A_norm = A / (np.linalg.norm(A, axis=1).reshape(A.shape[0], 1) + 1e-9)
+        a_mat_norm = (
+            a_mat
+            / (np.linalg.norm(a_mat, axis=1).reshape(a_mat.shape[0], 1) + 1e-9)
+        )
 
         # Get the row of each A that has the highest norm in descending order.
         # This is important for the case of JJ capacitively coupled to JL.
-        sorted_index = np.argsort(-np.linalg.norm(A, axis=1))
+        sorted_index = np.argsort(-np.linalg.norm(a_mat, axis=1))
 
         basis = []
         idx_list = []
 
         for i in sorted_index:
-            a = A_norm[i, :]
+            a = a_mat_norm[i, :]
             a_prime = a - sum([np.dot(a, e) * e for e in basis])
             if (np.abs(a_prime) > ACC['Gram-Schmidt']).any():
                 idx_list.append(i)
@@ -940,14 +946,14 @@ class Circuit:
 
         return idx_list, basis
 
-    def _round_to_zero_one(self, W: ndarray) -> ndarray:
+    def _round_to_zero_one(self, w_mat: ndarray) -> ndarray:
         """Round the charge mode elements of W or transformed W matrix that
         are close to 0, -1, and 1 to the exact value of 0, -1, and 1
         respectively.
 
         Parameters
         ----------
-            W:
+            w_mat:
                 ``np.ndarray`` that can be either W or transformed W matrix.
 
         Returns
@@ -955,20 +961,20 @@ class Circuit:
             A rounded copy of ``W``.
         """
 
-        rounded_W = W.copy()
+        rounded_w_mat = w_mat.copy()
 
         if self.num_jun_without_ind == 0:
-            rounded_W[:, self.omega == 0] = 0
+            rounded_w_mat[:, self.omega == 0] = 0
 
-        charge_only_W = rounded_W[:, self.omega == 0]
+        charge_w_mat = rounded_w_mat[:, self.omega == 0]
 
-        charge_only_W[np.abs(charge_only_W) < ACC['Gram-Schmidt']] = 0
-        charge_only_W[np.abs(charge_only_W - 1) < ACC['Gram-Schmidt']] = 1
-        charge_only_W[np.abs(charge_only_W + 1) < ACC['Gram-Schmidt']] = -1
+        charge_w_mat[np.abs(charge_w_mat) < ACC['Gram-Schmidt']] = 0
+        charge_w_mat[np.abs(charge_w_mat - 1) < ACC['Gram-Schmidt']] = 1
+        charge_w_mat[np.abs(charge_w_mat + 1) < ACC['Gram-Schmidt']] = -1
 
-        rounded_W[:, self.omega == 0] = charge_only_W
+        rounded_w_mat[:, self.omega == 0] = charge_w_mat
 
-        return rounded_W
+        return rounded_w_mat
 
     def _is_gram_schmidt_successful(self, S) -> bool:
         """Check if the Gram_Schmidt process has the sufficient accuracy for
@@ -1166,8 +1172,9 @@ class Circuit:
         if self.loops:
             self.descrip_vars['B'] = np.round(self.B, 2)
         else:
-            self.descrip_vars['B'] = np.zeros((len(self.elem_keys[Junction])
-                          + len(self.elem_keys[Inductor]), 1))
+            self.descrip_vars['B'] = np.zeros((
+                len(self.elem_keys[Junction]) + len(self.elem_keys[Inductor]), 1
+            ))
 
         # Harmonic mode variables
         self.descrip_vars['omega'] = (
@@ -1178,7 +1185,7 @@ class Circuit:
         ]
 
         # Compute the element values in the correct units
-        ## Junction energies
+        # Junction energies
         self.descrip_vars['EJ'] = []
         for _, el, _, _ in self.elem_keys[Junction]:
             self.descrip_vars['EJ'].append(
@@ -1186,7 +1193,7 @@ class Circuit:
                 / (2 * np.pi * unt.get_unit_freq())
             )
 
-        ## Inductive energies
+        # Inductive energies
         self.descrip_vars['EL'] = []
         self.descrip_vars['EL_has_ext_flux'] = []
         for _, el, b_id in self.elem_keys[Inductor]:
@@ -1199,7 +1206,7 @@ class Circuit:
                 np.sum(np.abs(self.descrip_vars['B'][b_id, :])) != 0
             )
 
-        ## Charging energies
+        # Charging energies
         self.descrip_vars['EC'] = (
             (2 * unt.e) **2
             / (unt.hbar * 2 * np.pi * unt.get_unit_freq())
@@ -1298,8 +1305,10 @@ class Circuit:
         if not isinstance(nums, list):
             raise ValueError('The input must be be a python list')
         if len(nums) != self.n:
-            raise ValueError('The number of modes (length of the input) must be '
-                             'equal to the number of nodes.')
+            raise ValueError(
+                'The number of modes (length of the input) must be equal to the'
+                ' number of nodes.'
+            )
 
         self.m = self.n*[1]
 
@@ -1345,7 +1354,7 @@ class Circuit:
 
             self._LC_hamil = self._get_LC_hamil()
 
-    def set_charge_noise(self, mode: int, A: float) -> None:
+    def set_charge_noise(self, mode: int, amp: float) -> None:
         """Set the charge noise for each charge mode.
 
         Parameters
@@ -1353,15 +1362,15 @@ class Circuit:
             mode:
                 An integer that specifies the charge mode. To see which mode
                 is a charge mode, we can use ``description()`` method.
-            A:
-                The charge noise.
+            amp:
+                The charge noise amplitude.
         """
         if not isinstance(mode, int):
             raise ValueError('The mode number should be an integer.')
         if mode - 1 not in self.charge_islands:
             raise ValueError('The specified mode is not a charge mode.')
 
-        self.charge_islands[mode - 1].setNoise(A)
+        self.charge_islands[mode - 1].setNoise(amp)
 
     def _get_op_dims(self) -> List[list]:
         """Return the operator dims related to ``Qutip.Qobj``."""
