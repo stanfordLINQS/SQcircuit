@@ -3,8 +3,6 @@ test_elements contains the test cases for the SQcircuit elements
 functionalities.
 """
 
-from copy import copy
-
 import numpy as np
 import torch
 
@@ -20,8 +18,6 @@ from SQcircuit.tests.conftest import (
     create_flux_transmon_numpy,
     create_flux_transmon_torch,
     create_fluxonium_torch_flux,
-    create_JJL_numpy,
-    create_JJL_torch,
 )
 
 
@@ -35,12 +31,15 @@ all_units = unt.farad_list | unt.freq_list | unt.henry_list
 def max_ratio(a, b):
     return np.max([np.abs(b / a), np.abs(a / b)])
 
-def function_grad_test(circuit_numpy: Circuit,
-                       function_numpy,
-                       circuit_torch: Circuit,
-                       function_torch,
-                       num_eigenvalues=20,
-                       delta=1e-4):
+
+def function_grad_test(
+    circuit_numpy: Circuit,
+    function_numpy,
+    circuit_torch: Circuit,
+    function_torch,
+    num_eigenvalues=20,
+    delta=1e-4
+):
     """General test function for comparing linear approximation with 
     gradient computed with PyTorch backpropagation.
 
@@ -55,6 +54,8 @@ def function_grad_test(circuit_numpy: Circuit,
             Equivalent circuit to `circuit_numpy`, but constructed in PyTorch.
         function_torch:
             Equivalent function to `function_numpy`, but written in PyTorch.
+        num_eigenvalues:
+            Integer specifying the number of eigenvalues to use.
         delta:
             Perturbation dx to each parameter value in `circuit_numpy` to
             compute linear gradient df/dx~(f(x+dx)-f(x)/dx).
@@ -74,7 +75,9 @@ def function_grad_test(circuit_numpy: Circuit,
         for element_idx, element_numpy in enumerate(elements_by_edge):
             print(f'Checking gradient of {element_numpy} on edge {edge}.')
             set_optim_mode(False)
-            scale_factor = (1 / (2 * np.pi) if isinstance(element_numpy, Junction) else 1)
+            scale_factor = (
+                1 / (2 * np.pi) if isinstance(element_numpy, Junction) else 1
+            )
 
             # Calculate f(x+delta)
             elem_value = element_numpy.get_value(u=element_numpy.value_unit)
@@ -96,7 +99,13 @@ def function_grad_test(circuit_numpy: Circuit,
             val_minus = function_numpy(circuit_numpy)
 
             # Calculate gradient
-            grad_numpy = (val_plus - val_minus) / (2 * delta * elem_value * scale_factor * all_units[element_numpy.value_unit])
+            grad_numpy = (val_plus - val_minus) / (
+                2 
+                * delta 
+                * elem_value 
+                * scale_factor 
+                * all_units[element_numpy.value_unit]
+            )
 
             # Reset circuit
             element_numpy.set_value(
@@ -169,6 +178,7 @@ def function_grad_test(circuit_numpy: Circuit,
     set_optim_mode(True)
     circuit_torch.zero_grad()
 
+
 def first_eigendifference_numpy(circuit):
     return circuit._efreqs[1] - circuit._efreqs[0]
 
@@ -192,6 +202,7 @@ def test_omega_transmon():
                        first_eigendifference_torch)
     set_optim_mode(False)
 
+
 def test_omega_flux_transmon():
     """Verify gradient of first eigendifference omega_1-omega_0 
     in transmon circuit with linearized value."""
@@ -202,11 +213,14 @@ def test_omega_flux_transmon():
         circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
         circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
 
-        function_grad_test(circuit_numpy,
-                           first_eigendifference_numpy,
-                           circuit_torch,
-                           first_eigendifference_torch)
+        function_grad_test(
+            circuit_numpy,
+            first_eigendifference_numpy,
+            circuit_torch,
+            first_eigendifference_torch
+        )
     set_optim_mode(False)
+
 
 def test_omega_flux_fluxonium():
     """Verify gradient of first eigendifference omega_1-omega_0 
@@ -218,21 +232,24 @@ def test_omega_flux_fluxonium():
         circuit_numpy = create_fluxonium_numpy(trunc_num, flux_point)
         circuit_torch = create_fluxonium_torch_flux(trunc_num, flux_point)
 
-        function_grad_test(circuit_numpy,
-                           first_eigendifference_numpy,
-                           circuit_torch,
-                           first_eigendifference_torch)
+        function_grad_test(
+            circuit_numpy,
+            first_eigendifference_numpy,
+            circuit_torch,
+            first_eigendifference_torch
+        )
     set_optim_mode(False)
 
 
-def T1_inv(circuit):
+def t1_inv(circuit):
     return (
         circuit.dec_rate('capacitive', (0, 1)) 
         + circuit.dec_rate('inductive', (0, 1))
         + circuit.dec_rate('quasiparticle', (0, 1))
     )
 
-def test_T1_transmon():
+
+def test_t1_transmon():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and 
     quasiparticle noise in transmon circuit with linearized value."""
 
@@ -240,14 +257,17 @@ def test_T1_transmon():
     circuit_numpy = create_transmon_numpy(trunc_num)
     circuit_torch = create_transmon_torch(trunc_num)
 
-    function_grad_test(circuit_numpy,
-                       T1_inv,
-                       circuit_torch,
-                       T1_inv,
-                       delta=1e-6)
+    function_grad_test(
+        circuit_numpy,
+        t1_inv,
+        circuit_torch,
+        t1_inv,
+        delta=1e-6
+    )
     set_optim_mode(False)
 
-def test_T1_transmon_flux():
+
+def test_t1_transmon_flux():
     """Compare gradient of T1 decoherence due to capacitive, inductive, and 
     quasiparticle noise in transmon circuit with linearized value."""
 
@@ -257,11 +277,13 @@ def test_T1_transmon_flux():
         circuit_numpy = create_flux_transmon_numpy(trunc_num, flux_point)
         circuit_torch = create_flux_transmon_torch(trunc_num, flux_point)
 
-        function_grad_test(circuit_numpy,
-                        T1_inv,
-                        circuit_torch,
-                        T1_inv,
-                        delta=1e-6)
+        function_grad_test(
+            circuit_numpy,
+            t1_inv,
+            circuit_torch,
+            t1_inv,
+            delta=1e-6
+        )
     set_optim_mode(False)
 
 
@@ -286,7 +308,10 @@ def test_grad_multiple_steps():
     N = 10
     for idx in range(N):
         print(
-            f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
+            f"Parameter values (C [pF] and L [uH]): "
+            f"{C.get_value().detach().numpy(), L.get_value().detach().numpy()}"
+            f"\n"
+        )
         optimizer.zero_grad()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
@@ -311,7 +336,10 @@ def test_grad_multiple_steps():
     N = 10
     for idx in range(N):
         print(
-            f"Parameter values (C [pF] and L [uH]): {C.get_value().detach().numpy(), L.get_value().detach().numpy()}\n")
+            f"Parameter values (C [pF] and L [uH]): "
+            f"{C.get_value().detach().numpy(), L.get_value().detach().numpy()}"
+            f"\n"
+        )
         optimizer.zero_grad()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
@@ -330,13 +358,18 @@ def test_grad_fluxonium():
     circuit, note that this also involves linear inductor and loop."""
     set_optim_mode(True)
     loop1 = Loop()
-    C = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=True)
-    L = Inductor(0.46, 'GHz', Q=500e6, loops=[loop1], requires_grad=True)
-    JJ = Junction(10.2, 'GHz', cap=C, A=1e-7, x=3e-06, loops=[loop1], requires_grad=True)
+    cap = Capacitor(3.6, 'GHz', Q=1e6, requires_grad=True)
+    ind = Inductor(
+        0.46, 'GHz', Q=500e6, loops=[loop1], requires_grad=True
+    )
+    junc = Junction(
+        10.2, 'GHz', cap=cap,
+        A=1e-7, x=3e-06, loops=[loop1], requires_grad=True
+    )
 
     # define the circuit
     elements = {
-        (0, 1): [C, L, JJ]
+        (0, 1): [cap, ind, junc]
     }
     cr = Circuit(elements, flux_dist='all')
     cr.set_trunc_nums([trunc_num])
@@ -344,20 +377,22 @@ def test_grad_fluxonium():
     eigenvalues, _ = cr.diag(2)
     optimizer = torch.optim.SGD(cr.parameters, lr=1e-1)
     omega_target = 2e9 / 1e9  # convert to GHz (initial value: ~8.2 GHz)
-    N = 10
-    for idx in range(N):
-        C_value = C.get_value().detach().numpy()
-        L_value = L.get_value().detach().numpy()
-        JJ_value = JJ.get_value().detach().numpy()
-        print(f"Parameter values (C [F], L [H], JJ [Hz]): {C_value, L_value, JJ_value}\n")
+    for idx in range(10):
+        cap_value = cap.get_value().detach().numpy()
+        ind_value = ind.get_value().detach().numpy()
+        junc_value = junc.get_value().detach().numpy()
+        print(
+            f"Parameter values (C [F], L [H], JJ [Hz]): "
+            f"{cap_value, ind_value, junc_value}\n"
+        )
         optimizer.zero_grad()
         eigenvalues, _ = cr.diag(2)
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
         loss.backward()
-        C._value.grad *= (C._value) ** 2
-        L._value.grad *= (L._value) ** 2
-        JJ._value.grad *= (JJ._value) ** 2
+        cap._value.grad *= (cap._value) ** 2
+        ind._value.grad *= (ind._value) ** 2
+        junc._value.grad *= (junc._value) ** 2
         optimizer.step()
         cr.update()
     assert loss <= 5e-3
@@ -372,14 +407,16 @@ def test_spectrum_fluxonium():
     circuit_numpy = create_fluxonium_numpy(trunc_num)
     circuit_torch = create_fluxonium_torch(trunc_num)
 
-    function_grad_test(circuit_numpy,
-                       first_eigendifference_numpy,
-                       circuit_torch,
-                       first_eigendifference_torch)
+    function_grad_test(
+        circuit_numpy,
+        first_eigendifference_numpy,
+        circuit_torch,
+        first_eigendifference_torch
+    )
     set_optim_mode(False)
 
 
-def test_T1_fluxonium():
+def test_t1_fluxonium():
     """Verify gradient of fluxonium for T1 noise sources, including capacitive,
     inductive, and quasiparticle decoherence."""
 
@@ -387,46 +424,54 @@ def test_T1_fluxonium():
     circuit_numpy = create_fluxonium_numpy(trunc_num)
     circuit_torch = create_fluxonium_torch(trunc_num)
 
-    def T1_inv_capacitive(circuit):
+    def t1_inv_capacitive(circuit):
         return circuit.dec_rate('capacitive', (0, 1))
 
-    def T1_inv_inductive(circuit):
+    def t1_inv_inductive(circuit):
         return circuit.dec_rate('inductive', (0, 1))
 
-    def T1_inv_quasiparticle(circuit):
+    def t1_inv_quasiparticle(circuit):
         return circuit.dec_rate('quasiparticle', (0, 1))
 
     # Test capacitive T1 decoherence
     print('capacitive')
-    function_grad_test(circuit_numpy,
-                       T1_inv_capacitive,
-                       circuit_torch,
-                       T1_inv_capacitive,
-                       delta=1e-6)
+    function_grad_test(
+        circuit_numpy,
+        t1_inv_capacitive,
+        circuit_torch,
+        t1_inv_capacitive,
+        delta=1e-6
+    )
 
     # Test inductive T1 decoherence
     print('inductive')
-    function_grad_test(circuit_numpy,
-                       T1_inv_inductive,
-                       circuit_torch,
-                       T1_inv_inductive,
-                       delta=1e-6)
+    function_grad_test(
+        circuit_numpy,
+        t1_inv_inductive,
+        circuit_torch,
+        t1_inv_inductive,
+        delta=1e-6
+    )
 
     # Test quasiparticle T1 decoherence
     print('quasiparticle')
-    function_grad_test(circuit_numpy,
-                       T1_inv_quasiparticle,
-                       circuit_torch,
-                       T1_inv_quasiparticle,
-                       delta=1e-9)
+    function_grad_test(
+        circuit_numpy,
+        t1_inv_quasiparticle,
+        circuit_torch,
+        t1_inv_quasiparticle,
+        delta=1e-9
+    )
     set_optim_mode(False)
 
 
-def flux_sensitivity_function(sensitivity_function,
-                              flux_point=0.4,
-                              delta=0.1):
+def flux_sensitivity_function(
+    sensitivity_function,
+    flux_point=0.4,
+    delta=0.1
+):
     def flux_sensitivity(circuit):
-        Ss = []
+        sensitivities = []
 
         for loop_idx, _ in enumerate(circuit.loops):
             first_harmonic_values = []
@@ -437,15 +482,15 @@ def flux_sensitivity_function(sensitivity_function,
                 first_harmonic_values.append(first_harmonic)
             f_minus, f_0, f_plus = first_harmonic_values
 
-            S = ((f_0 - f_minus) / delta) ** 2 + ((f_plus - f_0) / delta) ** 2
+            sens = ((f_0 - f_minus) / delta)**2 + ((f_plus - f_0) / delta)**2
             # Normalize loss function
-            S /= sqf.abs(f_0 / delta) ** 2
-            Ss.append(S)
+            sens /= sqf.abs(f_0 / delta) ** 2
+            sensitivities.append(sens)
 
         if get_optim_mode():
-            return torch.mean(torch.stack(Ss))
+            return torch.mean(torch.stack(sensitivities))
         else:
-            return np.mean(Ss)
+            return np.mean(sensitivities)
 
     return flux_sensitivity
 
@@ -456,37 +501,41 @@ def test_flux_sensitivity():
     circuit_numpy = create_fluxonium_numpy(trunc_num)
     circuit_torch = create_fluxonium_torch(trunc_num)
 
-    function_grad_test(circuit_numpy,
-                       flux_sensitivity_function(first_eigendifference_numpy),
-                       circuit_torch,
-                       flux_sensitivity_function(first_eigendifference_torch),
-                       delta=1e-4)
+    function_grad_test(
+        circuit_numpy,
+        flux_sensitivity_function(first_eigendifference_numpy),
+        circuit_torch,
+        flux_sensitivity_function(first_eigendifference_torch),
+        delta=1e-4
+    )
 
 
 def test_anharmonicity():
     def anharmonicity_numpy(circuit):
-        B = circuit._efreqs[2] - circuit._efreqs[1]
-        A = circuit._efreqs[1] - circuit._efreqs[0]
-        return B / A
+        b = circuit._efreqs[2] - circuit._efreqs[1]
+        a = circuit._efreqs[1] - circuit._efreqs[0]
+        return b / a
 
     def anharmonicity_torch(circuit):
         eigenvals, _ = circuit.diag(eigen_count)
-        B = (eigenvals[2] - eigenvals[1]) * 2 * np.pi * 1e9
-        A = (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
-        return B / A
-
+        b = (eigenvals[2] - eigenvals[1]) * 2 * np.pi * 1e9
+        a = (eigenvals[1] - eigenvals[0]) * 2 * np.pi * 1e9
+        return b / a
 
     # Create circuits
     circuit_numpy = create_fluxonium_numpy(trunc_num)
     circuit_torch = create_fluxonium_torch(trunc_num)
 
-    function_grad_test(circuit_numpy,
-                       anharmonicity_numpy,
-                       circuit_torch,
-                       anharmonicity_torch,
-                       delta=1e-4)
+    function_grad_test(
+        circuit_numpy,
+        anharmonicity_numpy,
+        circuit_torch,
+        anharmonicity_torch,
+        delta=1e-4
+    )
 
-def test_T2_cc():
+
+def test_t2_cc():
     # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
     flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
@@ -507,8 +556,11 @@ def test_T2_cc():
             delta=1e-6
         )
 
-def test_T2_charge():
-    # charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+
+def test_t2_charge():
+    # charge_offsets = [
+    # 1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2
+    # ]
     charge_offsets = [1e-2, 0.3, 0.5 - 1e-2, 0.8]
 
     for ng in charge_offsets:
@@ -527,7 +579,8 @@ def test_T2_charge():
             delta=1e-6
         )
 
-def test_T2_flux():
+
+def test_t2_flux():
     # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
     flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
@@ -544,7 +597,8 @@ def test_T2_flux():
             delta=1e-6
         )
 
-def test_T2_cc_phi_ext():
+
+def test_t2_cc_phi_ext():
     # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
     flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
@@ -565,8 +619,11 @@ def test_T2_cc_phi_ext():
             delta=1e-6
         )
 
-def test_T2_charge_phi_ext():
-    # charge_offsets = [1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2]
+
+def test_t2_charge_phi_ext():
+    # charge_offsets = [
+    # 1e-2, 0.2, 0.4, 0.5 - 1e-2, 0.5 + 1e-2, 0.6, 0.8, 1-1e-2
+    # ]
     charge_offsets = [1e-2, 0.3, 0.5 - 1e-2, 0.8]
 
     phi_ext = 0.5-1e-3
@@ -586,7 +643,8 @@ def test_T2_charge_phi_ext():
             num_eigenvalues=50,
         )
 
-def test_T2_flux_phi_ext():
+
+def test_t2_flux_phi_ext():
     # flux_points = [1e-2, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
     flux_points = [1e-2, 0.25, 0.5 - 1e-2]
 
