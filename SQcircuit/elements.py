@@ -667,7 +667,7 @@ class Loop(CircuitComponent):
                 The external flux value
         """
         if get_optim_mode():
-            value = torch.as_tensor(value)
+            value = torch.as_tensor(value, dtype=torch.float64)
 
         self.internal_value = value * 2 * np.pi
 

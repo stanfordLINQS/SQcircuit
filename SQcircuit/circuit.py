@@ -1269,14 +1269,13 @@ class Circuit:
             return final_txt
 
     def loop_description(self, _test: bool = False) -> Optional[str]:
-        """
-        Print out the external flux distribution over inductive elements.
+        """Print out the external flux distribution over inductive elements.
 
         Parameters
         ----------
             _test:
                 if True, return the entire description as string
-                text. (use only for testing the function)
+                text (use only for testing the function).
 
         Returns
         ----------
@@ -1287,6 +1286,25 @@ class Circuit:
 
         if _test:
             return loop_description_txt
+        
+    def element_description(self, _test: bool = False) -> Optional[str]:
+        """Print out the element
+        
+        Parameters
+        ----------
+            _test:
+                if True, return the entire description as string
+                text (use only for testing the function).
+
+        Returns
+        ----------
+            The text of the external flux distribution, if ``_test`` is
+            ``True``.
+        """
+        el_description_txt = HamilTxt.print_el_description(self.elements)
+
+        if _test:
+            return el_description_txt
 
     def set_trunc_nums(self, nums: List[int]) -> None:
         """Set the truncation numbers for each mode.
@@ -1653,7 +1671,7 @@ class Circuit:
                 else:
                     if self.m[j] == 1:
                         exp.append(qt.qeye(1).to('csr'))
-                        exp.append(qt.qeye(1).to('csr'))
+                        exp_h.append(qt.qeye(1).to('csr'))
                     else:
                         exp.append(qt.displace(self.m[j], self.alpha(i, j)).to('csr'))
                         exp_h.append(qt.displace(self.m[j], self.alpha(i, j) / 2).to('csr'))
@@ -2520,7 +2538,7 @@ class Circuit:
 
         omega = sqf.abs(omega2 - omega1)
 
-        decay = sqf.zero(dtype=torch.float32, requires_grad=True)
+        decay = sqf.zero(dtype=torch.float64, requires_grad=True)
 
         # prevent the exponential overflow (exp(709) is the biggest number
         # that numpy can calculate)

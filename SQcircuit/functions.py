@@ -152,7 +152,8 @@ class K0eSolver(torch.autograd.Function):
         x, = ctx.saved_tensors
         x = to_numpy(x)
 
-        return grad_output * torch.tensor(kve(0, x) - kve(1, x))
+        return grad_output * torch.tensor(kve(0, x) - kve(1, x),
+                                          dtype=torch.float64)
 
 
 class LogK0Solver(torch.autograd.Function):
@@ -163,7 +164,7 @@ class LogK0Solver(torch.autograd.Function):
     def forward(ctx, x):
         ctx.save_for_backward(x)
         x = to_numpy(x)
-        return torch.as_tensor(LogK0Solver.log_kv(0, x))
+        return torch.as_tensor(LogK0Solver.log_kv(0, x), dtype=torch.float64)
 
     @staticmethod
     def log_kv(n, x):
@@ -176,7 +177,8 @@ class LogK0Solver(torch.autograd.Function):
         x = to_numpy(x)
         # K0'(z) = -K1(z); see Eq. 10.29.3 of DLMF
         return grad_output * -1 * torch.exp(
-            torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x))
+            torch.tensor(LogK0Solver.log_kv(1, x) - LogK0Solver.log_kv(0, x),
+                         dtype=torch.float64)
         )
 
 
@@ -253,8 +255,6 @@ def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
 def tensor_product_torch(*args: Tensor) -> Tensor:
     """ Pytorch function similar to ``qutip.tensor``."""
     op_list = args
-
-    out = torch.tensor([])
 
     for n, op in enumerate(op_list):
         if n == 0:
@@ -346,9 +346,9 @@ def sort(a):
 # Type-casting
 ###############################################################################
 
-def array(object):
+def array(object, dtype=torch.float64):
     if get_optim_mode():
-        return torch.as_tensor(object)
+        return torch.as_tensor(object, dtype=dtype)
     return np.array(object)
 
 
