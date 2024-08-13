@@ -122,12 +122,28 @@ def function_grad_test(
                 else:
                     grad_torch = grad_torch.detach().numpy()
 
-                # TODO: Modify Element class so that following gradient scaling is not necessary
-                if isinstance(element_numpy, Capacitor) and element_numpy.value_unit in unt.freq_list:
-                    grad_factor = -unt.e**2/2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                # TODO: Modify Element class so that following
+                #  gradient scaling is not necessary
+                if (
+                    isinstance(element_numpy, Capacitor)
+                    and element_numpy.value_unit in unt.freq_list
+                ):
+                    grad_factor = (
+                        -unt.e**2
+                        / 2
+                        / element_numpy._value**2
+                        / (2*np.pi*unt.hbar)
+                    )
                     grad_torch /= grad_factor
-                elif isinstance(element_numpy, Inductor) and element_numpy.value_unit in unt.freq_list:
-                    grad_factor = -(unt.Phi0/2/np.pi)**2/element_numpy._value**2/(2*np.pi*unt.hbar)
+                elif (
+                    isinstance(element_numpy, Inductor)
+                    and element_numpy.value_unit in unt.freq_list
+                ):
+                    grad_factor = (
+                        -(unt.Phi0/2/np.pi)**2
+                        / element_numpy._value**2
+                        / (2*np.pi*unt.hbar)
+                    )
                     grad_torch /= grad_factor
                 if isinstance(element_numpy, Junction):
                     grad_torch *= (2 * np.pi)
@@ -295,49 +311,21 @@ def test_grad_multiple_steps():
     cap_unit, ind_unit = 'pF', 'uH'
 
     # Test C differentiation
-    C = Capacitor(7.746, cap_unit, Q=1e6, requires_grad=True)
-    L = Inductor(81.67, ind_unit)
+    cap = Capacitor(7.746, cap_unit, Q=1e6, requires_grad=True)
+    ind = Inductor(81.67, ind_unit)
     elements = {
-        (0, 1): [C, L],
-    }
-    cr = Circuit(elements)
-    cr.set_trunc_nums([10, ])
-    eigenvalues, _ = cr.diag(2)
-    optimizer = torch.optim.SGD(cr.parameters, lr=1)
-    omega_target = 20e6 / (1e9)  # convert to GHz
-    N = 10
-    for idx in range(N):
-        print(
-            f"Parameter values (C [pF] and L [uH]): "
-            f"{C.get_value().detach().numpy(), L.get_value().detach().numpy()}"
-            f"\n"
-        )
-        optimizer.zero_grad()
-        eigenvalues, _ = cr.diag(2)
-        omega = (eigenvalues[1] - eigenvalues[0])
-        loss = (omega - omega_target) ** 2 / omega_target ** 2
-        loss.backward()
-        C._value.grad *= (C._value**2)
-        optimizer.step()
-        cr.update()
-    assert loss <= 6e-3
-
-    # Test L differentiation
-    C = Capacitor(7.746, cap_unit, Q=1e6)
-    L = Inductor(81.67, ind_unit, requires_grad=True)
-    elements = {
-        (0, 1): [C, L],
+        (0, 1): [cap, ind],
     }
     cr = Circuit(elements)
     cr.set_trunc_nums([10, ])
     eigenvalues, _ = cr.diag(2)
     optimizer = torch.optim.SGD(cr.parameters, lr=1)
     omega_target = 20e6 / 1e9  # convert to GHz
-    N = 10
-    for idx in range(N):
+    for idx in range(10):
         print(
             f"Parameter values (C [pF] and L [uH]): "
-            f"{C.get_value().detach().numpy(), L.get_value().detach().numpy()}"
+            f"{cap.get_value().detach().numpy()}, " 
+            f"{ind.get_value().detach().numpy()}"
             f"\n"
         )
         optimizer.zero_grad()
@@ -345,7 +333,35 @@ def test_grad_multiple_steps():
         omega = (eigenvalues[1] - eigenvalues[0])
         loss = (omega - omega_target) ** 2 / omega_target ** 2
         loss.backward()
-        L._value.grad *= (L._value) ** 2
+        cap._value.grad *= (cap._value**2)
+        optimizer.step()
+        cr.update()
+    assert loss <= 6e-3
+
+    # Test L differentiation
+    cap = Capacitor(7.746, cap_unit, Q=1e6)
+    ind = Inductor(81.67, ind_unit, requires_grad=True)
+    elements = {
+        (0, 1): [cap, ind],
+    }
+    cr = Circuit(elements)
+    cr.set_trunc_nums([10, ])
+    eigenvalues, _ = cr.diag(2)
+    optimizer = torch.optim.SGD(cr.parameters, lr=1)
+    omega_target = 20e6 / 1e9  # convert to GHz
+    for idx in range(10):
+        print(
+            f"Parameter values (C [pF] and L [uH]): "
+            f"{cap.get_value().detach().numpy()}, " 
+            f"{ind.get_value().detach().numpy()}"
+            f"\n"
+        )
+        optimizer.zero_grad()
+        eigenvalues, _ = cr.diag(2)
+        omega = (eigenvalues[1] - eigenvalues[0])
+        loss = (omega - omega_target) ** 2 / omega_target ** 2
+        loss.backward()
+        ind._value.grad *= (ind._value) ** 2
         optimizer.step()
         cr.update()
     assert loss <= 6e-3
@@ -663,17 +679,17 @@ def test_t2_flux_phi_ext():
 
 # def test_T2_flux_JJL():
 #     flux_points = [0.5] #, 0.25, 0.5 - 1e-2, 0.5 + 1e-2, 0.75]
-
+#
 #     for phi_ext in flux_points:
 #         print('phi_ext', phi_ext)
 #         circuit_numpy = create_JJL_numpy(45, phi_ext)
 #         circuit_torch = create_JJL_torch(45, phi_ext)
-
+#
 #         function_grad_test(
 #             circuit_numpy,
-#             first_eigendifference_numpy, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             first_eigendifference_numpy,
 #             circuit_torch,
-#             first_eigendifference_torch, #lambda cr: cr.dec_rate('flux', states=(0, 1)),
+#             first_eigendifference_torch,
 #             num_eigenvalues=50,
 #             delta=1e-4
 #         )
