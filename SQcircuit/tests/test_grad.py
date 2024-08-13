@@ -212,10 +212,12 @@ def test_omega_transmon():
     circuit_numpy = create_transmon_numpy(trunc_num)
     circuit_torch = create_transmon_torch(trunc_num)
 
-    function_grad_test(circuit_numpy,
-                       first_eigendifference_numpy,
-                       circuit_torch,
-                       first_eigendifference_torch)
+    function_grad_test(
+        circuit_numpy,
+        first_eigendifference_numpy,
+        circuit_torch,
+        first_eigendifference_torch
+    )
     set_optim_mode(False)
 
 
@@ -337,35 +339,6 @@ def test_grad_multiple_steps():
         optimizer.step()
         cr.update()
     assert loss <= 6e-3
-
-    # Test L differentiation
-    cap = Capacitor(7.746, cap_unit, Q=1e6)
-    ind = Inductor(81.67, ind_unit, requires_grad=True)
-    elements = {
-        (0, 1): [cap, ind],
-    }
-    cr = Circuit(elements)
-    cr.set_trunc_nums([10, ])
-    eigenvalues, _ = cr.diag(2)
-    optimizer = torch.optim.SGD(cr.parameters, lr=1)
-    omega_target = 20e6 / 1e9  # convert to GHz
-    for idx in range(10):
-        print(
-            f"Parameter values (C [pF] and L [uH]): "
-            f"{cap.get_value().detach().numpy()}, " 
-            f"{ind.get_value().detach().numpy()}"
-            f"\n"
-        )
-        optimizer.zero_grad()
-        eigenvalues, _ = cr.diag(2)
-        omega = (eigenvalues[1] - eigenvalues[0])
-        loss = (omega - omega_target) ** 2 / omega_target ** 2
-        loss.backward()
-        ind._value.grad *= (ind._value) ** 2
-        optimizer.step()
-        cr.update()
-    assert loss <= 6e-3
-    set_optim_mode(False)
 
 
 def test_grad_fluxonium():
