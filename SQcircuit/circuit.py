@@ -1197,9 +1197,6 @@ class Circuit:
         self.descrip_vars['charge_dim'] = np.sum(self.omega == 0)
         self.descrip_vars['n_loops'] = len(self.loops)
 
-        print(f"self.n: {self.n}")
-        print(f"self.descrip_vars['har_dim']: {self.descrip_vars['har_dim']}")
-
         # Rounded matrices describing circuit layout
         self.descrip_vars['W'] = np.round(self.wTrans, 6)
         self.descrip_vars['S'] = np.round(self.S, 3)
