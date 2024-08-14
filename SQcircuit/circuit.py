@@ -1917,16 +1917,37 @@ class Circuit:
         """
         hamil = self.hamiltonian()
 
-        # get the data out of qutip variable and use sparse SciPy 
-        # eigensolver which is faster.
-        try:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, which='SR'
-            )
-        except ArpackNoConvergence:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, ncv=10*n_eig, which='SR'
-            )
+
+
+        import time
+        t0 = time.time()
+
+        if torch.cuda.is_available():
+            csr = hamil.data_as('csr_matrix')
+            coo = csr.tocoo()
+
+            indices = torch.tensor([coo.row, coo.col], dtype=torch.int64)
+            values = torch.tensor(coo.data, dtype=torch.float32)
+            sparse_tensor = torch.sparse_coo_tensor(indices, values, coo.shape).to('cuda:0')
+
+            efreqs, evecs = torch.lobpcg(sparse_tensor, k=n_eig)
+            efreqs = efreqs.to('cpu')
+            evecs = evecs.to('cpu')
+        else:
+            # get the data out of qutip variable and use sparse SciPy
+            # eigensolver which is faster.
+            try:
+                efreqs, evecs = scipy.sparse.linalg.eigs(
+                    hamil.data_as('csr_matrix'), k=n_eig, which='SR'
+                )
+            except ArpackNoConvergence:
+                efreqs, evecs = scipy.sparse.linalg.eigs(
+                    hamil.data_as('csr_matrix'), k=n_eig, ncv=10*n_eig, which='SR'
+                )
+
+        t1 = time.time()
+        print(f"total: {t1 - t0}")
+
         # the output of eigen solver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
