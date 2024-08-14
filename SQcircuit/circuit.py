@@ -1922,22 +1922,40 @@ class Circuit:
 
         # Get the data out of QuTip and convert to sparse Scipy array
         scipy_matrix = hamil.data_as('csr_matrix')
-        # Now convert from scipy -> cupy for GPU processing
-        data = cp.array(scipy_matrix.data)
-        indices = cp.array(scipy_matrix.indices)
-        indptr = cp.array(scipy_matrix.indptr)
-        cupy_matrix = cusparse.csr_matrix((data, indices, indptr), shape=scipy_matrix.shape)
-        try:
-            efreqs, evecs = eigsh(
-                cupy_matrix, k=n_eig, which='SA'
-            )
-        except ArpackNoConvergence:
-            efreqs, evecs = eigsh(
-                cupy_matrix, k=n_eig, ncv=10*n_eig, which='SA'
-            )
-        # Extract diagonalized result back to numpy
-        efreqs = efreqs.get()
-        evecs = evecs.get()
+
+        import time
+        t0 = time.time()
+
+        if torch.cuda.is_available():
+            # Now convert from scipy -> cupy for GPU processing
+            data = cp.array(scipy_matrix.data)
+            indices = cp.array(scipy_matrix.indices)
+            indptr = cp.array(scipy_matrix.indptr)
+            cupy_matrix = cusparse.csr_matrix((data, indices, indptr), shape=scipy_matrix.shape)
+            try:
+                efreqs, evecs = eigsh(
+                    cupy_matrix, k=n_eig, which='SA'
+                )
+            except ArpackNoConvergence:
+                efreqs, evecs = eigsh(
+                    cupy_matrix, k=n_eig, ncv=10*n_eig, which='SA'
+                )
+
+            # Extract diagonalized result back to numpy
+            efreqs = efreqs.get()
+            evecs = evecs.get()
+        else:
+            try:
+                efreqs, evecs = scipy.sparse.linalg.eigs(
+                    hamil.data_as('csr_matrix'), k=n_eig, which='SR'
+                )
+            except ArpackNoConvergence:
+                efreqs, evecs = scipy.sparse.linalg.eigs(
+                    hamil.data_as('csr_matrix'), k=n_eig, ncv=10 * n_eig, which='SR'
+                )
+
+        t1 = time.time()
+        print(f"total: {t1 - t0}")
         # The output of the eigensolver is not sorted
         efreqs_sorted = np.sort(efreqs.real)
 
