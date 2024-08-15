@@ -4,6 +4,7 @@ import numpy as np
 import dill as pickle
 
 import SQcircuit as sq
+from SQcircuit.settings import set_optim_mode
 
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
 DATADIR = os.path.join(TESTDIR, 'data', 'phase_coord')
@@ -14,6 +15,9 @@ DATADIR = os.path.join(TESTDIR, 'data', 'phase_coord')
 
 
 def test_phase_coord_zeropi():
+
+    set_optim_mode(False)
+
     loop1 = sq.Loop()
 
     C = sq.Capacitor(0.15, 'GHz')
