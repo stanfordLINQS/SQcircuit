@@ -1,0 +1,8 @@
+\hat{H} = \omega_{1} \hat{a}^\dagger_{1} \hat{a}_{1} + \omega_{2} \hat{a}^\dagger_{2} \hat{a}_{2} + E_{C_{33}} \left(- n_{g_{3}} + \hat{n}_{3}\right)^{2} + E_{L_{1}} \left(- \hat{\varphi}_{1} - \hat{\varphi}_{2}\right) \left(- \varphi_{\text{ext}_{1}} / 2\right) + E_{L_{2}} \left(- \hat{\varphi}_{1} + \hat{\varphi}_{2}\right) \left(- \varphi_{\text{ext}_{1}} / 2\right) - E_{J_{1}} \cos{\left(- \hat{\varphi}_{3} + \hat{\varphi}_{1} \right)} - E_{J_{2}} \cos{\left(\hat{\varphi}_{1} + \hat{\varphi}_{3} \right)}
+------------------------------------------------------------
+\text{mode 1:}~~~~~~~~~~~\text{harmonic}~~~~~~~~~~~\hat{\varphi}_{1} = \varphi_{\text{zp}_{1}} \left(\hat{a}_{1} + \hat{a}^\dagger_{1}\right)~~~~~~~~~~~\omega_{1} / 2 \pi = 3.22489~~~~~~~~~~~\varphi_{\text{zp}_{1}} = 2.49
+\text{mode 2:}~~~~~~~~~~~\text{harmonic}~~~~~~~~~~~\hat{\varphi}_{2} = \varphi_{\text{zp}_{2}} \left(\hat{a}_{2} + \hat{a}^\dagger_{2}\right)~~~~~~~~~~~\omega_{2} / 2 \pi = 0.39497~~~~~~~~~~~\varphi_{\text{zp}_{2}} = 0.872
+\text{mode 3:}~~~~~~~~~~~\text{charge}~~~~~~~~~~~n_{g_{3}} = 0
+------------------------------------------------------------
+\text{parameters:}~~~~~~~~~~~E_{C_{33}} = 0.296~~~~~~~~~~~E_{L_{1}} = 0.13~~~~~~~~~~~E_{L_{2}} = 0.13~~~~~~~~~~~E_{J_{1}} = 5.0~~~~~~~~~~~E_{J_{2}} = 5.0
+\text{loops:}~~~~~~~~~~~\varphi_{\text{ext}_{1}} / 2 \pi = 0.5

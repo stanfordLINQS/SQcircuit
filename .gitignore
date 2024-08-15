@@ -16,8 +16,8 @@
 
 /SQcircuit/tests/.ipynb_checkpoints/
 /SQcircuit/tests/jupyter_test.ipynb
+/SQcircuit/tests/data/system_debuging.py
 
 /examples/.ipynb_checkpoints/
 
-
-
+.mypy_cache/
