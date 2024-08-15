@@ -34,16 +34,15 @@ def test_phase_coord_zeropi():
     zrpi = sq.Circuit(elements)
 
     loop1.set_flux(0.9)
-    zrpi.set_trunc_nums([35, 1, 6])
+    zrpi.set_trunc_nums([35, 11])
     _, _ = zrpi.diag(2)
 
     # create a range for each mode
     phi1 = np.pi * np.linspace(-1, 1, 100)
-    phi2 = 0
-    phi3 = np.pi * np.linspace(-0.5, 1.5, 100)
+    phi2 = np.pi * np.linspace(-0.5, 1.5, 100)
 
     # the ground state
-    state0 = zrpi.eig_phase_coord(0, grid=[phi1, phi2, phi3])
+    state0 = zrpi.eig_phase_coord(0, grid=[phi1, phi2])
 
     with open(os.path.join(DATADIR, 'zeropi_0'), 'rb') as inp:
         state0_data = pickle.load(inp)
@@ -51,7 +50,7 @@ def test_phase_coord_zeropi():
     assert np.allclose(np.abs(state0), np.abs(state0_data), rtol=1e-4, atol=1e-3)
 
     # the first excited state
-    state1 = zrpi.eig_phase_coord(1, grid=[phi1, phi2, phi3])
+    state1 = zrpi.eig_phase_coord(1, grid=[phi1, phi2])
 
     with open(os.path.join(DATADIR, 'zeropi_1'), 'rb') as inp:
         state1_data = pickle.load(inp)
