@@ -14,6 +14,9 @@
 [![license](https://img.shields.io/badge/license-New%20BSD-orange.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![codecov](https://codecov.io/gh/stanfordLINQS/SQcircuit/branch/main/graph/badge.svg?token=6FT6L9ZPHP)](https://codecov.io/gh/stanfordLINQS/SQcircuit)
 [![Conda-Forge Badge](https://anaconda.org/conda-forge/sqcircuit/badges/downloads.svg)](https://anaconda.org/conda-forge/sqcircuit)
+
+> ⚠️ **Note:** SQcircuit is compatible with QuTip versions 5.0 and above.
+
 ## What is SQcircuit?
 
 SQcircuit is an open-source Python package designed to facilitate the 
