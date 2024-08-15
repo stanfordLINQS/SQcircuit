@@ -65,14 +65,14 @@ def test_zeropi_description():
 
     with open(os.path.join(DATADIR, 'zero_pi_inductors_txt-a.txt'), 'r') as f:
         txt_data_a = f.read()
-    with open(os.path.join(DATADIR , 'zero_pi_inductors_txt-b.txt'), 'r') as f:
+    with open(os.path.join(DATADIR, 'zero_pi_inductors_txt-b.txt'), 'r') as f:
         txt_data_b = f.read()
 
     assert (txt == txt_data_a) or (txt == txt_data_b)
 
     ltx = cr.description(tp='ltx', _test=True)
 
-    with open(os.path.join(DATADIR , 'zero_pi_inductors_ltx-a.txt'), 'r') as f:
+    with open(os.path.join(DATADIR, 'zero_pi_inductors_ltx-a.txt'), 'r') as f:
         ltx_data_a = f.read()
     with open(os.path.join(DATADIR, 'zero_pi_inductors_ltx-b.txt'), 'r') as f:
         ltx_data_b = f.read()

@@ -154,7 +154,7 @@ def jj_hamil(elem_keys, coeff_dict, do_sum=True) -> Expr:
         B_sym = sm.Matrix(coeff_dict['B'][b_id, :])
         phi_exts = [phi_ext(i+1) for i in range(len(B_sym))]
 
-        terms.append(EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
+        terms.append(- EJ(i+1) * sm.cos(sm.Add(sm.nsimplify(W_sym.dot(phis)),
                                              sm.nsimplify(B_sym.dot(phi_exts))
                                              ))
         )
