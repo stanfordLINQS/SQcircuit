@@ -42,6 +42,10 @@ the library's functionalities are provided in the following paper:
 > Quantum 7, 1118,<br>
 > https://quantum-journal.org/papers/q-2023-09-25-1118/
 
+Additionally, the theory details, including examples of using auto-differentiation capabilities and gradient calculations, are thoroughly explained in the following paper:
+> Taha Rajabzadeh, Alex Boulton-McKeehan, Sam Bonkowsky, David I. Schuster, Amir H. Safavi-Naeini, _A General Framework for Gradient-Based Optimization of Superconducting Quantum Circuits using Qubit Discovery as a Case Study_, arXiv:2408.12704 (2024), https://arxiv.org/abs/2408.12704.
+
+
 ## Installation
 For Python above 3.6, SQcirucit can be simply installed via Conda:
 ```
