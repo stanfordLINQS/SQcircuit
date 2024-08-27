@@ -43,7 +43,9 @@ the library's functionalities are provided in the following paper:
 > https://quantum-journal.org/papers/q-2023-09-25-1118/
 
 Additionally, the theory details, including examples of using auto-differentiation capabilities and gradient calculations, are thoroughly explained in the following paper:
-> Taha Rajabzadeh, Alex Boulton-McKeehan, Sam Bonkowsky, David I. Schuster, Amir H. Safavi-Naeini, _A General Framework for Gradient-Based Optimization of Superconducting Quantum Circuits using Qubit Discovery as a Case Study_, arXiv:2408.12704 (2024), https://arxiv.org/abs/2408.12704.
+> Taha Rajabzadeh, Alex Boulton-McKeehan, Sam Bonkowsky, David I. Schuster, Amir H. Safavi-Naeini,<br>
+> A General Framework for Gradient-Based Optimization of Superconducting Quantum Circuits using Qubit Discovery as a Case Study, arXiv:2408.12704 (2024), <br>
+> https://arxiv.org/abs/2408.12704
 
 
 ## Installation
