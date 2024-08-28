@@ -159,7 +159,7 @@ class CircuitEdge:
         """
 
         for el in self.circ.elements[self.edge]:
-
+            el.add_circuit(self.circ)
             self.edge_elems_by_type[el.type].append(el)
 
             # Case of the inductive element
@@ -272,6 +272,10 @@ class Circuit:
             junction capacitors, If ``flux_dist`` is ``"junction"`` it is the
             other way around.
     """
+    def __new__(cls, *args, **kwargs):
+        self = super().__new__(cls)
+        self.initialized = False
+        return self
 
     def __init__(
         self,
@@ -394,10 +398,27 @@ class Circuit:
         # _memory_ops and _LC_hamil; see .__getstate__)
         self._toggle_fullcopy = True
 
+        self._is_dirty = False
+        self._running_update = False
+        self.initialized = True
+
+    def __getattribute__(self, attr: str) -> Any:
+        if attr not in ('update', '_is_dirty', '_running_update',
+                        'initialized', 'is_dirty', 'mark_dirty',
+                        'mark_clean'):
+            if self.initialized and not self._running_update:
+                if self._is_dirty:
+                    self.update()
+
+
+        return super().__getattribute__(attr)
+
     def update(self) -> None:
         """Update the circuit Hamiltonian to reflect in-place changes made to
         the scalar values used for circuit elements (ex. C, L, J...).
         """
+        logger.info('Running update!')
+        self._running_update = True
 
         self.elem_keys = {
             Inductor: [],
@@ -438,6 +459,9 @@ class Circuit:
 
         self._efreqs = sqf.array([])
         self._evecs = []
+
+        self.mark_clean()
+        self._running_update = False
 
     def __getstate__(self) -> dict[str, Any]:
         attrs = self.__dict__
@@ -513,8 +537,10 @@ class Circuit:
         raise_optim_error_if_needed()
 
         try:
+            self._running_update = True # TOOD: change name
             for i, element in enumerate(self._parameters.keys()):
                 element.internal_value = new_params[i]
+            self._running_update = False
         except IndexError as e:
             raise ValueError('Shape of new parameters does not match.') from e
 
@@ -602,6 +628,16 @@ class Circuit:
         if loop not in self.loops:
             loop.reset()
             self.loops.append(loop)
+
+    @property
+    def is_dirty(self) -> bool:
+        return self._is_dirty
+
+    def mark_clean(self) -> None:
+        self._is_dirty = False
+
+    def mark_dirty(self) -> None:
+        self._is_dirty = True
 
     def safecopy(self, save_eigs=False) -> Self:
         """Return a copy of ``self``, explicitly detaching and cloning all

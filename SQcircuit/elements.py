@@ -2,7 +2,8 @@
 capacitors, inductors, and josephson junctions.
 """
 
-from typing import List, Any, Optional, Union, Callable
+from typing import Any, Callable, List, Optional, Union, Set
+import weakref
 
 import torch
 import numpy as np
@@ -25,6 +26,8 @@ from SQcircuit.settings import get_optim_mode
 
 class CircuitComponent:
     """Base class for circuit components which users can optimize."""
+    def __init__(self):
+        self._circuits: Set[weakref.ReferenceType] = set()
 
     @property
     def internal_value(self) -> Union[float, Tensor]:
@@ -32,6 +35,7 @@ class CircuitComponent:
 
     @internal_value.setter
     def internal_value(self, v: Union[float, Tensor]) -> None:
+        self.mark_circuits_dirty()
         self._value = v
 
     @property
@@ -63,6 +67,18 @@ class CircuitComponent:
         raise_optim_error_if_needed()
 
         self.internal_value.grad = new_grad
+
+    @property
+    def circuits(self) -> Set['Circuit']:
+        return [c_ref() for c_ref in self._circuits]
+
+    def add_circuit(self, circuit) -> None:
+        if circuit not in self.circuits:
+            self._circuits.add(weakref.ref(circuit))
+
+    def mark_circuits_dirty(self) -> None:
+        for circuit in self.circuits:
+            circuit.mark_dirty()
 
 
 class Element(CircuitComponent):
@@ -142,6 +158,7 @@ class Capacitor(Element):
         error: float = 0,
         id_str: Optional[str] = None,
     ) -> None:
+        super().__init__()
 
         if unit is None:
             unit = unt.get_unit_cap()
@@ -288,6 +305,8 @@ class Inductor(Element):
             loops: Optional[List['Loop']] = None,
             id_str: Optional[str] = None
     ) -> None:
+        super().__init__()
+
 
         if unit is None:
             unit = unt.get_unit_ind()
@@ -473,6 +492,7 @@ class Junction(Element):
         loops: Optional[List['Loop']] = None,
         id_str: Optional[str] = None,
     ) -> None:
+        super().__init__()
 
         if unit is None:
             unit = unt.get_unit_JJ()
@@ -621,6 +641,7 @@ class Loop(CircuitComponent):
         requires_grad: bool = False,
         id_str: Optional[str] = None
     ) -> None:
+        super().__init__()
 
         self.set_flux(value)
 

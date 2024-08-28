@@ -3,11 +3,7 @@ Importing all the modules.
 """
 
 import logging
-sq_logger = logging.getLogger(__name__)
-
-def get_logger() -> logging.Logger:
-    """Get the SQcircuit-wide parent logger."""
-    return sq_logger
+import sys
 
 import qutip
 qutip.settings.core['auto_tidyup'] = True
@@ -25,3 +21,33 @@ from SQcircuit.settings import (
     get_engine,
 )
 from SQcircuit.torch_extensions import set_max_eigenvector_grad
+
+
+sq_logger = logging.getLogger(__name__)
+
+def get_logger() -> logging.Logger:
+    """Get the SQcircuit-wide parent logger."""
+    return sq_logger
+
+
+def log_to_stdout(level: int =logging.INFO) -> logging.Logger:
+    """Set the qubit_discovery package to log to stdout.
+
+    Parameters
+    ----------
+        level:
+            The minimum level of logs to log.
+
+    Returns
+    ----------
+        The logger.
+    """
+    handler = logging.StreamHandler(stream=sys.stdout)
+    formatter = logging.Formatter('[%(asctime)s] %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+
+    handler.setFormatter(formatter)
+    sq_logger.addHandler(handler)
+    sq_logger.setLevel(level)
+
+    return sq_logger
