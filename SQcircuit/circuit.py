@@ -7,24 +7,28 @@ import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, Type
 from typing_extensions import Self
 
+import mpmath
 import numpy as np
 import qutip as qt
 import scipy.special
 import scipy.sparse
 import torch
 
-import mpmath
 from numpy import ndarray
 from qutip import Qobj
 from scipy.linalg import sqrtm, block_diag
 from scipy.special import eval_hermitenorm, hyperu
-from scipy.sparse.linalg import ArpackNoConvergence
+
+
+if torch.cuda.is_available():
+    from cupyx.scipy.sparse import csr_matrix as csr_gpu
 
 from torch import Tensor
 
-import SQcircuit.units as unt
+import SQcircuit.cuda as cuda
 import SQcircuit.functions as sqf
 import SQcircuit.torch_extensions as sqtorch
+import SQcircuit.units as unt
 
 from SQcircuit.elements import (
     Element,
@@ -37,7 +41,7 @@ from SQcircuit.elements import (
 from SQcircuit.texts import HamilTxt, is_notebook
 from SQcircuit import symbolic
 from SQcircuit.noise import ENV
-from SQcircuit.settings import ACC, get_optim_mode
+from SQcircuit.settings import ACC, get_engine, get_optim_mode
 from SQcircuit.exceptions import raise_optim_error_if_needed, CircuitStateError
 
 logger = logging.getLogger(__name__)
@@ -271,13 +275,21 @@ class Circuit:
             assuming the capacitor of the inductors are much smaller than the
             junction capacitors, If ``flux_dist`` is ``"junction"`` it is the
             other way around.
+        device:
+            Optional device to create matrices on. If not provided, the GPU is
+            preferentially chosen if available.
     """
 
     def __init__(
         self,
         elements: Dict[Tuple[int, int], List[Element]],
         flux_dist: str = 'junctions',
+        device: Optional[str] = None
     ) -> None:
+
+        if device is None:
+            self.device = torch.device('cuda:0' if torch.cuda.is_available()
+                                       else 'cpu')
 
         #######################################################################
         # General circuit attributes
@@ -1939,8 +1951,8 @@ class Circuit:
         self,
         n_eig: int
     ) -> Tuple[Union[ndarray, Tensor], List[Union[Qobj, Tensor]]]:
-        """Perform the diagonalization of the circuit Hailtonian using SciPy's
-        sparse eigensolver. 
+        """Perform the diagonalization of the circuit Hamiltonian using
+        SciPy or CuPy sparse eigensolver, depending on the ``circuit.device``.
         
         Parameters
         ----------
@@ -1952,42 +1964,32 @@ class Circuit:
             efreqs:
                 Array of eigenfrequencies in frequency unit of SQcircuit.
             evecs:
-                List of eigenvectors in qutip.Qobj or Tensor format, depending
-                on numerical engine.
+                List of eigenvectors in qutip.Qobj format.
         """
         hamil = self.hamiltonian()
 
-        # get the data out of qutip variable and use sparse SciPy 
-        # eigensolver which is faster.
-        try:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, which='SR'
-            )
-        except ArpackNoConvergence:
-            efreqs, evecs = scipy.sparse.linalg.eigs(
-                hamil.data_as('csr_matrix'), k=n_eig, ncv=10*n_eig, which='SR'
-            )
-        # the output of eigen solver is not sorted
-        efreqs_sorted = np.sort(efreqs.real)
+        if self.device.type == 'cpu':
+            logger.info('Diagonalizing on the CPU.')
+            efreqs, evecs = sqf.diag_sparse_cpu(hamil, n_eig)
+        else: # TODO make sure device is correct
+            efreqs, evecs = cuda.diag_sparse_gpu(hamil, n_eig)
 
-        sort_arg = np.argsort(efreqs)
-        if isinstance(sort_arg, int):
-            sort_arg = [sort_arg]
+        # Convert eigenvecetors to QuTiP
+        evecs_qt = [Qobj(evecs[:,i], dims=self._get_state_dims())
+                    for i in range(evecs.shape[1])]
 
-        evecs_sorted = [
-            Qobj(evecs[:, ind], dims=self._get_state_dims())
-            for ind in sort_arg
-        ]
+        # sSore the eigenvalues and eigenvectors
+        self._efreqs = efreqs
+        self._evecs = evecs_qt
 
-        # store the eigenvalues and eigenvectors of the circuit Hamiltonian
-        self._efreqs = efreqs_sorted
-        self._evecs = evecs_sorted
-
-        return efreqs_sorted / (2 * np.pi * unt.get_unit_freq()), evecs_sorted
+        return efreqs / (2 * np.pi * unt.get_unit_freq()), evecs_qt
 
     def _diag_torch(self, n_eig: int) -> Tuple[Tensor, Tensor]:
-        """Diagonalize the circuit using a Torch Function, so that the 
+        """Diagonalize the circuit using a Torch ``Function``, so that the 
         calculated eigenvalues/vectors are backpropagatable.
+
+        Internally, uses SciPy or CuPy sparse eigensolver for the forwward 
+        pass, depending on ``circuit.device``.
 
         To restrict the number ``n`` of eigenvectors for which the gradient is
         computed, call ``set_max_eigenvector_grad(n)`` before
@@ -2006,8 +2008,8 @@ class Circuit:
                 Tensor of eigenvectors.
         """
         eigen_solution = sqtorch.eigencircuit(self, n_eig)
-        eigenvalues = torch.real(eigen_solution[:, 0])
-        eigenvectors = eigen_solution[:, 1:]
+        eigenvalues = eigen_solution[0, :].real # EigenSolver stacks, and casts to complex
+        eigenvectors = eigen_solution[1:, ]
         self._efreqs = eigenvalues
         self._evecs = eigenvectors
 
@@ -2144,7 +2146,7 @@ class Circuit:
         else:
             raise ValueError("The input must be either 'charge' or 'flux'.")
 
-    def hamiltonian(self) -> Qobj:
+    def hamiltonian(self) -> scipy.sparse.csr_matrix:
         """
         Returns the transformed hamiltonian of the circuit as
         ``qutip.Qobj`` format.
@@ -2154,14 +2156,14 @@ class Circuit:
             Circuit Hamiltonian.
         """
         if len(self.m) == 0:
-            raise CircuitStateError('Please specify the truncation number for each mode.')
+            raise CircuitStateError('Please specify the truncation number '
+                                    'for each mode.')
 
         Hind = self._get_inductive_hamil()
 
         H = Hind + self._LC_hamil
 
-        # TODO: if diagonal matrix, could diagonalize instantantly
-        return H.to('csr')
+        return H.to('csr').data_as('csr_matrix')
 
     def _tensor_to_modes(self, tensorIndex: int) -> List[int]:
         """
@@ -2705,10 +2707,11 @@ class Circuit:
         self,
         el: Union[Capacitor, Inductor, Junction, Loop],
         _b_id: Optional[int] = None,
-    ) -> Qobj:
+    ) -> Union[Qobj, Tensor]:
         """
         Compute the gradient of the Hamiltonian with respect to elements or
         loop as ``qutip.Qobj`` format.
+
         Parameters
         ----------
             el:
@@ -2772,6 +2775,9 @@ class Circuit:
                 elif el == el_JJ and _b_id == b_id:
                     partial_H += -self._memory_ops['cos'][(el, b_id)]
 
+        if get_optim_mode():
+            partial_H =  sqf.qobj_to_tensor(partial_H)
+            return partial_H.to(self.device)
         return partial_H
 
     def get_partial_omega(

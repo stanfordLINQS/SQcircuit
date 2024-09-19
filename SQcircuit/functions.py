@@ -1,6 +1,6 @@
 """Utility module with functions implemented in both PyTorch and numpy,
 depending on optimization mode."""
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 from numpy import ndarray
@@ -9,6 +9,10 @@ from qutip import Qobj
 from qutip.core.data import Dia, CSR, Dense
 import scipy
 from scipy.special import kve
+from scipy.sparse.linalg import (
+    ArpackNoConvergence,
+    eigs as eigs_cpu
+)
 import torch
 from torch import Tensor
 from torch.autograd.function import once_differentiable
@@ -239,30 +243,38 @@ def dag(state):
 
 
 def diag(v):
-    if get_optim_mode():
+    if isinstance(v, Tensor):
         return torch.diag(v)
 
     return np.diag(v)
 
 
-def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
-    if get_optim_mode():
-        return tensor_product_torch(*args)
+def diag_sparse_cpu(
+    A: scipy.sparse.csr_array,
+    n_eig: int
+) -> Tuple[np.ndarray]:
+    """Diagonalize a sparse, Hermitian matrix on the CPU.
+    """
+    try:
+        evals, evecs = eigs_cpu(
+            A, k=n_eig, which='SR'
+        )
+    except ArpackNoConvergence:
+        evals, evecs = eigs_cpu(
+            A, k=n_eig, ncv=10*n_eig, which='SR'
+        )
 
-    return qt.tensor(*args)
+    # eigenvalues are real
+    evals = np.sort(evals.real)
 
+    sort_arg = np.argsort(evals)
+    if isinstance(sort_arg, int):
+        sort_arg = [sort_arg]
 
-def tensor_product_torch(*args: Tensor) -> Tensor:
-    """ Pytorch function similar to ``qutip.tensor``."""
-    op_list = args
+    evals_sorted = evals[sort_arg]
+    evecs_sorted = evecs[:, sort_arg]
 
-    for n, op in enumerate(op_list):
-        if n == 0:
-            out = op
-        else:
-            out = torch.kron(out, op)
-
-    return out
+    return evals_sorted, evecs_sorted
 
 
 def mat_inv(A):
@@ -306,18 +318,6 @@ def operator_inner_product(state1, op, state2):
     return unwrap(B)
 
 
-def remove_zero_columns(matrix):
-    """Removes columns from the matrix that contain only zero values."""
-
-    # Identify columns that are not all zeros
-    non_zero_columns = np.any(matrix != 0, axis=0)
-
-    # Filter the matrix to keep only non-zero columns
-    filtered_matrix = matrix[:, non_zero_columns]
-
-    return filtered_matrix
-
-
 def remove_dependent_columns(matrix, tol=1e-5):
     """Remove dependent columns from the given matrix."""
 
@@ -336,10 +336,42 @@ def remove_dependent_columns(matrix, tol=1e-5):
     return reduced_matrix
 
 
+def remove_zero_columns(matrix):
+    """Removes columns from the matrix that contain only zero values."""
+
+    # Identify columns that are not all zeros
+    non_zero_columns = np.any(matrix != 0, axis=0)
+
+    # Filter the matrix to keep only non-zero columns
+    filtered_matrix = matrix[:, non_zero_columns]
+
+    return filtered_matrix
+
+
 def sort(a):
     if get_optim_mode():
         return torch.sort(a)
     return np.sort(a)
+
+
+def tensor_product(*args: Union[Qobj, Tensor]) -> Union[Qobj, Tensor]:
+    if get_optim_mode():
+        return tensor_product_torch(*args)
+
+    return qt.tensor(*args)
+
+
+def tensor_product_torch(*args: Tensor) -> Tensor:
+    """ Pytorch function similar to ``qutip.tensor``."""
+    op_list = args
+
+    for n, op in enumerate(op_list):
+        if n == 0:
+            out = op
+        else:
+            out = torch.kron(out, op)
+
+    return out
 
 
 ###############################################################################

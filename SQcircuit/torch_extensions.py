@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -11,9 +12,12 @@ from SQcircuit import Capacitor, Element, Inductor, Junction, Loop
 from SQcircuit.noise import ENV
 from SQcircuit import functions as sqf
 from SQcircuit import units as unt
+from SQcircuit import cuda as cuda
 
 SupportedGradElements = Union[Capacitor, Inductor, Junction, Loop]
 EIGENVECTOR_MAX_GRAD = None
+
+logger = logging.getLogger(__name__)
 
 ###############################################################################
 # Interfaces to custom Torch functions
@@ -40,7 +44,8 @@ def eigencircuit(circuit: 'Circuit', n_eig: int) -> Tensor:
         torch.stack(circuit.parameters) if circuit.parameters else torch.tensor([]),
         circuit,
         n_eig,
-        EIGENVECTOR_MAX_GRAD
+        EIGENVECTOR_MAX_GRAD,
+        torch.is_grad_enabled()
     )
 
 
@@ -145,7 +150,8 @@ class EigenSolver(Function):
         element_tensors: Tensor,
         circuit: 'Circuit',
         n_eig: int,
-        eigenvector_max_grad: Optional[int]
+        eigenvector_max_grad: Optional[int],
+        cache_for_backward: bool = True
     ) -> Tensor:
         """
         Forward pass for diagonalizing a `Circuit` object.
@@ -166,55 +172,53 @@ class EigenSolver(Function):
             eigenvector_max_grad:
                 The maximum number of eigenvectors to compute the gradient
                 for.
+            cache_for_backward:
+                Whether ``.backward`` will be called on the output.
 
         Returns
         ----------
             A concatenated tensor of the eigenvalues and eigenvectors.
         """
 
-        # Compute forward pass for eigenvalues/vectors
-        eigenvalues, eigenvectors = circuit._diag_np(n_eig=n_eig)
+        # Compute forward pass for eigenvalues/vectors, using GPU methods
+        # if available.
+        hamil = circuit.hamiltonian()
 
-        # Construct eigenvalues tensor
-        eigenvalues = [eigenvalue * 2 * np.pi * unt.get_unit_freq() for
-                       eigenvalue in eigenvalues]
-        eigenvalue_tensors = [torch.as_tensor(eigenvalue, dtype=torch.float64)
-                              for eigenvalue in eigenvalues]
-        eigenvalue_tensor = torch.stack(eigenvalue_tensors)
-        eigenvalue_tensor = torch.unsqueeze(eigenvalue_tensor, dim=-1)
-        # Construct eigenvectors tensor
-        eigenvector_tensors = [torch.as_tensor(eigenvector.full(),
-                                               dtype=torch.complex128)
-                                for eigenvector in eigenvectors]
-        eigenvector_tensor = torch.squeeze(torch.stack(eigenvector_tensors))
+        if circuit.device.type == 'cpu':
+            efreqs, evecs = sqf.diag_sparse_cpu(hamil, n_eig)
+            efreqs = torch.as_tensor(efreqs).unsqueeze(0)
+            evecs = torch.as_tensor(evecs)
+        else: # TODO: duplicates code in _diag_np
+            efreqs, evecs = cuda.diag_sparse_gpu(hamil, n_eig)
+            efreqs = torch.as_tensor(efreqs, device=circuit.device).unsqueeze(0)
+            evecs = torch.as_tensor(evecs, device=circuit.device)
 
-        # Setup context -- needs to be done after diagonalization so that
-        # memory ops are filled
-        eigenvalues = torch.real(eigenvalue_tensor)
-        ctx.circuit = circuit.safecopy()
+        if cache_for_backward:
+            logger.info('Caching partial Hamiltonians for backward.')
+            partial_Hs= torch.stack(
+                [evecs.conj().T @ circuit._get_partial_H(el) @ evecs
+                 for el in circuit.parameters_elems],
+                dim=0
+            )
 
-        # Save eigenvalues, vectors into `ctx` circuit
-        ctx.circuit._efreqs = eigenvalues
-        ctx.circuit._evecs = eigenvector_tensor
+            # Number of eigenvectors to use to compute backwards
+            if eigenvector_max_grad is None:
+                ctx.eigenvector_max_grad = n_eig
+            else:
+                ctx.eigenvector_max_grad = eigenvector_max_grad
 
-        # Number of eigenvalues
-        ctx.n_eig = n_eig
-        # Number of eigenvectors to use in computation of partial_omega
-        if eigenvector_max_grad is None:
-            ctx.eigenvector_max_grad = ctx.n_eig
+            ctx.save_for_backward(efreqs, evecs, partial_Hs)
+
         else:
-            ctx.eigenvector_max_grad = eigenvector_max_grad
-        # Output shape
-        ctx.out_shape = element_tensors.shape
+            logger.info('NOT saving for backward.')
 
         # Return concatenated Tensor
-        return torch.cat([eigenvalue_tensor, eigenvector_tensor], dim=-1)
+        return torch.cat([efreqs, evecs])
 
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output) -> Tuple[Tensor]:
-        """
-        Backward pass for diagonalizing a `Circuit` object.
+        """Backward pass for diagonalizing a ``Circuit`` object.
 
         Parameters
         ----------
@@ -229,42 +233,30 @@ class EigenSolver(Function):
             and ``None`` for all other inputs.         
         """
 
-        # Extract key parts of `ctx`
-        elements = ctx.circuit.parameters_elems
-        m, n, l = (
-            len(ctx.circuit.parameters), # number of parameters
-            ctx.n_eig,                   # number of eigenvalues
-            (grad_output.shape[1] - 1),  # length of eigenvectors
-        )
+        # For comments, define  m := number of parameters, n := number of
+        # eigenvalues/vector computed, N := dimension of circuit Hilbert space.
+        logger.info('Running backward for EigenSolver.')
+
+        eigenvalues, eigenvectors, partial_Hs = ctx.saved_tensors # 1 x n, N x n, m x n x n
+
         # Break grad_output into eigenvalue sub-tensor and eigenvector
         # sub-tensor
-        grad_output_eigenvalue = grad_output[:, 0]
-        grad_output_eigenvector = grad_output[:, 1:]
+        grad_output_eigenvalue = grad_output[0, :]
+        grad_output_eigenvector = grad_output[1:, :]
 
-        partial_omega = torch.zeros([m, n], dtype=torch.float64)
-        partial_eigenvec = torch.zeros([m, n, l], dtype=torch.complex128)
-        for el_idx in range(m):
-            for eigen_idx in range(n):
-                # Compute backward pass for eigenvalues
-                partial_omega[el_idx, eigen_idx] = ctx.circuit.get_partial_omega(
-                        el=elements[el_idx],
-                        m=eigen_idx,
-                        subtract_ground=False
-                )
-                # Compute backwards pass for only _some_ of the eigenvectors.
-                # This computation is expensive, and the gradient of higher
-                # eigenvectors is infrequently used. (However, _computing_)
-                # many eigenvectors is necessary for accurate first-order
-                # gradients of _any_ eigenvector.)
-                if eigen_idx < ctx.eigenvector_max_grad:
-                    partial_tensor = torch.squeeze(torch.as_tensor(
-                        ctx.circuit.get_partial_vec(
-                            el=elements[el_idx],
-                            m=eigen_idx
-                        ),
-                        dtype=torch.complex128
-                    ))
-                    partial_eigenvec[el_idx, eigen_idx, :] = partial_tensor
+        # Each row i is the derivative of the eigenvalues with respect to x_i
+        partial_omega = partial_Hs.diagonal(dim1=1, dim2=2) # m x n
+
+        partial_eigenvec = torch.zeros_like(partial_Hs) # m x n x n
+        eigenvalues_diff = eigenvalues - eigenvalues.T # n x n
+        # Invert without dividing by zero
+        eigenvalues_invert = torch.zeros_like(eigenvalues_diff)
+        mask = eigenvalues_diff != 0
+        eigenvalues_invert[mask] = 1/eigenvalues_diff[mask] # n x n
+
+        intermediate = eigenvalues_invert * partial_Hs[:,:,:ctx.eigenvector_max_grad] # m x n x n
+        partial_eigenvec = eigenvectors @ intermediate # m x N x n
+
         eigenvalue_grad = torch.sum(
             partial_omega * torch.conj(grad_output_eigenvalue), axis=-1)
         eigenvector_grad = torch.sum(
@@ -272,7 +264,8 @@ class EigenSolver(Function):
             axis=(-1, -2))
 
         return (
-            torch.real(eigenvalue_grad + eigenvector_grad).view(ctx.out_shape),
+            torch.real(eigenvalue_grad + eigenvector_grad),
+            None,
             None,
             None,
             None
