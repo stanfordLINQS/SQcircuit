@@ -1978,7 +1978,7 @@ class Circuit:
         evecs_qt = [Qobj(evecs[:,i], dims=self._get_state_dims())
                     for i in range(evecs.shape[1])]
 
-        # sSore the eigenvalues and eigenvectors
+        # Store the eigenvalues and eigenvectors
         self._efreqs = efreqs
         self._evecs = evecs_qt
 

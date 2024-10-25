@@ -68,7 +68,7 @@ def function_grad_test(
     circuit_torch.diag(num_eigenvalues)
     tensor_val = function_torch(circuit_torch)
     tensor_val.backward()
-    
+
     assert np.isclose(tensor_val.detach().numpy(), numpy_val)
 
     for edge, elements_by_edge in circuit_numpy.elements.items():
@@ -101,9 +101,9 @@ def function_grad_test(
             # Calculate gradient
             grad_numpy = (val_plus - val_minus) / (
                 2 
-                * delta 
-                * elem_value 
-                * scale_factor 
+                * delta
+                * elem_value
+                * scale_factor
                 * all_units[element_numpy.value_unit]
             )
 

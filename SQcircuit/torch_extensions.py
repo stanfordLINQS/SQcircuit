@@ -252,7 +252,7 @@ class EigenSolver(Function):
         # Invert without dividing by zero
         eigenvalues_invert = torch.zeros_like(eigenvalues_diff)
         mask = eigenvalues_diff != 0
-        eigenvalues_invert[mask] = 1/eigenvalues_diff[mask] # n x n
+        eigenvalues_invert[mask] = 1 / eigenvalues_diff[mask] # n x n
 
         intermediate = eigenvalues_invert * partial_Hs[:,:,:ctx.eigenvector_max_grad] # m x n x n
         partial_eigenvec = eigenvectors @ intermediate # m x N x n

@@ -265,9 +265,7 @@ def diag_sparse_cpu(
         )
 
     # eigenvalues are real
-    evals = np.sort(evals.real)
-
-    sort_arg = np.argsort(evals)
+    sort_arg = np.argsort(evals.real)
     if isinstance(sort_arg, int):
         sort_arg = [sort_arg]
 
