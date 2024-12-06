@@ -314,3 +314,38 @@ def test_loop_issue():
     assert np.isclose(q_freq_1, 0.010243745)
     assert np.isclose(q_freq_1, q_freq_2)
 
+def test_wcharge_small_row_issue():
+
+    # From Eli Weissler:
+    # This is an issue where small rows of w_charge are used
+    # to construct the second transformation, resulting in
+    # an endless loop of gram schmidt errors.
+    #  
+    # Physically this corresponds to isolated charge islands
+    # that get mistaken for charge islands that can be tunneled between,
+    # I believe due to numerical errors in the SVD that
+    # is used to create the first transformation.
+    #
+    # Currently the fix that I put in was to simply set to zero small rows
+    # of w_charge inside of _get_and_apply_transformation_2. If these rows
+    # were to not be included in the transformation, then they would be set
+    # to zero afterwards, as they would be under the gram-schmidt accuracy.
+
+    params = [7.412802517160099, 4.879383407260387, 0.6606415539313616,
+              0.2092362500235012, 0.7460265564772862]
+    circuit_dict = {}
+    ecj = 3
+    circuit_dict[(1, 3)] = [sq.Junction(params[0], "GHz", id_str="J13",
+                                        cap = sq.Capacitor(ecj, "GHz", id_str="JC13"))]
+    circuit_dict[(2, 3)] = [sq.Junction(params[1], "GHz", id_str="J23",
+                                        cap = sq.Capacitor(ecj, "GHz", id_str="JC23")),
+                            sq.Inductor(params[2], "GHz", id_str="L23")]
+    circuit_dict[(0, 1)] = [sq.Capacitor(20.74202294168071, "GHz", id_str="C01")]
+    circuit_dict[(0, 2)] = [sq.Capacitor(21.613559736082763, "GHz", id_str="C02")]
+    circuit_dict[(0, 3)] = [sq.Capacitor(23.132434123842902, "GHz", id_str="C03")]
+    cir = sq.Circuit(circuit_dict , flux_dist="junctions")
+
+    cir.set_trunc_nums([30, 15])
+    efreqs, _ = cir.diag(2)
+    q_freq = efreqs[1] - efreqs[0]
+    assert np.isclose(q_freq, 7.5089333704)

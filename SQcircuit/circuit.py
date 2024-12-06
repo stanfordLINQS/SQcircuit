@@ -1063,6 +1063,11 @@ class Circuit:
             # charge part of the reduced w_mat
             w_charge = w_reduced_transformed[:, self.omega == 0].copy()
 
+            # Set to zero any rows with very small magnitudes
+            row_norms = np.linalg.norm(w_charge, axis=1)
+            if row_norms.max() > 0:
+                w_charge[row_norms/row_norms.max() < ACC["Gram-Schmidt"]] = 0
+
             # get the charge basis part of the wTrans matrix
             # w_charge = self.wTrans[:, self.omega == 0].copy()
 
