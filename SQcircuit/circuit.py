@@ -1065,14 +1065,19 @@ class Circuit:
 
             # Set to zero any rows with very small magnitudes
             row_norms = np.linalg.norm(w_charge, axis=1)
+            max_norm = np.linalg.norm(w_reduced_transformed, axis=1).max()
             if row_norms.max() > 0:
-                w_charge[row_norms/row_norms.max() < ACC["Gram-Schmidt"]] = 0
+                w_charge[row_norms/max_norm < ACC["Gram-Schmidt"]] = 0
 
             # get the charge basis part of the wTrans matrix
             # w_charge = self.wTrans[:, self.omega == 0].copy()
-
-            # number of operators represented in charge bases
-            nq = w_charge.shape[1]
+            if np.sum(w_charge) == 0:
+                w_charge = np.array([])
+                nq = 0
+                self.wTrans[:, self.omega == 0] = 0
+            else:
+                # number of operators represented in charge bases
+                nq = w_charge.shape[1]
         else:
             nq = 0
             w_charge = np.array([])

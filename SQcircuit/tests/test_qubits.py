@@ -349,3 +349,31 @@ def test_wcharge_small_row_issue():
     efreqs, _ = cir.diag(2)
     q_freq = efreqs[1] - efreqs[0]
     assert np.isclose(q_freq, 7.5089333704)
+
+
+def test_all_wcharge_rows_are_numerically_negligible():
+    """A vanishing charge projection must not create a charge mode."""
+    loop = sq.Loop()
+    circuit_dict = {
+        (1, 2): [
+            sq.Junction(
+                28.83436338,
+                "GHz",
+                loops=[loop],
+                cap=sq.Capacitor(10, "GHz"),
+            )
+        ],
+        (1, 3): [sq.Inductor(0.10343485, "GHz", loops=[loop])],
+        (2, 3): [
+            sq.Capacitor(1.36334654, "GHz"),
+            sq.Inductor(0.05167763, "GHz", loops=[loop]),
+        ],
+        (0, 1): [sq.Capacitor(20, "GHz")],
+        (0, 2): [sq.Capacitor(20, "GHz")],
+        (0, 3): [sq.Capacitor(20, "GHz")],
+    }
+
+    cir = sq.Circuit(circuit_dict, flux_dist="junctions")
+
+    assert cir.n == 2
+    assert cir.wTrans.shape == (1, 2)
